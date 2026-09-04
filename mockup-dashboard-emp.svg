@@ -1,0 +1,79 @@
+<svg width="1440" height="1080" viewBox="0 0 1440 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1440" height="1080" fill="#121212"/>
+  
+  <!-- Sidebar -->
+  <rect width="280" height="1080" fill="#1E1E1E" stroke="#333333"/>
+  <text x="40" y="60" fill="white" font-family="Inter, sans-serif" font-size="24" font-weight="bold">ZYFT<tspan fill="#FFC629">.</tspan></text>
+  
+  <g transform="translate(0, 150)">
+    <text x="60" y="32" fill="#666666" font-family="Inter, sans-serif" font-size="16" font-weight="500">Dashboard</text>
+    <text x="60" y="82" fill="#666666" font-family="Inter, sans-serif" font-size="16" font-weight="500">Minhas Vagas</text>
+    
+    <rect y="105" width="280" height="50" fill="#FFC629" fill-opacity="0.1"/>
+    <rect width="4" height="50" y="105" fill="#FFC629"/>
+    <text x="60" y="137" fill="#FFC629" font-family="Inter, sans-serif" font-size="16" font-weight="bold">Banco de Talentos</text>
+    
+    <text x="60" y="187" fill="#666666" font-family="Inter, sans-serif" font-size="16" font-weight="500">Mensagens</text>
+    <text x="60" y="237" fill="#666666" font-family="Inter, sans-serif" font-size="16" font-weight="500">Configurações</text>
+  </g>
+  
+  <rect x="40" y="940" width="200" height="50" rx="12" fill="#FFC629"/>
+  <text x="140" y="972" fill="black" font-family="Inter, sans-serif" font-size="16" font-weight="bold" text-anchor="middle">+ Nova Vaga</text>
+
+  <!-- Main Content -->
+  <g transform="translate(320, 60)">
+    <text x="0" y="0" fill="white" font-family="Inter, sans-serif" font-size="32" font-weight="bold">Banco de Talentos</text>
+    <text x="0" y="35" fill="#666666" font-family="Inter, sans-serif" font-size="16">Encontre os melhores profissionais validados por nossa comunidade.</text>
+    
+    <!-- Filters -->
+    <g transform="translate(0, 80)">
+      <rect width="1080" height="80" rx="20" fill="#1E1E1E" stroke="#333333"/>
+      <text x="30" y="45" fill="#666666" font-family="Inter, sans-serif" font-size="14">BUSCAR POR HABILIDADE</text>
+      <text x="30" y="65" fill="white" font-family="Inter, sans-serif" font-size="16">React, Node.js, AWS</text>
+      
+      <line x1="300" y1="20" x2="300" y2="60" stroke="#333333"/>
+      
+      <text x="330" y="45" fill="#666666" font-family="Inter, sans-serif" font-size="14">MODALIDADE</text>
+      <text x="330" y="65" fill="white" font-family="Inter, sans-serif" font-size="16">Qualquer (PJ ou CLT)</text>
+      
+      <rect x="940" y="20" width="110" height="40" rx="8" fill="#FFC629"/>
+      <text x="995" y="45" fill="black" font-family="Inter, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Filtrar</text>
+    </g>
+    
+    <!-- Talent Grid -->
+    <g transform="translate(0, 200)">
+      <!-- Talent 1 -->
+      <rect width="530" height="250" rx="24" fill="#1E1E1E" stroke="#FFC629" stroke-width="1"/>
+      <circle cx="60" cy="60" r="30" fill="#333333"/>
+      <text x="110" y="55" fill="white" font-family="Inter, sans-serif" font-size="20" font-weight="bold">Marina Oliveira</text>
+      <text x="110" y="78" fill="#666666" font-family="Inter, sans-serif" font-size="14">Sênior Backend · 8 anos exp.</text>
+      <text x="490" y="55" fill="#FFC629" font-family="Inter, sans-serif" font-size="24" font-weight="bold" text-anchor="end">4.9 ★</text>
+      
+      <g transform="translate(30, 110)">
+        <rect width="80" height="26" rx="13" fill="#333333"/>
+        <text x="40" y="27" fill="white" font-family="Inter, sans-serif" font-size="12" text-anchor="middle">Node.js</text>
+        <rect x="90" width="80" height="26" rx="13" fill="#333333"/>
+        <text x="130" y="27" fill="white" font-family="Inter, sans-serif" font-size="12" text-anchor="middle">AWS</text>
+        <rect x="180" width="100" height="26" rx="13" fill="#333333"/>
+        <text x="230" y="27" fill="white" font-family="Inter, sans-serif" font-size="12" text-anchor="middle">Kubernetes</text>
+      </g>
+      
+      <text x="30" y="170" fill="#B3B3B3" font-family="Inter, sans-serif" font-size="14">"Especialista em arquitetura escalável e nuvem."</text>
+      
+      <rect x="30" y="190" width="470" height="40" rx="8" fill="#FFC629"/>
+      <text x="265" y="215" fill="black" font-family="Inter, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Ver Perfil Completo</text>
+      
+      <!-- Talent 2 -->
+      <g transform="translate(550, 0)">
+        <rect width="530" height="250" rx="24" fill="#1E1E1E" stroke="#333333"/>
+        <circle cx="60" cy="60" r="30" fill="#333333"/>
+        <text x="110" y="55" fill="white" font-family="Inter, sans-serif" font-size="20" font-weight="bold">Ricardo Silva</text>
+        <text x="110" y="78" fill="#666666" font-family="Inter, sans-serif" font-size="14">Pleno Fullstack · 4 anos exp.</text>
+        <text x="490" y="55" fill="#FFC629" font-family="Inter, sans-serif" font-size="24" font-weight="bold" text-anchor="end">4.7 ★</text>
+        
+        <rect x="30" y="190" width="470" height="40" rx="8" stroke="#333333" fill="none"/>
+        <text x="265" y="215" fill="white" font-family="Inter, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Ver Perfil Completo</text>
+      </g>
+    </g>
+  </g>
+</svg>

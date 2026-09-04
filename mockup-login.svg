@@ -1,0 +1,80 @@
+<svg width="1440" height="1080" viewBox="0 0 1440 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="login_grad" x1="0" y1="0" x2="720" y2="1080" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFC629"/>
+      <stop offset="1" stop-color="#FFA500"/>
+    </linearGradient>
+    <filter id="blur_bg">
+      <feGaussianBlur stdDeviation="40"/>
+    </filter>
+  </defs>
+
+  <rect width="1440" height="1080" fill="#121212"/>
+  
+  <!-- LEFT SIDE: BRANDING/MARKETING -->
+  <rect width="720" height="1080" fill="url(#login_grad)"/>
+  <circle cx="360" cy="540" r="400" fill="black" fill-opacity="0.05" filter="url(#blur_bg)"/>
+  
+  <g transform="translate(80, 80)">
+    <text fill="black" font-family="Inter, sans-serif" font-size="32" font-weight="900" letter-spacing="-0.05em">ZYFT<tspan fill="white">.</tspan></text>
+    
+    <g transform="translate(0, 300)">
+      <text fill="black" font-family="Inter, sans-serif" font-size="56" font-weight="900" letter-spacing="-0.03em" line-height="1.1">O próximo passo<br/>da sua carreira<br/>começa aqui.</text>
+      <text y="180" fill="black" fill-opacity="0.7" font-family="Inter, sans-serif" font-size="20" font-weight="500">Junte-se a milhares de profissionais que já<br/>descobriram o poder da comissão zero.</text>
+    </g>
+    
+    <!-- TESTIMONIAL MINI -->
+    <g transform="translate(0, 750)">
+      <rect width="400" height="120" rx="24" fill="black" fill-opacity="0.1"/>
+      <text x="20" y="40" fill="black" font-family="Inter, sans-serif" font-size="16" font-style="italic">"A melhor plataforma de TI que já usei."</text>
+      <text x="20" y="80" fill="black" font-family="Inter, sans-serif" font-size="14" font-weight="bold">— Marina Oliveira, Backend Lead</text>
+    </g>
+  </g>
+
+  <!-- RIGHT SIDE: LOGIN FORM -->
+  <g transform="translate(720, 0)">
+    <g transform="translate(120, 200)">
+      <text fill="white" font-family="Inter, sans-serif" font-size="40" font-weight="900" letter-spacing="-0.02em">Entrar no Zyft</text>
+      <text y="40" fill="#666666" font-family="Inter, sans-serif" font-size="16">Escolha sua modalidade de acesso</text>
+      
+      <!-- MODE SELECTOR -->
+      <g transform="translate(0, 80)">
+        <rect width="230" height="100" rx="20" fill="#1E1E1E" stroke="#FFC629" stroke-width="2"/>
+        <text x="115" y="55" fill="white" font-family="Inter, sans-serif" font-size="16" font-weight="bold" text-anchor="middle">Sou Profissional</text>
+        <circle cx="115" cy="75" r="4" fill="#FFC629"/>
+        
+        <rect x="250" width="230" height="100" rx="20" fill="#1E1E1E" stroke="#333333"/>
+        <text x="365" y="55" fill="#666666" font-family="Inter, sans-serif" font-size="16" font-weight="bold" text-anchor="middle">Sou Empresa</text>
+      </g>
+      
+      <!-- FORM FIELDS -->
+      <g transform="translate(0, 220)">
+        <text fill="#B3B3B3" font-family="Inter, sans-serif" font-size="14" font-weight="bold">E-MAIL</text>
+        <rect y="20" width="480" height="60" rx="16" fill="#1E1E1E" stroke="#333333"/>
+        <text x="20" y="57" fill="#444444" font-family="Inter, sans-serif" font-size="16">seu@email.com</text>
+        
+        <g transform="translate(0, 100)">
+          <text fill="#B3B3B3" font-family="Inter, sans-serif" font-size="14" font-weight="bold">SENHA</text>
+          <rect y="20" width="480" height="60" rx="16" fill="#1E1E1E" stroke="#333333"/>
+          <text x="20" y="57" fill="#444444" font-family="Inter, sans-serif" font-size="20">••••••••••••</text>
+          <text x="480" y="100" fill="#FFC629" font-family="Inter, sans-serif" font-size="14" font-weight="bold" text-anchor="end">Esqueceu a senha?</text>
+        </g>
+        
+        <rect y="250" width="480" height="64" rx="16" fill="#FFC629"/>
+        <text x="240" y="290" fill="black" font-family="Inter, sans-serif" font-size="18" font-weight="900" text-anchor="middle">ACESSAR CONTA</text>
+        
+        <text x="240" y="350" fill="#666666" font-family="Inter, sans-serif" font-size="14" text-anchor="middle">Ou continue com</text>
+        
+        <g transform="translate(0, 380)">
+          <rect width="230" height="56" rx="16" stroke="#333333" fill="none"/>
+          <text x="115" y="35" fill="white" font-family="Inter, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Google</text>
+          
+          <rect x="250" width="230" height="56" rx="16" stroke="#333333" fill="none"/>
+          <text x="365" y="35" fill="white" font-family="Inter, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">LinkedIn</text>
+        </g>
+      </g>
+      
+      <text x="240" y="650" fill="#666666" font-family="Inter, sans-serif" font-size="14" text-anchor="middle">Novo por aqui? <tspan fill="#FFC629" font-weight="bold">Criar conta gratuitamente</tspan></text>
+    </g>
+  </g>
+</svg>
