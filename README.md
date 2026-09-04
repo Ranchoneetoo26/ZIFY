@@ -26,25 +26,14 @@ O **Zyft** é um marketplace bilateral disruptivo que conecta profissionais de t
 
 ---
 
-## 📂 Ecossistema de Documentação
+## 📂 Documentação Principal
 
-Abaixo, os documentos que compõem a inteligência estratégica e técnica do projeto:
+Abaixo, os documentos fundamentais que compõem a inteligência estratégica e técnica do projeto:
 
-### **Estratégico & Negócio**
-- [dvp-e.md](file:///c:/Users/Antonio/Desktop/Zyft/dvp-e%20-%20Documento%20de%20Visão%20do%20Produto%20e%20Escopo.md): Visão do produto, personas e diferenciais competitivos.
-- [dvs.md](file:///c:/Users/Antonio/Desktop/Zyft/dvs%20-%20Documento%20de%20Viabilidade%20de%20Software.md): Viabilidade econômica, riscos e KPIs de sucesso.
-- [termos-de-uso.md](file:///c:/Users/Antonio/Desktop/Zyft/termos-de-uso-e-privacidade.md): Regras jurídicas, isenção de vínculo e privacidade (LGPD).
-
-### **Técnico & Arquitetura**
-- [drp.md](file:///c:/Users/Antonio/Desktop/Zyft/drp%20-%20Documento%20de%20Requisitos%20do%20Produto.md): Requisitos funcionais, planos de preços e limites.
-- [dat.md](file:///c:/Users/Antonio/Desktop/Zyft/dat%20-%20Documento%20de%20Arquitetura%20Técnica.md): Visão geral da arquitetura de sistemas.
-- [arquitetura-backend.md](file:///c:/Users/Antonio/Desktop/Zyft/arquitetura-backend.md): Detalhamento técnico do backend em C#.
-- [diagrama-db.md](file:///c:/Users/Antonio/Desktop/Zyft/diagrama-er-e-dicionario-de-dados.md): Modelagem de dados, triggers e índices.
-
-### **Design & UX**
-- [layout-e-fluxo.md](file:///c:/Users/Antonio/Desktop/Zyft/layout-e-fluxo-do-site.md): Mapeamento de telas, abas e navegação.
-- [figma-guide.md](file:///c:/Users/Antonio/Desktop/Zyft/figma-complete-guide.md): Guia de estilos e montagem visual.
-- [visual-master.svg](file:///c:/Users/Antonio/Desktop/Zyft/zyft-figma-master.svg): Mockup consolidado de alta fidelidade.
+- dvp-e.md Visão do produto, personas e diferenciais competitivos.
+- drp.md Requisitos funcionais, planos de preços e limites.
+- dat.md Visão geral da arquitetura de sistemas.
+- dvs.md Viabilidade econômica, riscos e KPIs de sucesso.
 
 ---
 
