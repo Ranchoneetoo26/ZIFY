@@ -6,7 +6,7 @@
 |---|---|
 | Projeto | Zyft |
 | Documento | Visão do Produto e Escopo (DVP-E) |
-| Versão | 11.0 |
+| Versão | 12.0 |
 | Status | Aprovado para desenvolvimento |
 | Documentos relacionados | DRP, DVS, DAT, Arquitetura de Backend |
 
@@ -28,6 +28,7 @@
 | 9.0 | **Alinhamento final de planos e acessos.** Revisão de preços (mensal, semestral e anual) e refinamento das regras de visibilidade cruzada (CLT acessa PJ sem candidatura) e exclusividade total de perfis. |
 | 10.0 | **Adição do plano Dual (PJ + CLT).** Introdução da trilha de assinatura unificada para profissionais que desejam atuar em ambas as modalidades simultaneamente. |
 | 11.0 | **Otimização de Limites e Competitividade.** Atualização do escopo com limites de candidaturas e oportunidades definidos para garantir vantagem competitiva no mercado de TI. |
+| 12.0 | **Reescrita das personas.** Substituídas as personas genéricas por personas detalhadas (Júlia Martins — iniciante PJ; Leonardo Almeida — experiente PJ/CLT) e adicionada a antipersona Roberto Ferreira (tradicional, presencial/CLT) |
 
 ## 1. Sumário executivo
 
@@ -64,14 +65,170 @@
 
 O Zyft atende duas **modalidades de contratação** dentro da mesma plataforma e mecânica — PJ (prestação de serviço, por projeto) e CLT (vínculo empregatício, via vaga). Modalidade é uma dimensão independente do modo de contratação (projeto aberto vs. banco de talentos, ver Pilar 5) — uma empresa pode buscar tanto um profissional PJ quanto contratar para uma vaga CLT usando o mesmo banco de talentos.
 
-**Persona 1 — Profissional PJ ("Dev Autônomo")**
-Desenvolvedor, designer, PO ou PM atuando via CNPJ/MEI, com experiência comprovável, buscando projetos recorrentes sem perder margem para comissão.
+### Persona 1 — Júlia Martins ("Iniciante em busca do primeiro projeto")
 
-**Persona 2 — Profissional CLT ("Em busca de efetivação")**
-Mesmo perfil de competência técnica, mas buscando vínculo empregatício formal (carteira assinada) em vez de contratos por projeto. Usa o mesmo cadastro, o mesmo banco de talentos e o mesmo sistema de avaliação — a diferença está no tipo de oportunidade que aceita, não em um fluxo separado.
+| Campo | Valor |
+|---|---|
+| Idade | 23 anos |
+| Profissão | Estudante de Engenharia de Software |
+| Escolaridade | Graduação em andamento — último ano |
+| Modelo de trabalho desejado | PJ / Home Office |
+| Perfil | Iniciante na carreira, entusiasta de tecnologia e orientada ao desenvolvimento profissional |
 
-**Persona 3 — Empresa contratante ("Squad sob Demanda")**
-Empresa de tecnologia ou produto digital, pequena a média, que precisa reforçar squads de forma ágil — seja com PJ para uma demanda pontual, seja abrindo uma vaga CLT para uma posição permanente — sem o custo e o tempo de um processo de recrutamento tradicional separado para cada modalidade.
+**Contexto**
+
+Júlia está no último ano de Engenharia de Software e busca oportunidades para iniciar sua carreira profissional antes mesmo de concluir a graduação. Apesar de possuir conhecimentos adquiridos na faculdade e em projetos pessoais, sente que precisa de mais experiências práticas para construir um portfólio competitivo.
+
+Para facilitar a prestação de serviços, Júlia abriu um MEI em seu nome e passou a procurar projetos que possam ser realizados de forma remota. Seu objetivo inicial é encontrar trabalhos compatíveis com seu nível de experiência, mas ela pretende evoluir gradualmente para projetos mais complexos e de maior responsabilidade.
+
+**Objetivos**
+- Conseguir seus primeiros projetos profissionais na área de tecnologia.
+- Construir um portfólio que demonstre suas habilidades técnicas.
+- Adquirir experiência prática trabalhando com clientes e projetos reais.
+- Encontrar oportunidades compatíveis com seu nível atual de conhecimento.
+- Desenvolver novas habilidades por meio dos projetos.
+- Aumentar gradualmente o valor e a complexidade dos projetos que consegue assumir.
+- No futuro, conquistar uma posição profissional mais consolidada na área de tecnologia.
+
+**Necessidades**
+- Ter acesso a projetos confiáveis e bem descritos.
+- Encontrar oportunidades adequadas para profissionais em início de carreira.
+- Conseguir apresentar seu portfólio e suas habilidades de forma clara.
+- Ter informações sobre requisitos, tecnologias utilizadas, prazo e remuneração antes de demonstrar interesse.
+- Sentir segurança ao negociar e iniciar um projeto com um novo cliente.
+
+**Dores e dificuldades**
+- Pouca experiência profissional comprovada.
+- Dificuldade para competir com profissionais mais experientes.
+- Receio de aceitar projetos acima de sua capacidade técnica.
+- Dificuldade para encontrar projetos que aceitem profissionais iniciantes.
+- Insegurança sobre a confiabilidade dos clientes e das propostas.
+- Poucas referências sobre quanto cobrar por determinados serviços.
+
+**Comportamento**
+
+Júlia pesquisa oportunidades principalmente pela internet e costuma comparar diferentes projetos antes de se candidatar. Dá bastante importância à descrição da vaga, às tecnologias envolvidas, ao nível de experiência exigido e às possibilidades de aprendizado.
+
+Ela tende a priorizar oportunidades que possam contribuir para seu portfólio, mesmo que inicialmente a remuneração não seja o principal fator de decisão.
+
+**Motivação principal**
+
+Construir experiência profissional e transformar seus conhecimentos acadêmicos em projetos reais.
+
+**Frase**
+
+> "Quero uma oportunidade que me ajude a entrar no mercado e, ao mesmo tempo, me permita mostrar do que sou capaz."
+
+### Persona 2 — Leonardo Almeida ("Experiente sem fronteiras geográficas")
+
+| Campo | Valor |
+|---|---|
+| Idade | 27 anos |
+| Profissão | Profissional de tecnologia |
+| Escolaridade | Pós-graduação concluída |
+| Experiência | Profissional com experiência no mercado de trabalho |
+| Modelo de trabalho desejado | PJ ou CLT |
+| Perfil | Experiente, pragmático e orientado a oportunidades |
+
+**Contexto**
+
+Leonardo já está inserido no mercado de trabalho há alguns anos e possui experiência em diferentes projetos e ambientes profissionais. Atualmente trabalha ou já trabalhou em posições no regime CLT, mas deseja ampliar suas possibilidades profissionais e aumentar sua exposição a novos projetos.
+
+Por morar em uma cidade pequena, Leonardo encontra uma quantidade limitada de oportunidades presenciais na sua área. Por isso, utiliza a internet como principal meio para descobrir novos projetos e vagas, especialmente oportunidades que permitam trabalho remoto.
+
+Embora esteja buscando inicialmente projetos no modelo PJ, Leonardo não descarta oportunidades CLT. Para ele, o mais importante é encontrar uma oportunidade profissional que seja compatível com sua experiência, remuneração e objetivos de carreira.
+
+**Objetivos**
+- Encontrar projetos profissionais que aproveitem sua experiência.
+- Ampliar sua rede de contatos e oportunidades profissionais.
+- Trabalhar em projetos mais desafiadores e relevantes para sua carreira.
+- Encontrar oportunidades remotas que não dependam da localização geográfica.
+- Avaliar propostas PJ e CLT de acordo com seus benefícios e condições.
+- Aumentar sua remuneração e melhorar suas condições profissionais.
+- Evitar períodos sem trabalho entre um projeto e outro.
+
+**Necessidades**
+- Ter acesso a uma quantidade maior de oportunidades.
+- Conseguir filtrar projetos por tecnologia, remuneração, modelo de contratação e nível de experiência.
+- Encontrar informações claras sobre as condições do projeto.
+- Conseguir avaliar rapidamente se uma oportunidade vale seu tempo.
+- Ter segurança de que a empresa ou contratante é confiável.
+- Poder apresentar sua experiência profissional e qualificações de maneira objetiva.
+
+**Dores e dificuldades**
+- Baixa quantidade de oportunidades na cidade onde mora.
+- Dependência de plataformas online para encontrar novas oportunidades.
+- Muitas vagas com informações incompletas ou pouco transparentes.
+- Processos seletivos demorados.
+- Projetos incompatíveis com seu nível de experiência.
+- Dificuldade para comparar propostas PJ e CLT.
+- Perda de tempo analisando oportunidades que não correspondem às suas expectativas.
+
+**Comportamento**
+
+Leonardo utiliza sites de emprego, plataformas profissionais e sites especializados em projetos para acompanhar novas oportunidades. Normalmente avalia primeiro remuneração, modelo de contratação, requisitos técnicos, localização e possibilidade de trabalho remoto.
+
+Por já possuir experiência profissional, tende a ser mais seletivo do que alguém em início de carreira. Ele não procura simplesmente "qualquer oportunidade", mas uma proposta que faça sentido considerando seu conhecimento e experiência.
+
+**Motivação principal**
+
+Ter acesso a oportunidades melhores sem ficar limitado às empresas e vagas disponíveis na sua cidade.
+
+**Frase**
+
+> "Se a oportunidade for boa, não importa se é PJ ou CLT. O importante é fazer sentido para minha carreira."
+
+### Antipersona — Roberto Ferreira ("Tradicional e presencial")
+
+| Campo | Valor |
+|---|---|
+| Idade | 35 anos |
+| Profissão | Gerente |
+| Experiência | Profissional experiente no mercado de trabalho |
+| Modelo de trabalho preferido | Presencial / CLT |
+| Perfil | Tradicional, resistente a novas formas de contratação e pouco adaptado à busca digital por oportunidades |
+
+**Contexto**
+
+Roberto possui uma carreira consolidada e está acostumado com os métodos tradicionais de contratação. Quando busca uma nova oportunidade, prefere estabelecer contato presencial com empresas e participar de processos seletivos convencionais.
+
+Ele não possui interesse em trabalhar como PJ, pois considera que esse modelo não oferece vantagens suficientes em comparação ao regime CLT. Também demonstra resistência em utilizar plataformas digitais para procurar oportunidades profissionais, pois acredita que uma conversa presencial permite conhecer melhor a empresa e avaliar a oportunidade.
+
+**Objetivos**
+- Encontrar uma vaga CLT estável.
+- Trabalhar presencialmente.
+- Ter contato direto com recrutadores e gestores.
+- Manter os benefícios e a segurança associados ao regime CLT.
+- Evitar processos de contratação realizados exclusivamente pela internet.
+
+**Necessidades**
+- Contato presencial com a empresa.
+- Processos seletivos tradicionais.
+- Informações claras sobre benefícios e estabilidade.
+- Relação direta com recrutadores e gestores.
+
+**Dores e dificuldades**
+- Baixa confiança em processos seletivos totalmente digitais.
+- Resistência ao modelo de contratação PJ.
+- Dificuldade de adaptação a plataformas digitais de recrutamento.
+- Pouco interesse em projetos temporários ou trabalhos independentes.
+- Pode abandonar uma oportunidade quando o processo exige muitas etapas online.
+
+**Comportamento**
+
+Roberto prefere procurar empresas presencialmente, entregar currículos e conversar diretamente com responsáveis pela contratação. Quando utiliza a internet, seu uso é limitado e geralmente serve apenas para obter informações sobre uma empresa antes de realizar um contato presencial.
+
+Ao encontrar uma oportunidade PJ, tende a descartá-la independentemente das demais características do projeto.
+
+**Por que Roberto é uma antipersona?**
+
+Roberto representa um usuário que não possui aderência ao modelo de contratação e ao comportamento que a plataforma pretende incentivar.
+
+A solução é direcionada principalmente a profissionais que estão dispostos a encontrar projetos e oportunidades pela internet, especialmente no modelo PJ ou remoto. Como Roberto prefere contratação CLT, presencial e processos tradicionais, investir em funcionalidades específicas para atender suas necessidades teria baixo valor para o público principal.
+
+**Frase**
+
+> "Prefiro conversar pessoalmente com a empresa e ser contratado pela CLT. Não vejo vantagem em procurar esse tipo de oportunidade pela internet."
 
 ## 6. Diferencial competitivo (posicionamento)
 
