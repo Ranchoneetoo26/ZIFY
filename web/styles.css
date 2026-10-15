@@ -59,6 +59,8 @@ code { font-family: var(--font-mono); background: var(--color-surface-2); paddin
 .muted { color: var(--color-text-muted); }
 .small { font-size: .875rem; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* O atributo hidden precisa vencer regras de display (ex.: .topbar { display: flex }). */
+[hidden] { display: none !important; }
 
 /* Foco visível em tudo (WCAG 2.4.7) */
 :focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; border-radius: 4px; }

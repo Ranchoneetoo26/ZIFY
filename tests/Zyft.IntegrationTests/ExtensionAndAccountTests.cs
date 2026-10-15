@@ -99,6 +99,18 @@ public class ExtensionAndAccountTests(ZyftApiFactory factory) : IClassFixture<Zy
         audit.Should().NotContain("cpf=123").And.NotContain("/candidatura/");
     }
 
+    [Theory]
+    [InlineData("localhost:5080", "localhost:5080")]
+    [InlineData("vagas.exemplo.com", "vagas.exemplo.com")]
+    [InlineData("http://localhost:5080/demo/candidatura.html", "localhost")]
+    public async Task Conclusao_aceita_o_host_que_o_painel_envia(string portal, string expected)
+    {
+        var (_, ext, _, _) = await Paired();
+        var created = await factory.Authed(ext).PostAsJsonAsync("/api/v1/forms/completions", new { portal, jobTitle = "Assistente", fieldsFilled = 3 });
+        created.StatusCode.Should().Be(HttpStatusCode.Created);
+        (await created.JsonAsync()).GetProperty("portal").GetString().Should().Be(expected);
+    }
+
     [Fact]
     public async Task Exportacao_traz_os_dados_e_exclusao_apaga_tudo()
     {

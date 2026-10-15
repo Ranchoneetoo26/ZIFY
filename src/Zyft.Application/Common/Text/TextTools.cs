@@ -64,7 +64,13 @@ public static partial class TextTools
         return cut.TrimEnd() + "…";
     }
 
-    /// <summary>Extrai só o host de uma URL (o que vai para auditoria — nunca caminho ou query).</summary>
+    /// <summary>Extrai só o host de uma URL http(s) (o que vai para auditoria — nunca caminho ou query).
+    /// Texto que não é URL http(s) (ex.: "localhost:5080", que o <see cref="Uri"/> leria como esquema "localhost")
+    /// devolve null.</summary>
     public static string? HostOf(string? url) =>
-        Uri.TryCreate(url, UriKind.Absolute, out var u) ? u.Host : null;
+        Uri.TryCreate(url, UriKind.Absolute, out var u)
+        && (u.Scheme == Uri.UriSchemeHttp || u.Scheme == Uri.UriSchemeHttps)
+        && !string.IsNullOrEmpty(u.Host)
+            ? u.Host
+            : null;
 }
