@@ -1,0 +1,51 @@
+# Zyft — API .NET 8 + PostgreSQL 16 (+ Ollama opcional).
+#   docker compose up --build              -> http://localhost:5080  (web, /swagger, /health)
+#   docker compose --profile ai up --build -> também sobe o Ollama (baixe o modelo: docker compose exec ollama ollama pull qwen2.5:7b)
+# Segredos: defina ZYFT_JWT_SECRET e ZYFT_ENCRYPTION_KEY num arquivo .env (os valores abaixo são só para demonstração local).
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: zyft
+      POSTGRES_USER: zyft
+      POSTGRES_PASSWORD: ${ZYFT_DB_PASSWORD:-zyft}
+    volumes:
+      - zyft-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zyft -d zyft"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: src/Zyft.Api/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "5080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Staging
+      Database__Provider: Postgres
+      ConnectionStrings__Default: Host=db;Port=5432;Database=zyft;Username=zyft;Password=${ZYFT_DB_PASSWORD:-zyft}
+      Jwt__Secret: ${ZYFT_JWT_SECRET:-troque-este-segredo-local-com-32+-caracteres}
+      Encryption__Key: ${ZYFT_ENCRYPTION_KEY:-bG9jYWwtZGVtby1rZXktMzItYnl0ZXMtdHJvcXVlISE=}
+      Llm__Provider: ${ZYFT_LLM_PROVIDER:-Ollama}
+      Llm__BaseUrl: ${ZYFT_LLM_URL:-http://host.docker.internal:11434}
+      Cors__AllowedOrigins__0: http://localhost:5080
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ai"]
+    volumes:
+      - zyft-ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+
+volumes:
+  zyft-pg:
+  zyft-ollama:
