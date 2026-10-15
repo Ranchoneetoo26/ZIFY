@@ -1,0 +1,69 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Meu currículo — Portal Demo</title><link rel="stylesheet" href="demo.css"></head>
+<body><header>Portal Demo de Vagas <small>Área do candidato › Meu currículo</small></header>
+<main><form id="cv" class="box" onsubmit="event.preventDefault();document.getElementById('msg').hidden=false;window.scrollTo(0,0)">
+<div id="msg" class="box ok" hidden>Currículo salvo com sucesso.</div>
+<h1>Cadastro de currículo</h1>
+<fieldset style="border:0;padding:0"><h2>Informações pessoais</h2>
+<div class="two">
+<label class="f">Nome completo *<input name="cand_nome" required></label>
+<label class="f">Data de nascimento<input name="cand_nasc" type="date"></label>
+<label class="f">E-mail *<input name="cand_email" type="email" required></label>
+<label class="f">Celular / WhatsApp<input name="cand_cel" placeholder="(44) 99999-9999"></label>
+<label class="f">Cidade<input name="cand_cidade"></label>
+<label class="f">UF<select name="cand_uf"><option value="">Selecione</option><option value="PR">Paraná</option><option value="SP">São Paulo</option><option value="SC">Santa Catarina</option><option value="RS">Rio Grande do Sul</option></select></label>
+<label class="f">Estado civil<select name="cand_ec"><option value="">Selecione</option><option>Solteiro(a)</option><option>Casado(a)</option></select></label>
+<label class="f">Possui CNH?<select name="cand_cnh"><option value="">Selecione</option><option>Não possuo</option><option>A</option><option>B</option><option>AB</option><option>C</option><option>D</option></select></label>
+</div></fieldset>
+<fieldset style="border:0;padding:0"><h2>Objetivo</h2>
+<div class="two">
+<label class="f">Cargo pretendido<input name="obj_cargo"></label>
+<label class="f">Pretensão salarial (R$)<input name="obj_sal"></label>
+</div></fieldset>
+<fieldset style="border:0;padding:0"><h2>Formação</h2>
+<div class="two">
+<label class="f">Escolaridade<select name="form[0][nivel]"><option value="">Selecione</option><option>Ensino médio</option><option>Técnico</option><option>Graduação</option><option>Pós-graduação</option></select></label>
+<label class="f">Instituição<input name="form[0][inst]"></label>
+<label class="f">Curso<input name="form[0][curso]"></label>
+<label class="f">Situação<select name="form[0][sit]"><option value="">Selecione</option><option>Concluído</option><option>Cursando</option><option>Trancado</option></select></label>
+</div></fieldset>
+<fieldset style="border:0;padding:0"><h2>Experiência profissional 1</h2>
+<div class="two">
+<label class="f">Empresa<input name="exp_1_empresa"></label>
+<label class="f">Cargo<input name="exp_1_cargo"></label>
+<label class="f">Data de início<input name="exp_1_inicio" type="month"></label>
+<label class="f">Data de saída<input name="exp_1_fim" type="month"></label>
+</div>
+<label class="f">Atribuições e realizações<textarea name="exp_1_atrib" rows="4"></textarea></label>
+</fieldset>
+<fieldset style="border:0;padding:0"><h2>Experiência profissional 2</h2>
+<div class="two">
+<label class="f">Empresa<input name="exp_2_empresa"></label>
+<label class="f">Cargo<input name="exp_2_cargo"></label>
+<label class="f">Data de início<input name="exp_2_inicio" type="month"></label>
+<label class="f">Data de saída<input name="exp_2_fim" type="month"></label>
+</div>
+<label class="f">Atribuições e realizações<textarea name="exp_2_atrib" rows="4"></textarea></label>
+</fieldset>
+<fieldset style="border:0;padding:0"><h2>Cursos complementares</h2>
+<div class="two">
+<label class="f">Nome do curso<input name="curso_nome"></label>
+<label class="f">Carga horária<input name="curso_horas"></label>
+</div></fieldset>
+<fieldset style="border:0;padding:0"><h2>Idiomas</h2>
+<div class="two">
+<label class="f">Idioma<input name="idioma_1"></label>
+<label class="f">Nível<select name="idioma_1_nivel"><option value="">Selecione</option><option>Básico</option><option>Intermediário</option><option>Avançado</option><option>Fluente</option></select></label>
+</div></fieldset>
+<h2>Habilidades e qualificações</h2>
+<textarea aria-label="Habilidades e qualificações" name="habilidades" rows="4" style="width:100%;font:14px system-ui;padding:7px"></textarea>
+<p><button type="submit">Salvar currículo</button></p>
+</form></main>
+<script>
+if (new URLSearchParams(location.search).has('preenchido')) {
+  const v = { cand_nome: 'Ana Paula Souza', cand_email: 'ana.souza@email.com', cand_cel: '(44) 99999-1111', cand_cidade: 'Maringá', cand_uf: 'PR',
+    obj_cargo: 'Assistente Administrativo', 'form[0][nivel]': 'Ensino médio', 'form[0][inst]': 'Colégio Estadual Central', exp_1_empresa: 'Empresa X Comércio',
+    exp_1_cargo: 'Auxiliar Administrativo', exp_1_inicio: '2021-02', exp_1_fim: '2023-06', exp_1_atrib: 'Atendimento ao cliente e organização de arquivos.' };
+  for (const [k, val] of Object.entries(v)) document.querySelector(`[name="${k}"]`).value = val;
+}
+</script>
+</body></html>

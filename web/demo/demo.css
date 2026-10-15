@@ -1,0 +1,14 @@
+body{margin:0;font:15px/1.5 Georgia,serif;background:#f3efe6;color:#2a2a2a}
+header{background:#7a2e1d;color:#fff;padding:14px 28px;font:600 18px system-ui}
+header small{font-weight:400;opacity:.8;margin-left:8px}
+main{max-width:820px;margin:24px auto;padding:0 16px}
+.box{background:#fff;border:1px solid #ddd3c2;padding:18px 22px;margin-bottom:18px;border-radius:4px}
+h1{font-size:24px} h2{font-size:18px;border-bottom:2px solid #7a2e1d;padding-bottom:4px}
+.f{display:flex;flex-direction:column;margin:10px 0;font:13px system-ui}
+.f input,.f select,.f textarea{font:14px system-ui;padding:7px;border:1px solid #bbb;border-radius:3px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+button,.btn{background:#7a2e1d;color:#fff;border:0;padding:10px 18px;font:600 14px system-ui;border-radius:3px;cursor:pointer;text-decoration:none;display:inline-block}
+.tag{display:inline-block;background:#efe5d3;padding:2px 8px;margin:2px;border-radius:3px;font:12px system-ui}
+.captcha{background:#f7f7f7;border:1px solid #ccc;padding:10px;font:13px system-ui}
+.ok{background:#e1f2e5;border-color:#7cb88a}
+@media(max-width:600px){.two{grid-template-columns:1fr}}

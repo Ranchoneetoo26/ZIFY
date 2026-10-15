@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Zyft — Candidatura Assistida",
+  "version": "0.3.0",
+  "description": "Lê o formulário do portal, mostra o de-para com o seu Perfil Mestre e preenche só o que você aprovou. Nunca envia por você.",
+  "permissions": ["sidePanel", "storage", "scripting", "activeTab", "tabs"],
+  "host_permissions": ["http://localhost/*", "http://127.0.0.1/*"],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "side_panel": { "default_path": "sidepanel.html" },
+  "action": { "default_title": "Abrir o Zyft" },
+  "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'none'" }
+}

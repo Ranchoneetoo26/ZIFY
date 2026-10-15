@@ -1,0 +1,40 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Candidatura: Assistente Administrativo — Portal Demo</title><link rel="stylesheet" href="demo.css"></head>
+<body><header>Portal Demo de Vagas <small>Candidatura › Assistente Administrativo · Distribuidora Horizonte Ltda.</small></header>
+<main><form class="box" id="apply">
+<div id="done" class="box ok" hidden><b>Candidatura enviada!</b> Boa sorte. (Nada foi enviado de verdade — página de teste.)</div>
+<h1>Candidatura — Assistente Administrativo</h1>
+<h2>Seus dados</h2>
+<div class="two">
+<div class="f"><span>Primeiro nome</span><input id="fn" aria-label="Primeiro nome"></div>
+<div class="f"><span>Sobrenome</span><input id="ln" aria-label="Sobrenome"></div>
+<div class="f"><input id="em" type="email" placeholder="Seu melhor e-mail"></div>
+<div class="f"><input id="ph" type="tel" placeholder="Telefone com DDD"></div>
+</div>
+<label class="f">Perfil do LinkedIn (URL)<input id="li" type="url"></label>
+<h2>Perguntas da empresa</h2>
+<label class="f">Qual sua pretensão salarial?<input id="q_sal"></label>
+<div class="f"><span>Você tem disponibilidade para viagens eventuais?</span>
+<label><input type="radio" name="q_viagem" value="s"> Sim</label><label><input type="radio" name="q_viagem" value="n"> Não</label></div>
+<label class="f">Modelo de trabalho preferido<select id="q_modelo"><option value="">Selecione</option><option>Presencial</option><option>Híbrido</option><option>Remoto</option></select></label>
+<label class="f">Por que você quer trabalhar na Distribuidora Horizonte? (máx. 500 caracteres)<textarea id="q_why" maxlength="500" rows="4"></textarea></label>
+<label class="f">Conte sobre uma situação em que você melhorou um processo no trabalho.<textarea id="q_proc" rows="4"></textarea></label>
+<label class="f">Você possui experiência com o ERP SAP Business One?<select id="q_sap"><option value="">Selecione</option><option>Sim</option><option>Não</option></select></label>
+<h2>Diversidade (opcional)</h2>
+<div class="two">
+<label class="f">Gênero<select id="d_gen"><option value="">Prefiro não informar</option><option>Feminino</option><option>Masculino</option><option>Outro</option></select></label>
+<label class="f">Você é pessoa com deficiência (PcD)?<select id="d_pcd"><option value="">Prefiro não informar</option><option>Sim</option><option>Não</option></select></label>
+</div>
+<label class="f">Currículo (PDF)<input id="cvfile" type="file" accept=".pdf"></label>
+<div class="captcha">Código de segurança: <b style="letter-spacing:4px">X7K2Q</b> <input id="captcha" aria-label="Digite o código de segurança" style="width:120px"></div>
+<label style="display:block;margin:12px 0;font:13px system-ui"><input type="checkbox" id="terms"> Declaro que li e aceito os termos de uso e a política de privacidade.</label>
+<button type="submit">Enviar candidatura</button>
+</form></main>
+<script>
+document.getElementById('apply').addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (document.getElementById('captcha').value.toUpperCase() !== 'X7K2Q') return alert('Código de segurança incorreto.');
+  if (!document.getElementById('terms').checked) return alert('Aceite os termos para continuar.');
+  document.getElementById('done').hidden = false; window.scrollTo(0, 0);
+});
+</script>
+</body></html>
