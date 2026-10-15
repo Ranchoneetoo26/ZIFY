@@ -477,7 +477,14 @@ Commits desta entrega na branch `feat/entregas-dotnet`:
 
 O histórico completo de commits está no repositório `github.com/Ranchoneetoo26/ZIFY`.
 
-**Participação por integrante:** [participação por integrante]
+**Participação por integrante:**
+
+| Integrante | Papel | Principais atividades |
+|---|---|---|
+| Antonio Randolfo Barroso Neto | Product Owner, Product Manager e gestão do projeto | Visão e escopo (DVP-E, DRP), reposicionamento para a Candidatura Assistida, backlog e priorização, pesquisa com usuários, acompanhamento das entregas |
+| Guilherme Brogio Macedo da Silva | Arquiteto de software e desenvolvedor full stack | Arquitetura (Clean Architecture, ADR-0017), modelagem do banco e contratos da API, protótipo original, integração entre API, web e extensão, IA local |
+| Lucas Ulisses Clementino De Arruda E Silva | Desenvolvedor frontend | Plataforma web (telas, navegação, formulários e validações), painel lateral da extensão, acessibilidade |
+| Matheus Guilherme Moreira De Oliveira | Desenvolvedor backend | API .NET (controllers, handlers CQRS, repositórios, EF Core), autenticação JWT, testes de unidade e integração |
 
 ## 14. Pendências e limitações conhecidas
 

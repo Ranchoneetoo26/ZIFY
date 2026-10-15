@@ -25,6 +25,16 @@ O PDF desta entrega é gerado a partir deste arquivo por `ferramentas/entregas/g
 
 Na Entrega 1, a equipe definiu o problema (repetir os mesmos dados em cada site, manter currículos inconsistentes, travar em perguntas abertas e não saber se o perfil atende à vaga), o público-alvo, a pesquisa com usuários, as personas por necessidade (PN1 a PN5), a jornada da Camila e a solução: o **Zyft — Candidatura Assistida (MVP 1)**, formado por uma plataforma web com o Perfil Profissional Mestre, uma extensão para Chrome e Edge que lê e preenche só o que a pessoa aprovou, e uma camada de IA que usa apenas fatos aprovados. As metáforas escolhidas foram o **Copiloto** (o Zyft aponta e sugere; a pessoa decide e envia) e o **Passaporte** (um perfil único, verdadeiro e aprovado, reaproveitado em cada portal).
 
+**Divisão de responsabilidades na equipe**
+
+| Integrante | Papel | Responsabilidade no projeto técnico |
+|---|---|---|
+| Antonio Randolfo Barroso Neto | Product Owner, Product Manager e gestão | Escopo do MVP 1, backlog, critérios de aceite, pesquisa com usuários e prazos das entregas |
+| Guilherme Brogio Macedo da Silva | Arquiteto de software e dev full stack | Arquitetura, ADRs, modelagem do banco, contratos da API, integração e IA |
+| Lucas Ulisses Clementino De Arruda E Silva | Dev frontend | Telas, navegação, formulários e validações da web e do painel da extensão |
+| Matheus Guilherme Moreira De Oliveira | Dev backend | Controllers, handlers CQRS, repositórios, EF Core, autenticação e testes da API |
+
+
 Esta entrega transforma essa solução em projeto técnico: arquitetura, banco de dados, contrato da API, autenticação e segurança, estrutura do frontend e o plano de testes da primeira versão. A API passa a ser construída em **C# com .NET 8**, por exigência da disciplina; a mudança está registrada no ADR-0017 (seção 1.7). As regras do produto não mudam:
 
 - **Nunca enviar:** a extensão nunca clica em enviar, salvar, aceitar ou avançar (RN-01).
