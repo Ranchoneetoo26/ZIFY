@@ -2,12 +2,14 @@
 
 | Campo | Valor |
 |---|---|
-| Status | Proposta |
+| Status | Substituída por [ADR-0017](0017-backend-em-csharp-dotnet-clean-architecture.md) |
 | Data | 12/10/2026 |
 | Decisores | Arquiteto de software |
 | Consultados | Dev backend, Dev frontend, Dev extensão, QA |
 | Requisitos | RF-02, RF-12, RNF-04, RNF-10 |
 | Relacionados | ADR-0002, ADR-0006, ADR-0008; substitui a stack do marketplace (`docs/arquivo/marketplace-v1/arquitetura-backend.md`) |
+
+> **Substituída.** A disciplina Tópicos Especiais em Engenharia de Software exige a API em C#/.NET. A decisão vigente está no [ADR-0017](0017-backend-em-csharp-dotnet-clean-architecture.md). Este registro é mantido como histórico.
 
 ## Contexto
 

@@ -52,7 +52,7 @@ Agentes de IA do time podem **redigir** ADRs e marcá-los como Proposta; a passa
 | [0000](0000-template.md) | Modelo de ADR | — |
 | [0001](0001-reposicionamento-mvp1-candidatura-assistida.md) | Reposicionamento: MVP 1 é a Candidatura Assistida | Aceita |
 | [0002](0002-extensao-de-navegador-mv3-com-painel-lateral.md) | Extensão de navegador Manifest V3 com painel lateral | Aceita |
-| [0003](0003-monorepo-typescript-node.md) | Monorepo TypeScript/Node.js para API, web e extensão | Proposta |
+| [0003](0003-monorepo-typescript-node.md) | Monorepo TypeScript/Node.js para API, web e extensão | Substituída por ADR-0017 |
 | [0004](0004-ia-aponta-chave-nunca-escreve-valor.md) | A IA aponta a chave do perfil, nunca escreve o valor | Aceita |
 | [0005](0005-modelo-open-weight-self-hosted-atras-de-porta-llm.md) | Modelo open-weight atrás de uma porta `LLMProvider` | Aceita (porta) / Proposta (hospedagem de produção) |
 | [0006](0006-regras-deterministicas-antes-da-ia.md) | Regras determinísticas antes da IA no de-para | Aceita |
@@ -66,6 +66,7 @@ Agentes de IA do time podem **redigir** ADRs e marcá-los como Proposta; a passa
 | [0014](0014-dados-sensiveis-segregados-e-criptografados.md) | Dados sensíveis segregados e criptografados | Aceita |
 | [0015](0015-observabilidade-sem-dados-pessoais.md) | Observabilidade sem dados pessoais | Proposta |
 | [0016](0016-time-de-agentes-de-ia-no-desenvolvimento.md) | Time de agentes de IA no desenvolvimento | Aceita |
+| [0017](0017-backend-em-csharp-dotnet-clean-architecture.md) | Backend em C#/.NET 8 com Clean Architecture | Proposta |
 
 ## Como criar um ADR
 
