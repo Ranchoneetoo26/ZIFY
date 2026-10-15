@@ -1,106 +1,101 @@
-# Runbook — rodar o protótipo localmente
+# Runbook — rodar o Zyft localmente
 
 ## Controle do documento
 
 | Campo | Valor |
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
-| Documento | Runbook local do protótipo |
-| Versão | 1.0 |
-| Status | Vigente até a migração do protótipo para o monorepo ([ADR-0003](../03-arquitetura/adr/0003-monorepo-typescript-node.md)) |
+| Documento | Runbook local (API .NET, plataforma web, extensão e portal demo) |
+| Versão | 2.0 |
+| Status | Vigente |
 | Dono | Dev backend |
-| Documentos relacionados | [Ambientes](ambientes.md), [DAT §2](../03-arquitetura/dat.md#2-estado-atual-protótipo) |
+| Documentos relacionados | [Ambientes](ambientes.md), [ADR-0017](../03-arquitetura/adr/0017-backend-em-csharp-dotnet-clean-architecture.md), [Entrega 3](../entregas/entrega-3-desenvolvimento-e-validacao.md) |
 
 **Histórico de revisões**
 
 | Versão | Data | Alteração |
 |---|---|---|
-| 1.0 | 12/10/2026 | Passo a passo do protótipo de 05–06/10/2026 e problemas comuns. |
+| 1.0 | 12/10/2026 | Passo a passo do protótipo Node de 05–06/10/2026 e problemas comuns. |
+| 2.0 | 15/10/2026 | Reescrito para a API .NET 8 do repositório (SQLite, Docker, testes, extensão). O protótipo Node passou a ser só referência. |
 
-> **Atenção:** o código do protótipo (`server/` e `extension/`) ainda está **fora deste repositório**, na cópia local de quem o desenvolveu. Ele entra no monorepo na tarefa F0.6 do [roadmap](../01-produto/roadmap.md#3-fase-0--descoberta-e-redução-de-risco). Até lá, os caminhos abaixo são relativos à pasta do protótipo.
+> O protótipo Node (`server/`, porta 4317) **não é mais a forma de rodar o Zyft**. A lógica dele foi portada para a API .NET ([ADR-0017](../03-arquitetura/adr/0017-backend-em-csharp-dotnet-clean-architecture.md)) e ele fica só como referência histórica.
 
 ## 1. Pré-requisitos
 
 | Item | Versão | Observação |
 |---|---|---|
-| Node.js | 22 ou superior | O servidor usa `import.meta.dirname` |
-| Ollama | Atual | IA local |
-| Modelo `qwen2.5:7b` | ~4,7 GB | Roda bem numa GPU de 12 GB; em CPU funciona, mas devagar |
+| .NET SDK | 8.0.400 ou mais novo da linha 8 | `global.json`. Se instalado na pasta do usuário: `export PATH=$HOME/.dotnet:$PATH DOTNET_ROOT=$HOME/.dotnet` |
+| Docker e Docker Compose | Atual | Só para rodar com PostgreSQL |
 | Chrome ou Edge | Atual | Para carregar a extensão |
+| Ollama + `qwen2.5:7b` | Atual (~4,7 GB) | Opcional. Sem IA, as regras continuam funcionando. |
 
-## 2. Subir a IA local
-
-```bash
-ollama pull qwen2.5:7b
-ollama list          # confirma que o modelo está disponível
-```
-
-Se o Ollama não estiver rodando como serviço, inicie com `ollama serve`.
-
-## 3. Subir a plataforma e a API
+## 2. Rodar com SQLite (desenvolvimento)
 
 ```bash
-cd server
-npm install
-npm start            # ou: npm run dev (reinicia ao salvar)
+dotnet build
+dotnet run --project src/Zyft.Api        # http://localhost:5080
 ```
 
-O terminal mostra:
+| Endereço | O que é |
+|---|---|
+| `http://localhost:5080/` | Plataforma web |
+| `http://localhost:5080/swagger` | Swagger (botão **Authorize**: cole só o `accessToken`) |
+| `http://localhost:5080/demo/` | Portal de vagas de demonstração |
+| `http://localhost:5080/health` | Saúde do banco e da IA |
 
-- `Plataforma:  http://localhost:4317`
-- `Demo portal: http://localhost:4317/demo/`
-- `Token da extensão: <token>`
-- o estado da IA local (pronta, modelo não baixado ou Ollama offline).
+- O banco fica em `src/Zyft.Api/zyft-dev.db`, criado na primeira subida.
+- Usuário de demonstração (só em Development): **demo@zyft.local / Zyft@2026**, com perfil fictício.
+- IA: se o Ollama responder em `http://localhost:11434` com `qwen2.5:7b`, ele é usado. Para desligar: `Llm__Provider=None dotnet run --project src/Zyft.Api`.
 
-Variáveis opcionais:
-
-| Variável | Padrão | Uso |
-|---|---|---|
-| `PORT` | `4317` | Porta da plataforma e da API |
-| `OLLAMA_URL` | `http://localhost:11434` | Endereço do Ollama |
-| `OLLAMA_MODEL` | `qwen2.5:7b` | Modelo; ex.: `OLLAMA_MODEL=llama3.1:8b npm start` |
-| `DATA_DIR` | `server/data` | Onde fica o `db.json` |
-
-Perfil de exemplo:
+## 3. Rodar com Docker (PostgreSQL 16)
 
 ```bash
-curl -X PUT localhost:4317/api/profile \
-  -H "authorization: Bearer <token>" \
-  -H 'content-type: application/json' \
-  -d @server/examples/perfil-exemplo.json
+docker compose up -d --build                  # API + PostgreSQL; a migration é aplicada na subida
+docker compose --profile ai up -d --build     # + Ollama no contêiner
+docker compose exec ollama ollama pull qwen2.5:7b
+docker compose logs -f api
+docker compose down -v                        # para e apaga o volume
 ```
 
-O token também aparece na plataforma, em **Configurações**.
+Segredos num `.env` na raiz (fora do Git): `ZYFT_JWT_SECRET` (32+ caracteres), `ZYFT_ENCRYPTION_KEY` (32 bytes em Base64), `ZYFT_DB_PASSWORD`, `ZYFT_LLM_PROVIDER` (`Ollama` ou `None`) e `ZYFT_LLM_URL`. Nesse modo não há usuário de demonstração: crie uma conta.
 
-## 4. Carregar a extensão
+## 4. Rodar os testes
 
-1. Abra `chrome://extensions` (ou `edge://extensions`).
-2. Ative o **Modo do desenvolvedor**.
-3. Clique em **Carregar sem compactação** e selecione a pasta `extension/`.
-4. Clique no ícone da extensão para abrir o painel lateral.
-5. Clique em ⚙ e cole o token.
+```bash
+dotnet test                         # unidade, integração e aceitação
+dotnet test tests/Zyft.UnitTests    # só unidade
+```
 
-## 5. Testar no portal demo
+Os testes de integração e aceitação usam SQLite em memória e IA desligada ou simulada. Não precisam de Docker nem de Ollama.
 
-1. Abra `http://localhost:4317/demo/`.
-2. Na página de vaga, clique em **Analisar vaga**.
-3. Nas páginas de currículo e de candidatura, clique em **Ler formulário**, revise e preencha.
-4. Confira que nada foi enviado e que senha, CAPTCHA, anexo e termos ficaram para você.
+## 5. Carregar a extensão
+
+1. Abra `chrome://extensions` (ou `edge://extensions`) e ligue o **Modo do desenvolvedor**.
+2. Clique em **Carregar sem compactação** e selecione a pasta `extension/`.
+3. Clique no ícone do Zyft para abrir o painel lateral.
+4. Na plataforma web, vá em **Extensão → Gerar código de pareamento** e digite o código de 6 dígitos no painel (vale 10 minutos).
+5. Se a API estiver em outro endereço, troque em **Ajustes** (engrenagem) no painel.
+
+## 6. Testar no portal demo
+
+1. Abra `http://localhost:5080/demo/`.
+2. Em `vaga.html`, clique em **Analisar vaga** no painel (exige o consentimento de Análise de vaga).
+3. Em `curriculo.html` (e `curriculo.html?preenchido=1`) e `candidatura.html`, clique em **Ler formulário**, revise e preencha.
+4. Confira que nada foi enviado e que senha, CAPTCHA, anexo, termos e dados sensíveis ficaram como **Ação sua**.
+5. Clique em **Concluí a candidatura** e veja o registro em **Candidaturas**.
 
 Para usar a extensão em outros sites, ela pede permissão para o site no primeiro uso. **Não use portais reais com contas falsas**; para gravar demonstrações em portal real, a pessoa testadora faz login na própria conta e o fluxo para antes de salvar ou enviar.
 
-## 6. Problemas comuns
+## 7. Problemas comuns
 
 | Sintoma | Causa provável | O que fazer |
 |---|---|---|
-| "Token inválido" no painel | Token não colado ou dados recriados | Copie o token em Configurações e cole de novo no painel (⚙) |
-| `403 Somente localhost` | Acesso por IP da rede ou outro host | Use `http://localhost:4317` ou `127.0.0.1` |
-| "Ollama offline" | Ollama parado | `ollama serve` e confira `OLLAMA_URL` |
-| "modelo não baixado" | Modelo ausente | `ollama pull qwen2.5:7b` ou ajuste `OLLAMA_MODEL` |
-| Análise de vaga demora 20–30 s | Esperado com 7B; mais lento em CPU | Use GPU ou um modelo menor para demonstração |
-| Resultado da análise muda entre execuções | Variação natural do modelo 7B | Esperado; a evidência mostrada permite conferir |
-| "Ana Paula Souza" vira "Ana" + "Paula Souza" | Limitação conhecida da divisão de nome | Corrija no painel antes de preencher |
-| Campos não aparecem | Campos dentro de iframe ou shadow DOM | Limitação conhecida do protótipo |
-| Extensão não reage após editar o código | Extensão carregada em cache | Clique em recarregar em `chrome://extensions` e recarregue a página |
-| Servidor no WSL e navegador no Windows | `localhost` não encaminhado | Confira o encaminhamento de portas do WSL; use `127.0.0.1` |
-| Quero recomeçar do zero | — | Pare o servidor e apague `server/data/db.json` (gera novo token) |
+| `address already in use` na porta 5080 | Outra instância da API ainda rodando | Encerre o processo antigo. A porta 5080 é fixa porque é o padrão da extensão. |
+| A API não sobe: segredo JWT ou chave AES | `Jwt:Secret` vazio ou `Encryption:Key` sem 32 bytes | Em Docker, confira o `.env`; fora de Development, defina as variáveis |
+| `/health` com `llm: Degraded` | Ollama parado ou modelo não baixado | `ollama serve` e `ollama pull qwen2.5:7b`, ou ignore: as regras funcionam sem IA |
+| Primeira chamada com IA demora ~40 s | O Ollama está carregando o modelo | Esperado; as seguintes levam segundos |
+| Painel mostra 403 em Analisar vaga ou Sugerir texto | Consentimento desligado | Ligue em **Conta** (ou na tela de boas-vindas) |
+| Painel pede pareamento de novo | Dispositivo revogado ou refresh expirado (7 dias) | Gere outro código na plataforma |
+| Extensão não reage após editar o código | Extensão em cache | Recarregue em `chrome://extensions` e recarregue a página |
+| API no WSL e navegador no Windows | `localhost` não encaminhado | Confira o encaminhamento de portas do WSL; use `127.0.0.1` |
+| Quero recomeçar do zero | — | Pare a API e apague `src/Zyft.Api/zyft-dev.db` (ou `docker compose down -v`) |
