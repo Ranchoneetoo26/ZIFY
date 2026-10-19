@@ -56,7 +56,10 @@ public sealed record AccountExport(
     IReadOnlyList<object> AuditEvents,
     IReadOnlyList<object> ExtensionDevices,
     IReadOnlyList<object> AuthorizedSites,
-    IReadOnlyList<object> ResumeImports);
+    IReadOnlyList<object> ResumeImports,
+    object? Billing,
+    object? Onboarding,
+    IReadOnlyList<object> HiddenAds);
 
 public sealed class ExportMeHandler(
     IRepository<User> users,
@@ -69,6 +72,11 @@ public sealed class ExportMeHandler(
     IRepository<ExtensionDevice> devices,
     IRepository<AuthorizedSite> sites,
     IRepository<ResumeImport> imports,
+    IRepository<Domain.Billing.Subscription> subscriptions,
+    IRepository<Domain.Billing.UsagePack> packs,
+    IRepository<Domain.Billing.MonthlyUsage> usages,
+    IRepository<Domain.Onboarding.OnboardingProgress> onboarding,
+    IRepository<Domain.Ads.AdHide> adHides,
     ISensitiveDataProtector protector,
     ICurrentUser current,
     IUnitOfWork uow,
@@ -93,6 +101,15 @@ public sealed class ExportMeHandler(
             (await audit.ListAsync(x => x.UserId == id, ct)).OrderBy(e => e.OccurredAt).Select(e => (object)new { e.Action, e.Portal, e.FieldCount, e.OccurredAt }).ToList(),
             (await devices.ListAsync(x => x.UserId == id, ct)).Select(d => (object)new { d.Id, d.Name, d.PairedAt, d.LastSeenAt, d.RevokedAt }).ToList(),
             (await sites.ListAsync(x => x.UserId == id, ct)).Select(s => (object)new { s.Id, s.Origin, s.CreatedAt }).ToList(),
-            (await imports.ListAsync(x => x.UserId == id, ct)).Select(i => (object)new { i.Id, i.FileName, i.Status, i.CreatedAt }).ToList());
+            (await imports.ListAsync(x => x.UserId == id, ct)).Select(i => (object)new { i.Id, i.FileName, i.Status, i.CreatedAt }).ToList(),
+            new
+            {
+                Subscription = (await subscriptions.FindAsync(x => x.UserId == id, ct)) is { } sub
+                    ? new { sub.Plan, sub.Period, sub.StartedAt, sub.TrialEndsAt, sub.RenewsAt, sub.CanceledAt } : null,
+                Packs = (await packs.ListAsync(x => x.UserId == id, ct)).Select(p => new { p.AssistedRemaining, p.AiRemaining, p.PurchasedAt, p.ExpiresAt }).ToList(),
+                Usage = (await usages.ListAsync(x => x.UserId == id, ct)).Select(u => new { u.Month, u.AssistedUsed, u.AiUsed, u.JobAnalysesUsed, u.ResumeImportsUsed, u.BonusGranted, u.BonusUsed, u.RewardedClaims }).ToList(),
+            },
+            (await onboarding.FindAsync(x => x.UserId == id, ct)) is { } ob ? new { Answered = ob.AnsweredSteps, Skipped = ob.SkippedSteps, ob.LastStep, ob.CompletedAt } : null,
+            (await adHides.ListAsync(x => x.UserId == id, ct)).Select(h => (object)new { h.AdId, h.Topic, h.Scope, h.HiddenAt, h.ExpiresAt }).ToList());
     }
 }

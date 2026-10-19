@@ -59,9 +59,11 @@ public static class ProfileFacts
         ["personal.linkedin"] = "LinkedIn",
         ["personal.github"] = "GitHub",
         ["personal.portfolio"] = "Portfólio/site",
+        ["personal.professionalRegistration"] = "Registro profissional (conselho/órgão de classe)",
         ["objective.headline"] = "Título profissional",
         ["objective.desiredRoles"] = "Cargos desejados",
         ["objective.areas"] = "Áreas de interesse",
+        ["objective.workArea"] = "Área de atuação",
         ["objective.seniority"] = "Senioridade",
         ["objective.workModel"] = "Modelo de trabalho (presencial/híbrido/remoto)",
         ["objective.locationPreference"] = "Preferência de localidade",
@@ -69,6 +71,7 @@ public static class ProfileFacts
         ["skills"] = "Competências/habilidades",
         ["preferences.availability"] = "Disponibilidade para início",
         ["preferences.salaryExpectation"] = "Pretensão salarial",
+        ["preferences.salaryType"] = "Tipo de remuneração pretendida",
         ["preferences.travel"] = "Disponibilidade para viagens",
         ["preferences.relocation"] = "Disponibilidade para mudança",
         ["preferences.contractTypes"] = "Tipos de contrato aceitos",
@@ -95,6 +98,8 @@ public static class ProfileFacts
         p.Courses.Where(c => c.Type == type).OrderByDescending(c => c.CompletedAt ?? DateOnly.MinValue).ThenBy(c => c.Name).ToList();
 
     public static IReadOnlyList<Language> OrderedLanguages(Profile p) => p.Languages.OrderBy(l => l.Name).ToList();
+
+    public static IReadOnlyList<CustomField> OrderedCustomFields(Profile p) => p.CustomFields.OrderBy(f => f.Label, StringComparer.OrdinalIgnoreCase).ToList();
 
     public static string FormatMoney(decimal v) => v.ToString("C", PtBr);
 
@@ -125,15 +130,18 @@ public static class ProfileFacts
         Push("personal.linkedin", p.LinkedinUrl);
         Push("personal.github", p.GithubUrl);
         Push("personal.portfolio", p.PortfolioUrl);
+        Push("personal.professionalRegistration", p.ProfessionalRegistration);
         Push("objective.headline", p.Headline);
         Push("objective.desiredRoles", p.DesiredRoles);
         Push("objective.areas", p.Areas);
+        Push("objective.workArea", p.WorkArea);
         Push("objective.seniority", p.Seniority);
         Push("objective.workModel", p.WorkModel is { } wm ? DisplayNames.Of(wm) : null);
         Push("objective.locationPreference", p.LocationPreference);
         Push("objective.summary", p.Summary);
         Push("skills", string.Join(", ", p.Skills.Select(s => s.Name)));
         Push("preferences.availability", p.Availability);
+        Push("preferences.salaryType", p.SalaryType);
         Push("preferences.salaryExpectation", p.SalaryExpectation is { } sal ? FormatMoney(sal) : null);
         Push("preferences.travel", p.AvailableToTravel is { } t ? DisplayNames.YesNo(t) : null);
         Push("preferences.relocation", p.AvailableToRelocate is { } r ? DisplayNames.YesNo(r) : null);
@@ -195,6 +203,10 @@ public static class ProfileFacts
             Push($"languages[{i}].language", langs[i].Name);
             Push($"languages[{i}].level", DisplayNames.Of(langs[i].Proficiency));
         }
+
+        // Campos personalizados: chave custom:<id>, rótulo dado pela pessoa (rótulos sensíveis são recusados no domínio).
+        foreach (var f in OrderedCustomFields(p))
+            if (!string.IsNullOrWhiteSpace(f.Value)) list.Add(new ProfileFact(f.Key, f.Label, f.Value.Trim()));
 
         return new ProfileFactSet(list);
     }
@@ -258,6 +270,7 @@ public static class ProfileFacts
         }
 
         foreach (var l in OrderedLanguages(p)) lines.Add($"Idioma: {l.Name} — {DisplayNames.Of(l.Proficiency)}");
+        foreach (var f in OrderedCustomFields(p)) Add(f.Label, f.Value);
         return lines;
     }
 

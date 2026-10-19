@@ -29,6 +29,8 @@ public static class DependencyInjection
         services.AddScoped<IJobAnalyzer, JobAnalyzer>();
         services.AddScoped<IAnswerWriter, AnswerWriter>();
         services.AddScoped<IResumeParser, ResumeParser>();
+        services.AddScoped<Billing.IUsageMeter, Billing.UsageMeter>();
+        services.AddScoped<Billing.BillingState>();
         return services;
     }
 }

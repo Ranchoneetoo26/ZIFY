@@ -154,9 +154,10 @@ public record CourseInput
     public string? Institution { get; init; }
     public int? Hours { get; init; }
     public DateOnly? CompletedAt { get; init; }
-    public CourseType Type { get; init; } = CourseType.Course;
+    /// <summary>Course | Certification. Ausente ou nulo = Course (curso livre).</summary>
+    public CourseType? Type { get; init; } = CourseType.Course;
 
-    public CourseData ToData() => new(Name, Institution, Hours, CompletedAt, Type);
+    public CourseData ToData() => new(Name, Institution, Hours, CompletedAt, Type ?? CourseType.Course);
 }
 
 public sealed class CourseInputValidator<T> : AbstractValidator<T> where T : CourseInput
@@ -166,7 +167,7 @@ public sealed class CourseInputValidator<T> : AbstractValidator<T> where T : Cou
         RuleFor(x => x.Name).NotEmpty().WithMessage("Informe o nome do curso.").MaximumLength(200);
         RuleFor(x => x.Institution).MaximumLength(200);
         RuleFor(x => x.Hours).LessThanOrEqualTo(10000).WithMessage("Carga horária muito alta.");
-        RuleFor(x => x.Type).IsInEnum().WithMessage("Tipo inválido.");
+        RuleFor(x => x.Type).IsInEnum().WithMessage("Escolha o tipo: Curso ou Certificação.");
     }
 }
 

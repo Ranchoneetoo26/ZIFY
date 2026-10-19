@@ -4,7 +4,10 @@ namespace Zyft.Application.Common.Exceptions;
 public sealed class NotFoundException(string message) : Exception(message);
 
 /// <summary>Conflito com o estado atual, por exemplo e-mail já cadastrado (HTTP 409).</summary>
-public sealed class ConflictException(string message) : Exception(message);
+public sealed class ConflictException(string message, string code = "conflict") : Exception(message)
+{
+    public string Code { get; } = code;
+}
 
 /// <summary>Credenciais ou token inválidos (HTTP 401).</summary>
 public sealed class UnauthorizedException(string message) : Exception(message);

@@ -36,7 +36,7 @@ public sealed class CreateAnswerValidator : AbstractValidator<CreateAnswerComman
 public sealed class UpdateAnswerValidator : AbstractValidator<UpdateAnswerCommand> { public UpdateAnswerValidator() => Include(new AnswerInputValidator<UpdateAnswerCommand>()); }
 
 /// <summary>Respostas aprovadas (RF-06). Aprovar a mesma pergunta de novo substitui o texto.</summary>
-public sealed class AnswerHandlers(IRepository<ApprovedAnswer> answers, ICurrentUser current, IUnitOfWork uow, IClock clock) :
+public sealed class AnswerHandlers(IRepository<ApprovedAnswer> answers, ICurrentUser current, IUnitOfWork uow, IClock clock, Billing.IUsageMeter meter) :
     IRequestHandler<ListAnswersQuery, IReadOnlyList<AnswerDto>>,
     IRequestHandler<GetAnswerQuery, AnswerDto>,
     IRequestHandler<CreateAnswerCommand, AnswerDto>,
@@ -62,6 +62,7 @@ public sealed class AnswerHandlers(IRepository<ApprovedAnswer> answers, ICurrent
         }
         else
         {
+            await meter.EnsureAnswerCapacityAsync(uid, ct); // banco de respostas: até 15 no Gratuito (402)
             existing = ApprovedAnswer.Approve(uid, question, cmd.Text, clock.UtcNow);
             answers.Add(existing);
         }

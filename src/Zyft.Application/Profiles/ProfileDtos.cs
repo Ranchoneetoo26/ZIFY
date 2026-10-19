@@ -56,12 +56,16 @@ public sealed record ProfileDto
     public string? ContractTypes { get; init; }
     public bool? HasDriverLicense { get; init; }
     public string? DriverLicenseCategory { get; init; }
+    public string? WorkArea { get; init; }
+    public string? ProfessionalRegistration { get; init; }
+    public string? SalaryType { get; init; }
     public DateTime UpdatedAt { get; init; }
     public IReadOnlyList<ExperienceDto> Experiences { get; init; } = Array.Empty<ExperienceDto>();
     public IReadOnlyList<EducationDto> Educations { get; init; } = Array.Empty<EducationDto>();
     public IReadOnlyList<CourseDto> Courses { get; init; } = Array.Empty<CourseDto>();
     public IReadOnlyList<SkillDto> Skills { get; init; } = Array.Empty<SkillDto>();
     public IReadOnlyList<LanguageDto> Languages { get; init; } = Array.Empty<LanguageDto>();
+    public IReadOnlyList<CustomFieldDto> CustomFields { get; init; } = Array.Empty<CustomFieldDto>();
 
     public static ProfileDto From(Profile p) => new()
     {
@@ -91,12 +95,16 @@ public sealed record ProfileDto
         ContractTypes = p.ContractTypes,
         HasDriverLicense = p.HasDriverLicense,
         DriverLicenseCategory = p.DriverLicenseCategory,
+        WorkArea = p.WorkArea,
+        ProfessionalRegistration = p.ProfessionalRegistration,
+        SalaryType = p.SalaryType,
         UpdatedAt = p.UpdatedAt,
         Experiences = ProfileFacts.OrderedExperiences(p).Select(ExperienceDto.From).ToList(),
         Educations = ProfileFacts.OrderedEducations(p).Select(EducationDto.From).ToList(),
         Courses = p.Courses.OrderBy(c => c.Type).ThenByDescending(c => c.CompletedAt ?? DateOnly.MinValue).Select(CourseDto.From).ToList(),
         Skills = p.Skills.OrderBy(s => s.Name).Select(SkillDto.From).ToList(),
         Languages = ProfileFacts.OrderedLanguages(p).Select(LanguageDto.From).ToList(),
+        CustomFields = ProfileFacts.OrderedCustomFields(p).Select(CustomFieldDto.From).ToList(),
     };
 }
 

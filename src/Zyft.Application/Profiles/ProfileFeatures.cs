@@ -54,6 +54,15 @@ public sealed record UpdateProfileCommand : IRequest<ProfileDto>
     public bool? HasDriverLicense { get; init; }
     public string? DriverLicenseCategory { get; init; }
 
+    /// <summary>Área (ex.: "Saúde"); ver GET /catalog/areas.</summary>
+    public string? WorkArea { get; init; }
+
+    /// <summary>Registro profissional (ex.: "COREN-MG 123456").</summary>
+    public string? ProfessionalRegistration { get; init; }
+
+    /// <summary>"CLT (bruto)", "PJ", "Por hora" ou "Por plantão".</summary>
+    public string? SalaryType { get; init; }
+
     public ProfileBasicData ToData() => new()
     {
         FullName = FullName, Email = Email, Phone = Phone, BirthDate = BirthDate, City = City, State = State, Country = Country, ZipCode = ZipCode,
@@ -61,6 +70,7 @@ public sealed record UpdateProfileCommand : IRequest<ProfileDto>
         DesiredRoles = DesiredRoles, Areas = Areas, Seniority = Seniority, WorkModel = WorkModel, LocationPreference = LocationPreference,
         Availability = Availability, SalaryExpectation = SalaryExpectation, AvailableToTravel = AvailableToTravel, AvailableToRelocate = AvailableToRelocate,
         ContractTypes = ContractTypes, HasDriverLicense = HasDriverLicense, DriverLicenseCategory = DriverLicenseCategory,
+        WorkArea = WorkArea, ProfessionalRegistration = ProfessionalRegistration, SalaryType = SalaryType,
     };
 }
 
@@ -87,6 +97,10 @@ public sealed class UpdateProfileValidator : AbstractValidator<UpdateProfileComm
         RuleFor(x => x.Availability).MaximumLength(200);
         RuleFor(x => x.ContractTypes).MaximumLength(200);
         RuleFor(x => x.DriverLicenseCategory).MaximumLength(5);
+        RuleFor(x => x.WorkArea).MaximumLength(80);
+        RuleFor(x => x.ProfessionalRegistration).MaximumLength(120);
+        RuleFor(x => x.SalaryType).Must(t => string.IsNullOrWhiteSpace(t) || Profile.SalaryTypes.Contains(t.Trim(), StringComparer.OrdinalIgnoreCase))
+            .WithMessage($"Tipo de pretensão inválido. Use: {string.Join(", ", Profile.SalaryTypes)}.");
         RuleFor(x => x.BirthDate).Must(d => d is null || (d.Value.Year >= 1900 && d.Value < DateOnly.FromDateTime(DateTime.UtcNow)))
             .WithMessage("Data de nascimento inválida.");
     }
