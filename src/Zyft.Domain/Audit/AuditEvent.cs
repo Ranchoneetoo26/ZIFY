@@ -41,4 +41,12 @@ public static class AuditActions
     public const string ApplicationConfirmed = "candidatura.confirmada";
     public const string SensitiveDataChanged = "sensivel.alterado";
     public const string SensitiveDataErased = "sensivel.apagado";
+
+    // v2 (planos, anúncios, onboarding e campos personalizados) — nomes definidos no contrato v2.
+    public const string PlanChanged = "plan.changed";
+    public const string PackPurchased = "pack.purchased";
+    public const string AdHidden = "ad.hidden";
+    public const string RewardedClaimed = "rewarded.claimed";
+    public const string OnboardingCompleted = "onboarding.completed";
+    public const string CustomFieldChanged = "custom_field.changed";
 }

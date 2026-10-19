@@ -28,4 +28,13 @@ public sealed record ProfileBasicData
     public string? ContractTypes { get; init; }
     public bool? HasDriverLicense { get; init; }
     public string? DriverLicenseCategory { get; init; }
+
+    /// <summary>Área escolhida no onboarding (ex.: "Saúde", "Tecnologia").</summary>
+    public string? WorkArea { get; init; }
+
+    /// <summary>Registro profissional ou certificação obrigatória (ex.: "COREN-MG 123456", "OAB/MG 123.456").</summary>
+    public string? ProfessionalRegistration { get; init; }
+
+    /// <summary>Tipo da pretensão salarial: "CLT (bruto)", "PJ", "Por hora" ou "Por plantão".</summary>
+    public string? SalaryType { get; init; }
 }

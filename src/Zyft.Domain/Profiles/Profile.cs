@@ -14,6 +14,13 @@ public sealed class Profile : Entity
     private readonly List<Course> _courses = new();
     private readonly List<Skill> _skills = new();
     private readonly List<Language> _languages = new();
+    private readonly List<CustomField> _customFields = new();
+
+    /// <summary>Tipos de pretensão salarial aceitos.</summary>
+    public static readonly IReadOnlyList<string> SalaryTypes = new[] { "CLT (bruto)", "PJ", "Por hora", "Por plantão" };
+
+    /// <summary>Máximo de campos personalizados por perfil.</summary>
+    public const int MaxCustomFields = 50;
 
     private Profile() { }
 
@@ -44,12 +51,16 @@ public sealed class Profile : Entity
     public string? ContractTypes { get; private set; }
     public bool? HasDriverLicense { get; private set; }
     public string? DriverLicenseCategory { get; private set; }
+    public string? WorkArea { get; private set; }
+    public string? ProfessionalRegistration { get; private set; }
+    public string? SalaryType { get; private set; }
 
     public IReadOnlyCollection<Experience> Experiences => _experiences.AsReadOnly();
     public IReadOnlyCollection<Education> Educations => _educations.AsReadOnly();
     public IReadOnlyCollection<Course> Courses => _courses.AsReadOnly();
     public IReadOnlyCollection<Skill> Skills => _skills.AsReadOnly();
     public IReadOnlyCollection<Language> Languages => _languages.AsReadOnly();
+    public IReadOnlyCollection<CustomField> CustomFields => _customFields.AsReadOnly();
 
     public static Profile CreateFor(Guid userId, string? fullName = null, string? email = null) => new()
     {
@@ -64,6 +75,12 @@ public sealed class Profile : Entity
             throw new DomainException("profile.invalid_salary", "A pretensão salarial não pode ser negativa.");
         if (d.HasDriverLicense == false && !string.IsNullOrWhiteSpace(d.DriverLicenseCategory))
             throw new DomainException("profile.invalid_driver_license", "Informe a categoria da CNH só se você possui CNH.");
+        var salaryType = Guard.Optional(d.SalaryType);
+        if (salaryType is not null)
+        {
+            salaryType = SalaryTypes.FirstOrDefault(t => string.Equals(t, salaryType, StringComparison.OrdinalIgnoreCase))
+                ?? throw new DomainException("profile.invalid_salary_type", $"Tipo de pretensão inválido. Use: {string.Join(", ", SalaryTypes)}.");
+        }
 
         FullName = Guard.Optional(d.FullName);
         Email = Guard.Optional(d.Email)?.ToLowerInvariant();
@@ -90,6 +107,37 @@ public sealed class Profile : Entity
         ContractTypes = Guard.Optional(d.ContractTypes);
         HasDriverLicense = d.HasDriverLicense;
         DriverLicenseCategory = d.HasDriverLicense == true ? Guard.Optional(d.DriverLicenseCategory)?.ToUpperInvariant() : null;
+        WorkArea = Guard.Optional(d.WorkArea);
+        ProfessionalRegistration = Guard.Optional(d.ProfessionalRegistration);
+        SalaryType = salaryType;
+    }
+
+    // ---------- Campos personalizados (nome único por perfil; rótulos sensíveis bloqueados) ----------
+    public CustomField AddCustomField(string label, string value)
+    {
+        if (_customFields.Count >= MaxCustomFields)
+            throw new DomainException("profile.custom_field_limit", $"Você pode ter até {MaxCustomFields} campos personalizados.");
+        EnsureUniqueCustomField(label, null);
+        var f = CustomField.Create(Id, label, value);
+        _customFields.Add(f);
+        return f;
+    }
+
+    public CustomField? UpdateCustomField(Guid id, string label, string value)
+    {
+        var f = _customFields.FirstOrDefault(x => x.Id == id);
+        if (f is null) return null;
+        EnsureUniqueCustomField(label, id);
+        f.Update(label, value);
+        return f;
+    }
+
+    public bool RemoveCustomField(Guid id) => _customFields.RemoveAll(x => x.Id == id) > 0;
+
+    private void EnsureUniqueCustomField(string label, Guid? ignoreId)
+    {
+        if (_customFields.Any(f => f.Id != ignoreId && string.Equals(f.Label, label?.Trim(), StringComparison.OrdinalIgnoreCase)))
+            throw new DomainException("profile.custom_field_duplicated", $"Já existe um campo chamado \"{label?.Trim()}\".");
     }
 
     // ---------- Experiências ----------
