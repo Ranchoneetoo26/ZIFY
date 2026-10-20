@@ -19,6 +19,24 @@ public static partial class TextTools
     [GeneratedRegex("\\s+")]
     private static partial Regex Spaces();
 
+    /// <summary>
+    /// Limpa o texto extraído de PDF/DOCX: Unicode NFKC (desfaz ligaduras tipográficas como "ﬁ" → "fi", espaços
+    /// especiais → espaço comum), remove hífen suave e caracteres de largura zero e unifica quebras de linha.
+    /// </summary>
+    public static string NormalizeExtracted(string? s)
+    {
+        if (string.IsNullOrEmpty(s)) return string.Empty;
+        var v = s.Normalize(NormalizationForm.FormKC);
+        var sb = new StringBuilder(v.Length);
+        foreach (var c in v)
+        {
+            if (c is '\u00AD' or '\u200B' or '\u200C' or '\u200D' or '\uFEFF') continue;
+            sb.Append(c);
+        }
+
+        return sb.ToString().Replace("\r\n", "\n").Replace('\r', '\n');
+    }
+
     public static string Norm(string? s)
     {
         if (string.IsNullOrEmpty(s)) return string.Empty;

@@ -53,6 +53,23 @@ public class FieldMapperTests
         s.Selected.Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData("Perfil do LinkedIn (URL)", "personal.linkedin")]
+    [InlineData("linkedin", "personal.linkedin")]
+    [InlineData("GitHub", "personal.github")]
+    [InlineData("Seu github", "personal.github")]
+    public async Task LinkedIn_e_GitHub_casam_por_regra_mesmo_com_camelCase(string label, string key)
+    {
+        // Norm separa camelCase ("LinkedIn" vira "linked in"); a regra precisa casar nas duas formas.
+        var profile = Profiles.Ana();
+        profile.UpdateBasics(new ProfileBasicData { FullName = "Ana Paula Souza", LinkedinUrl = "linkedin.com/in/ana", GithubUrl = "github.com/ana" });
+        var r = await Map(new[] { F("f", label) }, profile);
+        var s = One(r, "f");
+        s.ProfileKey.Should().Be(key);
+        s.Source.Should().Be(SuggestionSource.Rule);
+        s.Value.Should().Be(key == "personal.linkedin" ? "linkedin.com/in/ana" : "github.com/ana");
+    }
+
     [Fact]
     public async Task Primeiro_nome_e_sobrenome_separados_quando_a_pagina_pede()
     {

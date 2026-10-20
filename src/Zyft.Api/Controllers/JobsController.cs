@@ -17,6 +17,7 @@ public sealed class JobsController : ApiControllerBase
     /// </summary>
     [HttpPost("analyze")]
     [ProducesResponseType(typeof(JobAnalysisResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status402PaymentRequired)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public Task<JobAnalysisResult> Analyze(AnalyzeJobCommand cmd, CancellationToken ct) => Sender.Send(cmd, ct);
 }

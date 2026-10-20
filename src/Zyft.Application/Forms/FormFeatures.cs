@@ -1,6 +1,7 @@
 using FluentValidation;
 using MediatR;
 using Zyft.Application.Applications;
+using Zyft.Application.Billing;
 using Zyft.Application.Common;
 using Zyft.Application.Common.Exceptions;
 using Zyft.Application.Common.Interfaces;
@@ -10,6 +11,7 @@ using Zyft.Application.Writing;
 using Zyft.Domain.Answers;
 using Zyft.Domain.Applications;
 using Zyft.Domain.Audit;
+using Zyft.Domain.Billing;
 using Zyft.Domain.Consents;
 using Zyft.Domain.Sensitive;
 
@@ -53,12 +55,15 @@ public sealed class MapFieldsHandler(
     IFieldMapper mapper,
     ICurrentUser current,
     IUnitOfWork uow,
-    IClock clock) : IRequestHandler<MapFieldsCommand, MappingResult>
+    IClock clock,
+    IUsageMeter meter) : IRequestHandler<MapFieldsCommand, MappingResult>
 {
     public async Task<MappingResult> Handle(MapFieldsCommand cmd, CancellationToken ct)
     {
         var uid = current.UserId;
         var profile = await profiles.GetByUserIdAsync(uid, ct) ?? throw new NotFoundException("Perfil não encontrado.");
+        // Candidatura assistida: conta 1x por (pessoa, origem+caminho da página) por mês (402 se acabou o limite).
+        await meter.ConsumeAsync(uid, UsageResource.AssistedApplications, PageKey(cmd.PageUrl), ct);
         var approved = (await answers.ListAsync(a => a.UserId == uid, ct)).Select(a => new ApprovedAnswerRef(a.Id, a.Question, a.Text)).ToList();
 
         // Dados sensíveis só são decifrados quando há consentimento (c) — e nunca passam pela IA.
@@ -81,6 +86,12 @@ public sealed class MapFieldsHandler(
         await uow.SaveChangesAsync(ct);
         return result;
     }
+
+    /// <summary>Origem + caminho (sem query nem fragmento). Só o hash disso é guardado.</summary>
+    internal static string? PageKey(string? pageUrl) =>
+        Uri.TryCreate(pageUrl, UriKind.Absolute, out var u) && (u.Scheme == Uri.UriSchemeHttp || u.Scheme == Uri.UriSchemeHttps)
+            ? $"{u.Scheme}://{u.Authority}{u.AbsolutePath}".TrimEnd('/')
+            : null;
 }
 
 // ================================================================== POST /forms/open-answers
@@ -91,7 +102,9 @@ public sealed record OpenAnswerCommand(string Question, int? MaxLength, string? 
 
 /// <summary>
 /// <c>kind</c>: approved (resposta aprovada reaproveitada) | generated (IA, sempre revisar) | missing (perfil sem fatos
-/// suficientes) | unknown (IA indisponível). Nunca vem pré-aprovado (<c>selected=false</c>).
+/// suficientes ou IA devolveu texto vazio) | unknown (IA indisponível). Nunca vem pré-aprovado (<c>selected=false</c>).
+/// Garantia do contrato: <c>value</c> nunca vem vazio ou só com espaços — ou há texto, ou <c>value</c> é nulo e
+/// <c>note</c> explica o que fazer.
 /// </summary>
 public sealed record OpenAnswerResult(string Question, string Kind, SuggestionSource Source, string? Value, IReadOnlyList<string> UsedFacts, string Note, bool Selected, Guid? ApprovedAnswerId);
 
@@ -107,6 +120,11 @@ public sealed class OpenAnswerValidator : AbstractValidator<OpenAnswerCommand>
     }
 }
 
+public static class OpenAnswerNotes
+{
+    public const string NoDraft = "A IA não conseguiu escrever um rascunho com os fatos do seu perfil; escreva do seu jeito.";
+}
+
 public sealed class OpenAnswerHandler(
     IProfileRepository profiles,
     IRepository<ApprovedAnswer> answers,
@@ -115,12 +133,14 @@ public sealed class OpenAnswerHandler(
     IAnswerWriter writer,
     ICurrentUser current,
     IUnitOfWork uow,
-    IClock clock) : IRequestHandler<OpenAnswerCommand, OpenAnswerResult>
+    IClock clock,
+    IUsageMeter meter) : IRequestHandler<OpenAnswerCommand, OpenAnswerResult>
 {
     public async Task<OpenAnswerResult> Handle(OpenAnswerCommand cmd, CancellationToken ct)
     {
         var uid = current.UserId;
         await consents.EnsureGrantedAsync(uid, ConsentPurpose.AiText, ct);
+        await meter.ConsumeAsync(uid, UsageResource.AiSuggestions, null, ct);
         var profile = await profiles.GetByUserIdAsync(uid, ct) ?? throw new NotFoundException("Perfil não encontrado.");
         var now = clock.UtcNow;
         audit.Add(AuditEvent.Record(uid, AuditActions.OpenAnswerSuggested, now, TextTools.HostOf(cmd.PageUrl)));
@@ -129,7 +149,7 @@ public sealed class OpenAnswerHandler(
         var best = (await answers.ListAsync(a => a.UserId == uid, ct))
             .Select(a => (a, s: TextTools.Jaccard(a.Question, cmd.Question)))
             .OrderByDescending(x => x.s).FirstOrDefault();
-        if (best.a is not null && best.s >= 0.6)
+        if (best.a is not null && best.s >= 0.6 && !string.IsNullOrWhiteSpace(best.a.Text))
         {
             best.a.MarkUsed(now);
             await uow.SaveChangesAsync(ct);
@@ -146,10 +166,11 @@ public sealed class OpenAnswerHandler(
             var lines = ProfileFacts.Lines(profile, DateOnly.FromDateTime(now));
             var job = cmd.JobTitle is null && cmd.JobText is null ? null : new JobContext(cmd.JobTitle, cmd.Company, cmd.JobText);
             var g = await writer.GenerateAsync(cmd.Question, lines, job, cmd.MaxLength is > 0 ? cmd.MaxLength : null, ct);
-            if (g.Answer.Length == 0)
+            var answer = g.Answer?.Trim() ?? string.Empty;
+            if (answer.Length == 0)
                 return new OpenAnswerResult(cmd.Question, SuggestionKinds.Missing, SuggestionSource.None, null, Array.Empty<string>(),
-                    string.IsNullOrEmpty(g.MissingInfo) ? "O perfil não tem fatos suficientes para responder." : g.MissingInfo, false, null);
-            return new OpenAnswerResult(cmd.Question, "generated", SuggestionSource.Ai, g.Answer, g.UsedFacts,
+                    string.IsNullOrWhiteSpace(g.MissingInfo) ? OpenAnswerNotes.NoDraft : $"{OpenAnswerNotes.NoDraft} O que faltou: {g.MissingInfo.Trim()}", false, null);
+            return new OpenAnswerResult(cmd.Question, "generated", SuggestionSource.Ai, answer, g.UsedFacts,
                 string.IsNullOrEmpty(g.MissingInfo) ? "Texto gerado a partir do seu perfil — revise antes de usar." : $"Atenção: {g.MissingInfo}", false, null);
         }
         catch (LlmUnavailableException)

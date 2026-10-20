@@ -100,6 +100,13 @@ public sealed partial class FieldMapper(ILlmClient llm, ILogger<FieldMapper> log
                 continue;
             }
 
+            // ---- Campo personalizado com o MESMO rótulo (a pessoa criou exatamente este campo) ----
+            if (MatchCustom(f, facts, exactOnly: true) is { } exactCustom)
+            {
+                output[f.Id] = ResolveValue(f, exactCustom.Key, exactCustom.Value, SuggestionSource.Rule, exactCustom.Label);
+                continue;
+            }
+
             // ---- Regras determinísticas ----
             string? key = null;
             if (entry.Rule?.Group is { } group)
@@ -114,6 +121,13 @@ public sealed partial class FieldMapper(ILlmClient llm, ILogger<FieldMapper> log
 
             if (key is null)
             {
+                // Campo personalizado com rótulo parecido (chave custom:<id>).
+                if (MatchCustom(f, facts, exactOnly: false) is { } custom)
+                {
+                    output[f.Id] = ResolveValue(f, custom.Key, custom.Value, SuggestionSource.Rule, custom.Label);
+                    continue;
+                }
+
                 pending.Add(f);
                 continue;
             }
@@ -385,9 +399,32 @@ public sealed partial class FieldMapper(ILlmClient llm, ILogger<FieldMapper> log
         return v;
     }
 
-    private static FieldSuggestion ResolveValue(FormField f, string key, string value, SuggestionSource source)
+    /// <summary>
+    /// Compara o rótulo do campo com os rótulos dos campos personalizados (<c>custom:&lt;id&gt;</c>): igual (sem acento e
+    /// pontuação) ou, se <paramref name="exactOnly"/> for falso, parecido (Jaccard ≥ 0,6 ou todos os termos presentes).
+    /// </summary>
+    internal static ProfileFact? MatchCustom(FormField f, ProfileFactSet facts, bool exactOnly)
     {
-        var label = ProfileFactSet.LabelOf(key);
+        var label = Norm(LabelOf(f));
+        if (label.Length == 0) return null;
+        ProfileFact? best = null;
+        var bestScore = 0.0;
+        foreach (var fact in facts.Facts)
+        {
+            if (!fact.Key.StartsWith("custom:", StringComparison.Ordinal)) continue;
+            var cl = Norm(fact.Label);
+            if (cl == label) return fact;
+            if (exactOnly) continue;
+            var score = Math.Max(Jaccard(fact.Label, label), Tokens(fact.Label).Count >= 2 ? Coverage(fact.Label, label) : 0);
+            if (score >= 0.6 && score > bestScore) { best = fact; bestScore = score; }
+        }
+
+        return best;
+    }
+
+    private static FieldSuggestion ResolveValue(FormField f, string key, string value, SuggestionSource source, string? profileLabel = null)
+    {
+        var label = profileLabel ?? ProfileFactSet.LabelOf(key);
         if (HasOptions(f))
         {
             var opt = PickOption(f.Options, value);
@@ -612,7 +649,7 @@ public sealed partial class FieldMapper(ILlmClient llm, ILogger<FieldMapper> log
             if (byField.TryGetValue(f.Id, out var m) && m.Action == "fill" && m.Key is not null && facts.Get(m.Key) is { } fact)
             {
                 // Validação: a chave existe no perfil; o valor vem do perfil, não da IA.
-                output[f.Id] = ResolveValue(f, fact.Key, fact.Value, SuggestionSource.Ai);
+                output[f.Id] = ResolveValue(f, fact.Key, fact.Value, SuggestionSource.Ai, fact.Label);
             }
             else if (byField.TryGetValue(f.Id, out m) && m.Action == "generate" && !HasOptions(f))
             {

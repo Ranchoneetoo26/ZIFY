@@ -21,6 +21,7 @@ internal static class FieldRules
     /// <summary>Campos de nível superior em ordem de prioridade (o primeiro que casar vence).</summary>
     public static readonly (string Key, Regex Re)[] TopRules =
     {
+        ("personal.professionalRegistration", new(@"\b(registro profissional|registro no conselho|registro de classe|numero do conselho|conselho regional|conselho de classe|inscricao na oab|numero da oab|coren|crea|crefito|crp|crf|crc|cro|oab|professional (license|registration))\b", O)),
         ("personal.lastName", new(@"\b(sobrenome|last name|surname|family name)\b", O)),
         ("personal.firstName", new(@"\b(primeiro nome|first name|given name)\b", O)),
         ("personal.fullName", new(@"\b(nome completo|full name|seu nome|nome do candidato|candidate name|your name)\b|^nome$|^name$", O)),
@@ -29,8 +30,8 @@ internal static class FieldRules
         ("personal.birthDate", new(@"\b(nascimento|birth|data de nasc|birthday|date of birth)\b", O)),
         ("personal.cpf", new(@"\bcpf\b", O)),
         ("personal.zipCode", new(@"\b(cep|zip|postal code|codigo postal|zip code)\b", O)),
-        ("personal.linkedin", new(@"\blinkedin\b", O)),
-        ("personal.github", new(@"\bgithub\b", O)),
+        ("personal.linkedin", new(@"\blinked ?in\b", O)), // Norm separa camelCase: "LinkedIn" vira "linked in"
+        ("personal.github", new(@"\bgit ?hub\b", O)),
         ("personal.portfolio", new(@"\b(portfolio|site pessoal|website|pagina pessoal|personal site)\b", O)),
         ("objective.headline", new(@"\b(titulo profissional|headline|titulo do perfil)\b", O)),
         ("objective.desiredRoles", new(@"\b(cargo desejado|cargo pretendido|cargos desejados|vaga pretendida|cargo de interesse|desired (role|position)|position applied)\b", O)),

@@ -18,12 +18,14 @@ public sealed class FormsController : ApiControllerBase
     /// <summary>De-para campo → Perfil Mestre: regras, IA que só aponta chave, validação (RF-12). Devolve um item por campo enviado.</summary>
     [HttpPost("mappings")]
     [ProducesResponseType(typeof(MappingResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status402PaymentRequired)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     public Task<MappingResult> Map(MapFieldsCommand cmd, CancellationToken ct) => Sender.Send(cmd, ct);
 
     /// <summary>Sugestão de texto para pergunta aberta, só com fatos do perfil (RF-15). Exige consentimento AiText (403).</summary>
     [HttpPost("open-answers")]
     [ProducesResponseType(typeof(OpenAnswerResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status402PaymentRequired)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public Task<OpenAnswerResult> OpenAnswer(OpenAnswerCommand cmd, CancellationToken ct) => Sender.Send(cmd, ct);
 
