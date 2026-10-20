@@ -1,0 +1,65 @@
+/* Zyft — tokens do design system (zyft-tokens.css). Claro por padrão, escuro por
+   prefers-color-scheme ou por [data-theme="dark"]. */
+:root {
+  --surface: #f6f1e7; --surface-raised: #fffdf8; --surface-sunken: #ece5d7;
+  --line: #ddd4c4; --line-strong: #857a6d; --taupe: #8a7f72;
+  --ink: #12313a; --ink-muted: #4d5d61;
+  --petrol: #12313a; --on-petrol: #f6f1e7;
+  --zyft: #ffd400; --on-zyft: #12313a; --zyft-hover: #f2c800; --zyft-soft: #fff1b3; --zyft-text: #6b5800;
+  --ready: #3f6b57; --ready-soft: #e0eae2;
+  --needs: #a14a00; --needs-soft: #fbe6cd;
+  --blocked: #b42318; --blocked-soft: #fbe0db;
+  --ai: #6a3dc4; --ai-soft: #ece4fa;
+  --focus: #12313a; --link: #12313a;
+  --on-petrol-line: rgba(246, 241, 231, 0.25);
+  --on-petrol-track: rgba(246, 241, 231, 0.2);
+  --font-sans: "Archivo", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px;
+  --radius-sm: 4px; --radius-md: 8px; --radius-lg: 14px; --radius-pill: 999px;
+  --shadow-card: 0 1px 0 rgba(18,49,58,0.06), 0 2px 8px rgba(18,49,58,0.06);
+  --shadow-hard: 3px 3px 0 #12313a;
+  --shadow-pop: 0 12px 40px rgba(18,49,58,0.22);
+  --focus-ring: 0 0 0 2px #f6f1e7, 0 0 0 4px #12313a;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface: #0f2228; --surface-raised: #163038; --surface-sunken: #0a181c;
+    --line: #2a474f; --line-strong: #7a9297;
+    --ink: #f3eee4; --ink-muted: #a7b6b6;
+    --petrol: #1e4651; --on-petrol: #f3eee4;
+    --zyft-hover: #ffe14d; --zyft-soft: #3a3712; --zyft-text: #ffd400;
+    --ready: #8cc3a6; --ready-soft: #173a2f;
+    --needs: #f5a14a; --needs-soft: #3c2c14;
+    --blocked: #ff8b7c; --blocked-soft: #45211d;
+    --ai: #bba2ff; --ai-soft: #2b2449;
+    --focus: #ffd400; --link: #ffd400;
+    --on-petrol-line: rgba(243, 238, 228, 0.25);
+    --on-petrol-track: rgba(243, 238, 228, 0.2);
+    --shadow-card: 0 1px 0 rgba(0,0,0,0.35);
+    --shadow-hard: 3px 3px 0 #ffd400;
+    --shadow-pop: 0 12px 40px rgba(0,0,0,0.5);
+    --focus-ring: 0 0 0 2px #0f2228, 0 0 0 4px #ffd400;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --surface: #0f2228; --surface-raised: #163038; --surface-sunken: #0a181c;
+  --line: #2a474f; --line-strong: #7a9297;
+  --ink: #f3eee4; --ink-muted: #a7b6b6;
+  --petrol: #1e4651; --on-petrol: #f3eee4;
+  --zyft-hover: #ffe14d; --zyft-soft: #3a3712; --zyft-text: #ffd400;
+  --ready: #8cc3a6; --ready-soft: #173a2f;
+  --needs: #f5a14a; --needs-soft: #3c2c14;
+  --blocked: #ff8b7c; --blocked-soft: #45211d;
+  --ai: #bba2ff; --ai-soft: #2b2449;
+  --focus: #ffd400; --link: #ffd400;
+  --shadow-card: 0 1px 0 rgba(0,0,0,0.35);
+  --shadow-hard: 3px 3px 0 #ffd400;
+  --shadow-pop: 0 12px 40px rgba(0,0,0,0.5);
+  --focus-ring: 0 0 0 2px #0f2228, 0 0 0 4px #ffd400;
+  color-scheme: dark;
+}

@@ -16,21 +16,83 @@ const listeners = new Set();
 
 export class ApiError extends Error {
   constructor(status, problem = {}) {
-    super(problem.detail || problem.title || defaultMessage(status));
+    const errors = normalizeErrors(problem.errors);
+    const lines = describeErrors(errors);
+    // 400 com errors por campo: a mensagem diz QUAL campo (com nome legível), não só "campos inválidos".
+    super(lines.length ? lines.join(' ') : problem.detail || problem.title || defaultMessage(status));
     this.status = status;
     this.title = problem.title || '';
     this.detail = problem.detail || '';
     this.type = problem.type || '';
-    this.errors = normalizeErrors(problem.errors);
+    this.code = problem.code || problem.extensions?.code || '';
+    this.errors = errors;
     this.problem = problem;
   }
 }
+
+// ---------- Nomes legíveis dos campos de erro (ValidationProblemDetails) ----------
+// A API devolve chaves técnicas ("educations[0].status", "type"). A interface mostra o nome que a
+// pessoa vê na tela ("Formação 1 · Situação"). As telas podem registrar mais rótulos (profile-schema.js).
+const FIELD_LABELS = {
+  body: 'Requisição', name: 'Nome', email: 'E-mail', password: 'Senha', currentPassword: 'Senha atual', newPassword: 'Nova senha',
+  fullName: 'Nome completo', phone: 'Telefone', type: 'Tipo', status: 'Situação', level: 'Nível', proficiency: 'Nível',
+  institution: 'Instituição', course: 'Curso', company: 'Empresa', role: 'Cargo', startDate: 'Início', endDate: 'Fim',
+  completedAt: 'Concluído em', hours: 'Carga horária', isCurrent: 'Trabalho atual', question: 'Pergunta', text: 'Texto',
+  value: 'Valor', label: 'Nome do campo', period: 'Período', scope: 'Opção', origin: 'Endereço do site', code: 'Código',
+  file: 'Arquivo', content: 'Arquivo', fileName: 'Arquivo', granted: 'Consentimento', kind: 'Tipo de dado', maxLength: 'Limite de caracteres',
+  acceptTerms: 'Termos de uso', termsAccepted: 'Termos de uso',
+};
+const SECTION_LABELS = {
+  experiences: 'Experiência', educations: 'Formação', courses: 'Curso ou certificação', skills: 'Competência',
+  languages: 'Idioma', fields: 'Campo', profile: 'Dados básicos', customFields: 'Informação da área',
+};
+
+/** Acrescenta rótulos legíveis ({ chave: 'Rótulo' }); usado pelas telas com campos próprios. */
+export function registerFieldLabels(map) { Object.assign(FIELD_LABELS, map || {}); }
+
+/** "educations[0].status" → "Formação 1 · Situação"; "type" → "Tipo"; chave desconhecida vira texto legível. */
+export function fieldLabel(key) {
+  const parts = String(key || '').split('.').filter(Boolean);
+  const out = [];
+  for (const part of parts) {
+    const m = part.match(/^([^[]+)(?:\[(\d+)\])?$/);
+    const base = m ? m[1] : part;
+    const idx = m && m[2] !== undefined ? Number(m[2]) + 1 : null;
+    if (SECTION_LABELS[base] && (idx || parts.length > 1)) out.push(idx ? `${SECTION_LABELS[base]} ${idx}` : SECTION_LABELS[base]);
+    else out.push(FIELD_LABELS[base] || humanize(base));
+  }
+  return out.join(' · ') || 'Campo';
+}
+const humanize = (k) => {
+  const s = String(k).replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').toLowerCase().trim();
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Campo';
+};
+
+/** { campo: [mensagens] } → ["Formação 1 · Situação: Informe a situação."]. */
+export function describeErrors(errors) {
+  const out = [];
+  for (const [k, msgs] of Object.entries(errors || {})) {
+    const text = [].concat(msgs).filter(Boolean).join(' ');
+    if (!text) continue;
+    const label = fieldLabel(k);
+    // A API às vezes já nomeia o item ("Formação “ADM – UEM”: escolha a situação…"): não repete o rótulo.
+    const head = label.split(' · ')[0].replace(/ \d+$/, '');
+    out.push(text.startsWith(head) ? text : `${label}: ${text}`);
+  }
+  return out;
+}
+
+// 402 plan.limit_reached: qualquer tela recebe o mesmo diálogo amigável (billing.js registra).
+let limitHandler = null;
+export const onLimitReached = (fn) => { limitHandler = fn; };
+export const isLimitError = (e) => e instanceof ApiError && e.status === 402;
 
 function defaultMessage(status) {
   if (status === 0) return 'Não foi possível falar com o servidor. Verifique sua conexão e tente de novo.';
   if (status === 401) return 'Sua sessão expirou. Entre de novo.';
   if (status === 403) return 'Você não tem permissão para esta ação.';
   if (status === 404) return 'Não encontramos o que você procurou.';
+  if (status === 402) return 'Você chegou ao limite do seu plano neste mês.';
   if (status === 409) return 'Esta ação entra em conflito com dados existentes.';
   if (status === 413) return 'O arquivo é grande demais.';
   if (status === 429) return 'Muitas tentativas em pouco tempo. Aguarde um minuto e tente de novo.';
@@ -87,7 +149,14 @@ async function parse(res) {
   if (res.status === 204) return null;
   const ct = res.headers.get('content-type') || '';
   const data = ct.includes('json') ? await res.json().catch(() => null) : await res.text().catch(() => null);
-  if (!res.ok) throw new ApiError(res.status, data && typeof data === 'object' ? data : {});
+  if (!res.ok) {
+    const err = new ApiError(res.status, data && typeof data === 'object' ? data : {});
+    if (res.status === 402 && limitHandler) {
+      err.handled = true;
+      try { limitHandler(err); } catch { /* o diálogo nunca derruba a tela */ }
+    }
+    throw err;
+  }
   return data;
 }
 
