@@ -4,19 +4,23 @@ using DocumentFormat.OpenXml.Wordprocessing;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 using Zyft.Application.Common.Interfaces;
+using Zyft.Application.Common.Text;
 using Zyft.Domain.Common;
 
 namespace Zyft.Infrastructure.Files;
 
-/// <summary>Extrai texto em memória (o arquivo nunca é gravado em disco): PDF com PdfPig, DOCX com OpenXml.</summary>
+/// <summary>
+/// Extrai texto em memória (o arquivo nunca é gravado em disco): PDF com PdfPig, DOCX com OpenXml. O texto sai
+/// normalizado em NFKC (<see cref="TextTools.NormalizeExtracted"/>): ligaduras como "ﬁ" viram "fi".
+/// </summary>
 public sealed class ResumeTextExtractor : IResumeTextExtractor
 {
     public Task<string> ExtractAsync(byte[] content, string fileName, CancellationToken ct = default)
     {
         try
         {
-            if (fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) return Task.FromResult(FromPdf(content));
-            if (fileName.EndsWith(".docx", StringComparison.OrdinalIgnoreCase)) return Task.FromResult(FromDocx(content));
+            if (fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) return Task.FromResult(TextTools.NormalizeExtracted(FromPdf(content)));
+            if (fileName.EndsWith(".docx", StringComparison.OrdinalIgnoreCase)) return Task.FromResult(TextTools.NormalizeExtracted(FromDocx(content)));
         }
         catch (Exception ex) when (ex is not DomainException and not OperationCanceledException)
         {

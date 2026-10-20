@@ -79,10 +79,12 @@ public sealed class CreateResumeImportHandler(
     IRepository<AuditEvent> audit,
     ICurrentUser current,
     IUnitOfWork uow,
-    IClock clock) : IRequestHandler<CreateResumeImportCommand, ResumeImportDto>
+    IClock clock,
+    Billing.IUsageMeter meter) : IRequestHandler<CreateResumeImportCommand, ResumeImportDto>
 {
     public async Task<ResumeImportDto> Handle(CreateResumeImportCommand cmd, CancellationToken ct)
     {
+        await meter.ConsumeAsync(current.UserId, Domain.Billing.UsageResource.ResumeImports, null, ct);
         var text = await extractor.ExtractAsync(cmd.Content, cmd.FileName, ct);
         if (string.IsNullOrWhiteSpace(text) || text.Trim().Length < 20)
             throw new DomainException("import.no_text", "Não encontramos texto no arquivo. PDF escaneado (imagem) não é suportado: envie um PDF com texto ou um DOCX.");
@@ -142,25 +144,35 @@ public sealed class ApplyResumeImportValidator : AbstractValidator<ApplyResumeIm
             e.RuleFor(x => x.StartDate).Must(BeDate).WithMessage("Informe a data de início (AAAA-MM).");
             e.RuleFor(x => x.EndDate).Must(d => d is null || BeDate(d)).WithMessage("Data de término inválida (AAAA-MM).");
         });
+        // Mensagens dizem QUAL item está incompleto (ex.: a formação sem situação que a IA propôs). Nada é inventado.
         RuleForEach(x => x.Educations).ChildRules(e =>
         {
-            e.RuleFor(x => x.Institution).NotEmpty().WithMessage("Informe a instituição.");
-            e.RuleFor(x => x.Course).NotEmpty().WithMessage("Informe o curso.");
-            e.RuleFor(x => x.Level).Must(l => DisplayNames.TryParse<EducationLevel>(l, out _)).WithMessage("Informe o nível (ex.: Graduação).");
-            e.RuleFor(x => x.Status).Must(s => DisplayNames.TryParse<EducationStatus>(s, out _)).WithMessage("Informe a situação (ex.: Cursando, Concluído).");
-            e.RuleFor(x => x.StartDate).Must(BeDate).WithMessage("Informe a data de início (AAAA-MM).");
+            e.RuleFor(x => x.Institution).NotEmpty().WithMessage(x => $"Formação {Name(x.Course, x.Institution)}: informe a instituição.");
+            e.RuleFor(x => x.Course).NotEmpty().WithMessage(x => $"Formação {Name(x.Course, x.Institution)}: informe o curso.");
+            e.RuleFor(x => x.Level).Must(l => DisplayNames.TryParse<EducationLevel>(l, out _))
+                .WithMessage(x => $"Formação {Name(x.Course, x.Institution)}: escolha o nível (ex.: Graduação, Técnico).");
+            e.RuleFor(x => x.Status).Must(s => DisplayNames.TryParse<EducationStatus>(s, out _))
+                .WithMessage(x => $"Formação {Name(x.Course, x.Institution)}: escolha a situação (Cursando, Concluído, Trancado ou Incompleto). O currículo não dizia.");
+            e.RuleFor(x => x.StartDate).Must(BeDate).WithMessage(x => $"Formação {Name(x.Course, x.Institution)}: informe o mês de início (AAAA-MM).");
         });
         RuleForEach(x => x.Courses).ChildRules(c => c.RuleFor(x => x.Name).NotEmpty().WithMessage("Informe o nome do curso."));
         RuleForEach(x => x.Skills).ChildRules(k => k.RuleFor(x => x.Name).NotEmpty().WithMessage("Informe a competência.").MaximumLength(100));
         RuleForEach(x => x.Languages).ChildRules(l =>
         {
             l.RuleFor(x => x.Name).NotEmpty().WithMessage("Informe o idioma.");
-            l.RuleFor(x => x.Proficiency).Must(p => DisplayNames.TryParse<LanguageProficiency>(p, out _)).WithMessage("Informe o nível (ex.: Básico, Fluente).");
+            l.RuleFor(x => x.Proficiency).Must(p => DisplayNames.TryParse<LanguageProficiency>(p, out _)).WithMessage(x => $"Idioma {Name(x.Name, null)}: escolha o nível (ex.: Básico, Fluente).");
         });
         RuleFor(x => x.Profile!.Email).EmailAddress().When(x => !string.IsNullOrWhiteSpace(x.Profile?.Email)).WithMessage("E-mail inválido.");
     }
 
     private static bool BeDate(string? s) => Dates.TryParseLoose(s, out _);
+
+    /// <summary>"“Administração – UEM”" para identificar o item na mensagem.</summary>
+    private static string Name(string? a, string? b)
+    {
+        var n = string.Join(" – ", new[] { a, b }.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!.Trim()));
+        return n.Length == 0 ? "sem nome" : $"“{(n.Length > 80 ? n[..80] + "…" : n)}”";
+    }
 }
 
 public sealed class ApplyResumeImportHandler(

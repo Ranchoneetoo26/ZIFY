@@ -17,7 +17,7 @@ public class ResumeImportTests(ZyftApiFactory factory) : IClassFixture<ZyftApiFa
         "Ana Paula Souza", "ana.souza@email.com | (44) 99999-2222", "Competências", "Excel, Contas a pagar, Atendimento ao cliente", "Idiomas", "Inglês intermediário",
     };
 
-    private static byte[] Docx()
+    internal static byte[] Docx()
     {
         using var ms = new MemoryStream();
         using (var doc = WordprocessingDocument.Create(ms, WordprocessingDocumentType.Document))
@@ -45,7 +45,7 @@ public class ResumeImportTests(ZyftApiFactory factory) : IClassFixture<ZyftApiFa
         return builder.Build();
     }
 
-    private static MultipartFormDataContent Upload(byte[] bytes, string name, string type)
+    internal static MultipartFormDataContent Upload(byte[] bytes, string name, string type)
     {
         var content = new MultipartFormDataContent();
         var file = new ByteArrayContent(bytes);

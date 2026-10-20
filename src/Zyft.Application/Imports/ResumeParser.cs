@@ -21,13 +21,24 @@ public interface IResumeParser
 /// </summary>
 public sealed partial class ResumeParser(ILlmClient llm, ILogger<ResumeParser> logger) : IResumeParser
 {
+    /// <summary>Regras extras da importação: copiar, sem traduzir nomes próprios (o sistema pede pt-BR para textos gerados).</summary>
+    internal const string ImportRules = """
+        Na importação de currículo você NÃO escreve texto novo: copia o que está escrito.
+        - Mantenha nomes próprios exatamente como estão, no idioma original: empresas, instituições, cursos, certificações,
+          ferramentas e tecnologias. Ex.: "AWS Certified Cloud Practitioner" continua "AWS Certified Cloud Practitioner"
+          (nunca "Profissional de Nuvem Certificado AWS").
+        - Certificações (nome com Certified, Certification ou Certificação) vão em "certifications", não em "courses".
+        - Não complete campos ausentes: se o currículo não diz a situação de uma formação, deixe "status" vazio.
+        """;
+
     public async Task<(ResumeProposal Proposal, bool AiUsed)> ParseAsync(string text, CancellationToken ct = default)
     {
+        text = NormalizeExtracted(text);
         if (llm.IsEnabled)
         {
             try
             {
-                return (await ParseWithAiAsync(text, ct), true);
+                return (ProposalCompleteness.Mark(await ParseWithAiAsync(text, ct)), true);
             }
             catch (LlmUnavailableException ex)
             {
@@ -35,7 +46,7 @@ public sealed partial class ResumeParser(ILlmClient llm, ILogger<ResumeParser> l
             }
         }
 
-        var p = ParseHeuristic(text);
+        var p = ProposalCompleteness.Mark(ParseHeuristic(text));
         return (p with { Warnings = p.Warnings.Append("Proposta feita sem IA: confira e complete experiências e formação manualmente.").ToList() }, false);
     }
 
@@ -66,13 +77,15 @@ public sealed partial class ResumeParser(ILlmClient llm, ILogger<ResumeParser> l
         var prompt = $"""
             Converta o currículo abaixo em JSON estruturado.
             Regras: copie apenas o que está escrito; não complete nem invente; campos ausentes ficam "" ou [].
+            Não traduza nomes próprios (empresas, instituições, cursos, certificações, ferramentas): copie no idioma original.
+            Certificações (Certified, Certification, Certificação) vão em "certifications".
             Datas no formato MM/AAAA quando possível. "current" = true se a experiência é atual.
             Não extraia dados sensíveis (gênero, etnia, deficiência, estado civil, religião, saúde etc.).
 
             Currículo:
             "{(text.Length > 12000 ? text[..12000] : text)}"
             """;
-        var r = await llm.CompleteJsonAsync(new LlmJsonRequest(prompt, schema, LlmPrompts.SystemRules, 0.1, TimeSpan.FromMinutes(5)), ct);
+        var r = await llm.CompleteJsonAsync(new LlmJsonRequest(prompt, schema, LlmPrompts.SystemRules + "\n" + ImportRules, 0.1, TimeSpan.FromMinutes(5)), ct);
 
         static string? S(JsonElement e, string name) =>
             e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String && v.GetString()!.Trim().Length > 0 ? v.GetString()!.Trim() : null;
@@ -108,9 +121,10 @@ public sealed partial class ResumeParser(ILlmClient llm, ILogger<ResumeParser> l
                 S(e, "activities"), S(e, "tools"), S(e, "results"))).ToList(),
             Educations = A(r, "education").Select(e => new ProposalEducation(
                 S(e, "institution"), S(e, "course"), EnumName<EducationLevel>(S(e, "degree")), EnumName<EducationStatus>(S(e, "status")), IsoMonth(S(e, "start")), IsoMonth(S(e, "end")))).ToList(),
-            Courses = A(r, "courses").Select(c => new ProposalCourse(S(c, "name"), S(c, "institution"), Hours(S(c, "hours")), IsoMonth(S(c, "year"))))
+            Courses = A(r, "courses").Select(c => new ProposalCourse(S(c, "name"), S(c, "institution"), Hours(S(c, "hours")), IsoMonth(S(c, "year")), CourseKind(S(c, "name"))))
                 .Concat(A(r, "certifications").Select(c => new ProposalCourse(S(c, "name"), S(c, "issuer"), null, IsoMonth(S(c, "year")), "Certification")))
-                .Where(c => c.Name is not null).ToList(),
+                .Where(c => c.Name is not null)
+                .DistinctBy(c => Norm(c.Name)).ToList(),
             Skills = r.TryGetProperty("skills", out var sk) && sk.ValueKind == JsonValueKind.Array
                 ? sk.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!.Trim()).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).Select(x => new ProposalSkill(x)).ToList()
                 : new List<ProposalSkill>(),
@@ -178,6 +192,16 @@ public sealed partial class ResumeParser(ILlmClient llm, ILogger<ResumeParser> l
     }
 
     // ------------------------------------------------------------ limpezas determinísticas
+
+    [GeneratedRegex(@"\b(certified|certification|certifica[cç][aã]o|certifica[cç][oõ]es)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex CertificationName();
+
+    /// <summary>
+    /// "Course" ou "Certification" pelo nome: quem tem Certified/Certification/Certificação no nome é certificação,
+    /// mesmo que a IA o tenha colocado em "courses" (ex.: "AWS Certified Cloud Practitioner").
+    /// </summary>
+    internal static string CourseKind(string? name) =>
+        name is not null && CertificationName().IsMatch(NormalizeExtracted(name)) ? "Certification" : "Course";
 
     internal static string? IsoMonth(string? text) =>
         text is not null && Dates.TryParseLoose(text, out var d) ? d.ToString("yyyy-MM", CultureInfo.InvariantCulture) : null;
