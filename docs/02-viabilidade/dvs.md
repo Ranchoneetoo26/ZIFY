@@ -6,7 +6,7 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Viabilidade de Software (DVS) |
-| Versão | 2.0 (substitui o DVS do marketplace, arquivado) |
+| Versão | 2.1 |
 | Status | Aprovado para a Fase 0 |
 | Dono | Product Manager (com Arquitetura) |
 | Documentos relacionados | [DVP-E](../01-produto/dvp-e.md), [DRP](../01-produto/drp.md), [Roadmap](../01-produto/roadmap.md), [DAT](../03-arquitetura/dat.md), DVS antigo em [`arquivo/marketplace-v1/dvs.md`](../arquivo/marketplace-v1/dvs.md) |
@@ -17,6 +17,7 @@
 |---|---|---|
 | 1.x | até 05/10/2026 | Viabilidade do marketplace. Arquivado. |
 | 2.0 | 12/10/2026 | Reescrita para a Candidatura Assistida, com base no protótipo de 05–06/10/2026. |
+| 2.1 | 21/10/2026 | §4.3 atualizada: a pesquisa v2 respondeu às hipóteses de monetização, e o MVP 1 passa a ter plano gratuito com limites, Plus, pacote avulso e anúncios, com pagamento simulado ([ADR-0020](../03-arquitetura/adr/0020-monetizacao-com-anuncios-e-planos.md)). Linha do time ajustada. |
 
 ## 1. Objetivo
 
@@ -75,7 +76,7 @@ O protótipo de 05–06/10/2026 (servidor Node.js local, extensão MV3 com paine
 
 | Aspecto | Avaliação |
 |---|---|
-| Time | Pequeno e acadêmico. O escopo do MVP 1 (um portal, sem cobrança, sem marketplace) cabe se a Fase 0 fechar as decisões cedo. Agentes de IA apoiam papéis do time ([ADR-0016](../03-arquitetura/adr/0016-time-de-agentes-de-ia-no-desenvolvimento.md)). |
+| Time | Pequeno e acadêmico. O escopo do MVP 1 (um portal, pagamento simulado sem cobrança real, sem marketplace) cabe se a Fase 0 fechar as decisões cedo. Agentes de IA apoiam papéis do time ([ADR-0016](../03-arquitetura/adr/0016-time-de-agentes-de-ia-no-desenvolvimento.md)). |
 | Suporte | Beta fechado com poucas pessoas; canal direto (e-mail ou WhatsApp) com o time. |
 | Manutenção do conector | Exige monitoramento contínuo do portal; definir responsável pelo conector. |
 | Publicação da extensão | Chrome Web Store e Edge Add-ons exigem política de privacidade, justificativa de permissões e revisão; prever prazo de revisão das lojas. |
@@ -107,13 +108,16 @@ Decisão em [ADR-0005](../03-arquitetura/adr/0005-modelo-open-weight-self-hosted
 
 ### 4.3 Monetização
 
-- **Sem cobrança no MVP 1.** O objetivo do MVP 1 é validar valor e confiança.
-- Hipóteses a validar com a pesquisa v2: gratuito com limite mensal, assinatura mensal, pacotes avulsos. A pesquisa também mede a faixa de preço aceitável.
-- O modelo de assinatura sem comissão do marketplace é do MVP 2 e não é reaproveitado automaticamente.
+- **Sem cobrança real no MVP 1.** O objetivo continua sendo validar valor e confiança. Os planos existem, mas o pagamento é simulado e a interface avisa (RN-13).
+- **O que a pesquisa v2 respondeu** (n = 15, ver [resultados](../05-pesquisa/resultados-v2.md)): 60% preferem gratuito com limite mensal, 13% pacotes avulsos, 13% assinatura sem limite e 13% só usariam se fosse totalmente gratuito. Sobre preço, 20% não pagariam, 47% pagariam até R$ 10, 13% de R$ 10 a 20, 13% de R$ 20 a 40 e 7% mais de R$ 40. Preço é a barreira mais citada (47%).
+- **Modelo adotado** ([ADR-0020](../03-arquitetura/adr/0020-monetizacao-com-anuncios-e-planos.md), proposto): Gratuito com limites mensais e anúncios rotulados; Plus a R$ 9,90/mês ou R$ 99/ano, sem anúncios e sem limites; pacote avulso de R$ 4,90; anúncio recompensado opcional. Detalhes, justificativas e estimativa de receita em [monetização](../01-produto/monetizacao.md).
+- **A estimativa de receita é hipótese.** Com 1.000 pessoas ativas, os cenários vão de cerca de R$ 340 a R$ 1.350 por mês, antes de impostos, taxas e custo de IA. Não sustenta um servidor de IA dedicado nessa escala; a viabilidade depende de escala e do custo de inferência por candidatura, ainda a medir (§4.2).
+- **Riscos novos:** política de dados das lojas de extensões para anúncios (revisão de conformidade antes de publicar); limite gratuito baixo para quem se candidata muito; disposição declarada que não vira compra.
+- O modelo de assinatura sem comissão do marketplace continua no MVP 2 e não foi reaproveitado.
 
 ### 4.4 Conclusão econômica
 
-O MVP 1 é barato de operar no tamanho de um beta. O custo que define a viabilidade em escala é a inferência de IA por candidatura, que será medido antes de qualquer decisão de preço.
+O MVP 1 é barato de operar no tamanho de um beta. O custo que define a viabilidade em escala é a inferência de IA por candidatura. Os preços da v2 saíram da disposição declarada na pesquisa, não do custo; antes de qualquer cobrança real, o custo por candidatura medido no beta precisa caber no preço.
 
 ## 5. Viabilidade legal
 

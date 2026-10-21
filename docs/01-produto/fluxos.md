@@ -6,22 +6,23 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Fluxos de uso do MVP 1 |
-| Versão | 1.0 |
+| Versão | 2.0 |
 | Status | Aprovado para refinamento |
 | Dono | Product Owner (com UX) |
-| Documentos relacionados | [DVP-E](dvp-e.md), [DRP](drp.md), [Personas](personas.md), [Critérios de aceite](../04-qualidade/criterios-de-aceite-mvp1.md), [Arquitetura da extensão](../03-arquitetura/extensao.md) |
+| Documentos relacionados | [DVP-E](dvp-e.md), [DRP](drp.md), [Personas](personas.md), [Critérios de aceite](../04-qualidade/criterios-de-aceite-mvp1.md), [Arquitetura da extensão](../03-arquitetura/extensao.md), [Monetização](monetizacao.md), [Design system](../03-arquitetura/design-system.md), [Guia do usuário](../06-operacao/guia-do-usuario.md) |
 
 **Histórico de revisões**
 
 | Versão | Data | Alteração |
 |---|---|---|
 | 1.0 | 12/10/2026 | Fluxo principal (8 passos do reposicionamento §6), fluxos alternativos e estados do painel lateral. |
+| 2.0 | 21/10/2026 | Versão 2: onboarding em passos com "Preencher mais tarde" (RF-23), área e campos personalizados (RF-24, RF-25), planos, limite atingido (402), pacote, recompensado e anúncios (RF-26 a RF-29). Estados de campo alinhados aos quatro estados do design system. |
 
 ## 1. Fluxo principal
 
 | Passo | O que acontece | Quem age | Requisitos |
 |---|---|---|---|
-| 1 | A pessoa cria uma conta e preenche o Perfil Mestre à mão ou importa um currículo. | Pessoa, plataforma | RF-01, RF-02, RF-03 |
+| 1 | A pessoa cria uma conta e passa pelo onboarding em passos (escolhe a área, responde ou adia cada pergunta) ou importa um currículo. | Pessoa, plataforma | RF-01, RF-02, RF-03, RF-23, RF-24 |
 | 2 | A plataforma apresenta os dados extraídos ou organizados para revisão. A pessoa corrige e aprova o que quer manter. | Pessoa, plataforma | RF-04, RF-05 |
 | 3 | A pessoa abre, por conta própria, o site de vagas e faz login nele. O Zyft não pede nem guarda a senha do portal. | Pessoa | RNF-01 |
 | 4 | No portal suportado, a extensão reconhece a página autorizada e mostra as ações disponíveis naquela tela. | Extensão | RF-09, RF-10 |
@@ -189,13 +190,140 @@ stateDiagram-v2
 
 ### 3.2 Estados de cada campo
 
-| Estado | Significado | Vem marcado? | Cor e texto |
-|---|---|---|---|
-| Pronto | Correspondência segura (regra, IA validada ou resposta aprovada). | Sim | Verde + "Pronto" |
-| Ambíguo | Mais de uma possibilidade ou opção sem correspondência clara. | Não | Amarelo + "Escolha" |
-| Ausente | Não há dado no perfil. | Não | Cinza + "Falta no perfil" |
-| Divergente | Portal já tem valor diferente do perfil. | Não (padrão: manter portal) | Azul + "Já preenchido no portal" |
-| Sugestão de texto | Texto livre gerado pela IA. | Não | Roxo + "Sugestão — revise" |
-| Ação sua | Sensível, termos, anexo, CAPTCHA, senha. | Nunca | Contorno + "Ação sua" |
+Na versão 2 o painel usa os **quatro estados** do [design system](../03-arquitetura/design-system.md#5-estados-de-campo). Cada um tem cor, ícone e palavra, nunca só cor (RNF-06). Os estados técnicos devolvidos pela API (`FieldSuggestion.state` e `kind`) continuam os mesmos; a tabela mostra como cada um aparece.
 
-Cada estado tem cor **e** texto, para não depender só de cor (RNF-06).
+| Estado na tela | Estado técnico (API) | Significado | Vem marcado? |
+|---|---|---|---|
+| **Pronto** (sálvia, check) | `ready` | Valor veio do Perfil Mestre aprovado, de um campo personalizado (`custom:<id>`) ou de uma resposta aprovada. | Sim, exceto sensível com consentimento, que vem desmarcado e é aprovado um a um. |
+| **Precisa de você** (âmbar, alerta) | `ambiguous`, `missing`, `divergent` | Falta no perfil, há mais de uma opção, ou o portal já tem um valor diferente (padrão: manter o do portal). | Não |
+| **Ação sua** (borda tracejada, bloqueio) | `blocked` | Sensível sem consentimento, termos, anexo, CAPTCHA, senha. O Zyft não age. | Nunca |
+| **Sugestão da IA – revise** (roxo, rascunho) | `kind=generated` | Texto livre escrito pela IA a partir dos fatos do perfil. Só é aprovado depois de a pessoa marcar "Li e é verdade sobre mim". | Não |
+
+Ordem no painel: os Prontos em linhas compactas no topo, com "Aprovar os N" (só Prontos não sensíveis de **um** formulário); depois, um a um, os sensíveis e o que precisa de atenção.
+
+## 4. Onboarding em passos (RF-23, RF-24)
+
+Por que existe: a dor mais forte é redigitar dados (4,40), e um cadastro longo de uma vez repetiria essa dor dentro do próprio Zyft. Uma pergunta por tela, com a opção de adiar qualquer uma, deixa a pessoa começar em poucos minutos e completar depois ([ADR-0018](../03-arquitetura/adr/0018-onboarding-em-passos-com-perguntas-adiaveis.md)).
+
+| Capítulo | Perguntas (ids de passo) |
+|---|---|
+| 1. Quem é você | `nome`, `nascimento`, `contato`, `endereco` |
+| 2. Sua área | `area`, `cargos`, `setores`, `registro` (só nas áreas que pedem), `links` |
+| 3. O que você busca | `nivel`, `modelo`, `local`, `contrato`, `disponibilidade`, `salario`, `mobilidade` |
+| 4. Sua bagagem | `experiencia`, `diaadia`, `ferramentas`, `formacao`, `cursos`, `competencias`, `idiomas` |
+| 5. Sua apresentação | `titulo`, `resumo` |
+| 6. Combinados | `combinados` (consentimentos, todos desligados por padrão) |
+
+```mermaid
+flowchart TD
+    A([Conta criada]) --> B[Boas-vindas: o que vai acontecer]
+    B --> C{Tem currículo?}
+    C -- Sim --> D[Importar currículo e revisar]
+    D --> E
+    C -- Não --> E[Pergunta atual<br/>uma por tela]
+    E --> F{Responder?}
+    F -- Responder --> G[Salva no Perfil Mestre<br/>e marca como respondida]
+    F -- Preencher mais tarde --> H[Marca como pulada]
+    G --> I[PUT /onboarding<br/>answered, skipped, lastStep]
+    H --> I
+    I --> J{Última pergunta?}
+    J -- Não --> E
+    J -- Sim --> K[Combinados: consentimentos]
+    K --> L[PUT /onboarding completed=true<br/>auditoria onboarding.completed]
+    L --> M[Perfil Mestre]
+    M --> N{Há puladas?}
+    N -- Sim --> O[Alerta no topo: N perguntas ficaram para depois<br/>Continuar de onde parei / Responda agora]
+    N -- Não --> P([Perfil pronto para a extensão])
+```
+
+| Regra | Requisito |
+|---|---|
+| Toda pergunta tem "Preencher mais tarde" e nenhuma é obrigatória. | RN-14 |
+| A escolha da área muda as sugestões de cargos, setores, ferramentas e competências, o link pedido (GitHub, Currículo Lattes) e a pergunta de registro (COREN, OAB, CRC, NR/MOPP). Em qualquer lista a pessoa pode digitar o próprio valor. | RF-24 |
+| Fechar o navegador não perde nada; a pessoa volta para `lastStep`. | RNF-17 |
+| Enquanto houver puladas, a extensão marca os campos correspondentes como **Precisa de você**. O alerta explica isso. | RF-23 |
+| "Responda agora" mostra primeiro as pendentes que mais aparecem nos formulários (pretensão salarial, disponibilidade, CNH). | RF-23 |
+| Nenhum anúncio no onboarding. | RN-08 |
+
+### 4.1 Campos personalizados (RF-25)
+
+```mermaid
+flowchart LR
+    A[Perfil: Informações da sua área] --> B[Nome + valor]
+    B --> C{Rótulo parece sensível<br/>ou documento?}
+    C -- Sim --> D[422: use Dados sensíveis<br/>ou não informe]
+    C -- Não --> E[Salvo; auditoria custom_field.changed]
+    E --> F[No formulário: regra compara rótulo<br/>ou IA aponta custom:id]
+    F --> G[Valor vem do perfil<br/>estado Pronto]
+```
+
+## 5. Planos, limites e anúncios
+
+### 5.1 Limite atingido (RF-26 a RF-28)
+
+```mermaid
+flowchart TD
+    A[Pessoa clica em Ler formulário] --> B[POST /forms/mappings]
+    B --> C{Dentro do limite<br/>ou com bônus/pacote?}
+    C -- Sim --> D[Revisão normal]
+    C -- Não --> E[402 plan.limit_reached<br/>resource, used, limit]
+    E --> F[Painel: Você usou as 10 candidaturas assistidas deste mês]
+    F --> G{Escolha da pessoa}
+    G -- Ver uma oferta patrocinada --> H[POST /ads/rewarded/claim<br/>+3 no mês]
+    H --> I{Ainda há ofertas no mês?}
+    I -- Sim --> B
+    I -- Não: 409 --> F
+    G -- Comprar pacote R$ 4,90 --> J[POST /billing/packs<br/>pagamento simulado] --> B
+    G -- Testar o Plus --> K[POST /billing/subscribe<br/>7 dias grátis] --> B
+    G -- Agora não --> L[Pessoa preenche no site por conta própria]
+```
+
+| Regra | Requisito |
+|---|---|
+| A mensagem é calma: sem vermelho, sem contagem regressiva, sem "última chance". | Design system, RN-12 |
+| O limite nunca bloqueia editar o perfil, exportar ou excluir a conta, nem o registro de ações. | RN-12 |
+| A opção recompensada só aparece se ainda houver ofertas no mês (máximo 3). | RF-28 |
+| Toda tela de compra mostra "Ambiente de demonstração: nenhuma cobrança real". | RN-13 |
+
+### 5.2 Assinar e cancelar o Plus (RF-26)
+
+| Passo | O que acontece |
+|---|---|
+| 1 | Em **Planos**, a pessoa escolhe mensal (R$ 9,90) ou anual (R$ 99) e clica em "Testar 7 dias grátis". |
+| 2 | `POST /billing/subscribe {period}`: o plano vira `plus`, com `trialEndsAt` em 7 dias. Auditoria `plan.changed`. |
+| 3 | Os anúncios somem na próxima tela (`GET /ads` responde `204`), os limites passam a `null` e o limite de navegadores sobe para 3. |
+| 4 | "Cancelar" chama `POST /billing/cancel`: o plano volta ao gratuito no fim do período (na demonstração, pode ser na hora). Nada do perfil se perde. |
+
+### 5.3 Anúncio na tela (RF-29)
+
+```mermaid
+sequenceDiagram
+    actor P as Pessoa
+    participant C as Web ou extensão
+    participant API as API Zyft
+    C->>C: carrega o conteúdo principal primeiro
+    C->>API: GET /ads?placement=ext.job.contextual&topic=Inglês avançado
+    API->>API: plano Plus? placement proibido? tudo oculto?
+    alt nenhum anúncio
+        API-->>C: 204
+        C-->>P: o espaço não aparece
+    else anúncio escolhido por área, cargos e tema
+        API-->>C: 200 {title, advertiser, body, cta, reason}
+        C-->>P: cartão "Patrocinado" com Ocultar e "Por que estou vendo isso?"
+    end
+    opt pessoa clica em Ocultar
+        P->>C: este anúncio (30 dias) ou este tema (sempre)
+        C->>API: POST /ads/{id}/hide {scope}
+    end
+    opt pessoa clica na chamada
+        C->>API: POST /ads/{id}/click (contador agregado)
+    end
+```
+
+| Regra | Requisito |
+|---|---|
+| Nunca em onboarding, entrar/criar conta, importar currículo, dados sensíveis, conta e privacidade, painel "Ler formulário", nem para Plus. | RN-08 |
+| A requisição leva só o placement e o tema do requisito; área e cargos são lidos no servidor; nada vai para o anunciante. | RN-09, RNF-14 |
+| Sempre "Patrocinado", com "Ocultar" e "Por que estou vendo isso?"; no máximo um por tela. | RN-10, RN-11 |
+| Erro, timeout ou `204`: o espaço some sem quebrar a tela. | RNF-15 |
+| Na extensão, o anúncio contextual substitui o banner do rodapé quando há requisito que não aparece no perfil; o "Próximo passo" só aparece depois de registrar a candidatura. | RF-29 |

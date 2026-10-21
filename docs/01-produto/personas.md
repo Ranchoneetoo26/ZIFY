@@ -5,131 +5,164 @@
 | Campo | Valor |
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
-| Documento | Personas de necessidade |
-| Versão | 1.0 |
-| Status | **Hipótese** — a validar com a [pesquisa v2](../05-pesquisa/plano-de-pesquisa.md) |
+| Documento | Personas de necessidade e personas narrativas |
+| Versão | 2.0 |
+| Status | Validado em parte pela pesquisa v2 (n = 15). Beatriz Lima é hipótese a validar. |
 | Dono | Product Owner (com Product Manager e UX) |
-| Documentos relacionados | [DVP-E §4](dvp-e.md#4-público-alvo-e-personas), [Fluxos](fluxos.md), [Questionário v2](../05-pesquisa/questionario-v2.md), personas antigas em [`arquivo/marketplace-v1/dvp-e.md`](../arquivo/marketplace-v1/dvp-e.md) |
+| Documentos relacionados | [Resultados da pesquisa v2](../05-pesquisa/resultados-v2.md), [DVP-E §4](dvp-e.md#4-público-alvo-e-personas), [Fluxos](fluxos.md), [Design system](../03-arquitetura/design-system.md), [ADR-0019](../03-arquitetura/adr/0019-area-profissional-dinamica-e-campos-personalizados.md), personas antigas em [`arquivo/marketplace-v1/dvp-e.md`](../arquivo/marketplace-v1/dvp-e.md) |
 
 **Histórico de revisões**
 
 | Versão | Data | Alteração |
 |---|---|---|
-| 1.0 | 12/10/2026 | Personas de necessidade PN1–PN5 conforme o reposicionamento; arquétipos da pesquisa como lente secundária; antipersona. Substituem Júlia, Leonardo e Roberto (marketplace). |
+| 1.0 | 12/10/2026 | Personas de necessidade PN1–PN5 conforme o reposicionamento; arquétipos da pesquisa como lente secundária; antipersona. Substituem Júlia, Leonardo e Roberto, que eram personas do marketplace. |
+| 2.0 | 21/10/2026 | Resultado da pesquisa v2 aplicado a cada PN (PN1, PN2 e PN4 confirmadas como perfil; PN3 e PN5 não confirmadas). Entram as personas narrativas Rafael (primária) e Bia (secundária), construídas a partir das respostas, e Beatriz Lima (Saúde), hipótese ligada à área profissional dinâmica. Entra o arquétipo de marca (Cuidador com traço de Sábio). |
+
+### Por que as personas mudaram duas vezes
+
+1. **Marketplace → necessidades (v1.0, 12/10).** Júlia (iniciante PJ), Leonardo (experiente PJ/CLT) e a antipersona Roberto descreviam quem contrata e quem é contratado num marketplace de TI. Com o reposicionamento ([ADR-0001](../03-arquitetura/adr/0001-reposicionamento-mvp1-candidatura-assistida.md)), o produto passou a servir quem se candidata, de qualquer área. Personas demográficas de TI deixaram de fazer sentido e foram trocadas por cinco **categorias de necessidade** (PN1–PN5).
+2. **Necessidades → necessidades com dados e rostos (v2.0, 21/10).** A pesquisa v2 trouxe 15 respostas válidas. Os IDs PN1–PN5 continuam os mesmos, porque o DRP, os critérios de aceite e o questionário apontam para eles. O que muda é que cada PN agora tem um resultado medido, e o time ganhou três personas narrativas para tomar decisões de tela e de texto. Uma persona narrativa não substitui as PN: ela junta as necessidades mais fortes num retrato que dá para lembrar numa reunião.
 
 ## 1. Como ler este documento
 
-- As personas do MVP 1 são **categorias de necessidade**, não perfis demográficos. Uma mesma pessoa pode ter mais de uma necessidade, e a necessidade dominante muda com o momento (ex.: no primeiro uso, PN2; depois, PN1).
-- Nada aqui é dado de pesquisa. **Tudo é hipótese** até a pesquisa v2 atingir o critério de validação (≥ 15 respostas, média ≥ 3,5 e ≥ 50% de notas 4–5 por dor). Depois dela, este documento ganha a versão 2.0 com os resultados reais, inclusive personas descartadas.
-- As trajetórias de exemplo (primeiro emprego, experiente, transição de carreira, desemprego, baixa familiaridade digital) mostram que cada necessidade atravessa perfis diferentes. Elas não definem idade, gênero, renda ou área.
+- **PN1–PN5** são categorias de necessidade. Uma pessoa pode ter mais de uma, e a necessidade dominante muda com o momento.
+- **Rafael, Bia e Beatriz** são personas narrativas. Rafael e Bia saem das respostas da pesquisa; Beatriz é hipótese.
+- Todos os números vêm de [resultados-v2.md](../05-pesquisa/resultados-v2.md). Amostra pequena (n = 15) e concentrada em tecnologia (60%). Os números são sinal de direção, não prova estatística.
 
-## 2. Resumo
+Critérios do [plano de pesquisa §5](../05-pesquisa/plano-de-pesquisa.md#5-critérios-de-validação):
 
-| ID | Persona | Necessidade principal | Dores da pesquisa v2 ligadas | Funcionalidades do MVP 1 |
-|---|---|---|---|---|
-| PN1 | Quer reduzir tarefas repetitivas | Reutilizar informações e preencher formulários com menos digitação | Repetir os mesmos dados | RF-02, RF-11 a RF-14 |
-| PN2 | Precisa organizar suas informações | Dados e experiências consistentes, revisados antes de usar | Manter currículo e perfis atualizados | RF-02 a RF-05, RF-16 |
-| PN3 | Precisa de apoio na redação | Respostas claras para campos abertos, só com fatos confirmados | Responder perguntas abertas | RF-06, RF-15, RF-21 |
-| PN4 | Busca adequação à vaga | Entender os requisitos visíveis e comparar com o próprio perfil, sem promessas | Saber se tenho o perfil | RF-17 |
-| PN5 | Precisa de orientação no preenchimento | Entender campos, descobrir o que falta e revisar antes de salvar ou enviar | Entender o que o formulário pede; revisar sem errar | RF-05, RF-13, RF-18, RF-19 |
+- **Persona confirmada:** escolhida por pelo menos 15% das respostas, com identificação média de pelo menos 3,5.
+- **Dor validada:** média de pelo menos 3,5, pelo menos 50% de notas 4–5 e pelo menos 15 respostas.
 
-## 3. Personas
+## 2. Resultado da validação
 
-### PN1 — Quer reduzir tarefas repetitivas
+| ID | Persona de necessidade | Perfil no questionário | Escolha | Identificação média | Dor ligada (média; % notas 4–5) | Situação |
+|---|---|---|---|---|---|---|
+| PN1 | Quer reduzir tarefas repetitivas | A — Quer agilidade | 5 (33%) | 4,0 | Redigitar dados: 4,40; 80% | **Confirmada.** Persona e dor passam. É a necessidade principal. |
+| PN2 | Precisa organizar suas informações | B — Quer organizar | 4 (27%) | 3,75 | Manter perfis: 3,60; 53% | **Confirmada**, no limite: no recorte do plano (n = 12) a dor cai para 42% de notas altas. |
+| PN3 | Precisa de apoio na redação | C — Ajuda para escrever | 1 (7%) | 4,0 | Perguntas abertas: 3,27; 40% | **Não confirmada.** Mantida como necessidade secundária: 47% citam perguntas abertas entre as etapas que mais tomam tempo. |
+| PN4 | Busca adequação à vaga | D — Quer saber se tem o perfil | 3 (20%) | 4,0 | Saber se tem o perfil: 2,33; 13% | **Confirmada como perfil, não como dor.** Comparar a vaga é recurso valorizado (80%), mas não incomoda. |
+| PN5 | Precisa de orientação no preenchimento | E — Orientação no formulário | 0 (0%) | — | Entender o formulário: 2,00; 20%. Revisar: 2,20; 13% | **Não confirmada.** Nenhuma escolha e dores baixas. Fica no documento como "não validada". |
 
-| Aspecto | Descrição |
-|---|---|
-| Necessidade | Reaproveitar informações profissionais e terminar cada formulário com menos digitação, sem perder o controle do que vai. |
-| Cenário típico | Encontrou uma vaga num portal que ainda não usava. O portal pede cadastro completo: dados pessoais, três experiências, formação, cursos e idiomas, que ela já digitou em outros sites. |
-| Comportamentos | Candidata-se com frequência; tem um currículo pronto; copia e cola de um documento; usa o autofill do navegador quando funciona. |
-| Frustrações | Formulários longos; blocos repetidos (Experiência 1, 2, 3); datas em formatos diferentes; perder o que digitou quando a página expira. |
-| Como o Zyft ajuda | Perfil Mestre único; a extensão lê o formulário, propõe o preenchimento de cada campo (inclusive blocos repetidos) e preenche só o que ela aprovou. |
-| O que **não** fazemos | Não enviamos a candidatura; não nos candidatamos a várias vagas de uma vez; não navegamos sozinhos pelo portal. |
-| Critério de sucesso (hipótese) | Concluir o cadastro no portal suportado em menos tempo do que sem o Zyft, aceitando a maioria dos campos sem editar. |
-| Perguntas da pesquisa v2 | Candidaturas por semana; tempo por candidatura; etapas que mais tomam tempo; dor "Preencher os mesmos dados em cada site"; perfil A. |
-| Trajetórias de exemplo | Pessoa desempregada que se candidata a várias vagas por semana; profissional experiente com muitas experiências para cadastrar. |
+"Nenhum deles" teve 2 escolhas (13%), abaixo do corte de 20% que obrigaria a reescrever os perfis.
 
-### PN2 — Precisa organizar suas informações
+### O que isso muda
 
-| Aspecto | Descrição |
-|---|---|
-| Necessidade | Ter um lugar com as informações profissionais corretas e atualizadas, e revisar antes de usá-las. |
-| Cenário típico | Tem um currículo de dois anos atrás, um perfil no LinkedIn mais novo e um cadastro antigo num portal regional. As datas e os cargos não batem entre eles. |
-| Comportamentos | Mantém o currículo num arquivo Word ou PDF; atualiza só quando precisa; não lembra o que cadastrou em cada site. |
-| Frustrações | Inconsistências entre sites; medo de passar informação errada; não saber qual versão está certa. |
-| Como o Zyft ajuda | Importa o currículo como **proposta**, mostra cada campo para aprovar, pergunta só o que falta e compara o que já está no portal com o perfil (com "manter portal" por padrão). |
-| O que **não** fazemos | Não substituímos dados do portal sem escolha da pessoa; não "corrigimos" fatos por conta própria. |
-| Critério de sucesso (hipótese) | Sair do primeiro uso com um Perfil Mestre aprovado e sem divergências não resolvidas com o portal suportado. |
-| Perguntas da pesquisa v2 | Dor "Manter currículo e perfis atualizados e iguais entre sites"; perfil B; importância de "Importar meu currículo". |
-| Trajetórias de exemplo | Pessoa empregada que voltou a procurar vaga depois de anos; pessoa em transição de carreira que precisa reorganizar o histórico. |
+- **PN1 e PN2 guiam o produto.** Perfil único reaproveitado e importação de currículo foram os recursos mais valorizados (87% cada). O onboarding em passos e o Perfil Mestre existem por causa delas.
+- **PN3 não some, mas deixa de ser o centro.** A IA para textos continua (RF-15), sempre como rascunho, e é o recurso de IA com limite no plano gratuito. A desconfiança também pesa: 33% têm receio de respostas abertas sugeridas por IA e 20% citam "não confiar em IA escrevendo por mim" como barreira.
+- **PN4 vira recurso de apoio.** A análise de vaga (RF-17) continua Should. A comunicação fala em "entender o que a vaga pede", não em resolver uma angústia.
+- **PN5 não justifica funcionalidade nova.** Os estados de campo e as explicações ficam, porque servem a todos, mas não há investimento específico para PN5 até haver evidência. O público da pesquisa estava à vontade com formulários (familiaridade média 4,07), o que explica o resultado e é também um viés: pessoas com pouca familiaridade digital quase não responderam.
 
-### PN3 — Precisa de apoio na redação
+## 3. Personas narrativas
+
+### 3.1 Rafael Moreira, o profissional que não quer redigitar (primária)
+
+> "Já escrevi isso dez vezes. Só quero conferir e seguir."
 
 | Aspecto | Descrição |
 |---|---|
-| Necessidade | Escrever respostas claras para campos abertos ("Fale sobre você", "Por que esta vaga?") usando só o que é verdade. |
-| Cenário típico | O formulário pede um texto de até 500 caracteres sobre a experiência com atendimento ao cliente. Ela tem a experiência, mas não sabe como descrever. |
-| Comportamentos | Deixa campos abertos por último; às vezes desiste da vaga; pede ajuda a amigos ou copia textos prontos da internet. |
-| Frustrações | Não saber se o texto está bom; medo de exagerar ou de parecer genérica; escrever a mesma coisa várias vezes. |
-| Como o Zyft ajuda | Sugere um texto baseado **só** em fatos aprovados do perfil, respeitando o limite do campo; reaproveita respostas aprovadas para perguntas parecidas; tudo editável. |
-| O que **não** fazemos | Não inventamos experiências, resultados ou competências; não aprovamos texto por ela. |
-| Critério de sucesso (hipótese) | Usar a sugestão (com ou sem edição) na maioria dos campos abertos e declarar confiança no texto final. |
-| Perguntas da pesquisa v2 | Dor "Responder perguntas abertas"; perfil C; receio de "respostas abertas escritas por IA"; importância de "Sugestão de texto só com fatos meus". |
-| Trajetórias de exemplo | Pessoa em busca do primeiro emprego; pessoa com baixa familiaridade com escrita formal; profissional experiente sem tempo para personalizar cada texto. |
+| Quem é | 28 anos, analista de tecnologia (back-end), Uberlândia/MG. Empregado, buscando outra oportunidade. |
+| Como se candidata | De 1 a 5 candidaturas por semana em LinkedIn, Gupy e sites de carreira das empresas. Cada uma leva de 15 a 30 minutos. |
+| Necessidades | PN1 (principal) e PN2. |
+| O que mais incomoda | Digitar experiências e formação item por item em cada site; criar cadastro de novo; manter currículo e perfis iguais. |
+| Receios | Entregar CPF, RG e endereço; uma extensão que "lê tudo"; pagar por algo que funciona em poucos sites. |
+| O que o Zyft faz por ele | Importa o currículo, monta o Perfil Mestre uma vez, mostra os campos Prontos de relance com "Aprovar os N" e guarda as respostas no Banco de respostas. |
+| Plano provável | Gratuito no começo. Plus se a busca apertar. |
+| Critério de sucesso | Terminar um formulário conhecido conferindo, não digitando, sem nenhum campo errado. |
 
-### PN4 — Busca adequação à vaga
+**De onde veio.** É o retrato da maioria da amostra: 67% têm entre 26 e 30 anos, 60% buscam vagas em tecnologia, 67% têm de 5 a 10 anos de experiência, 73% usam LinkedIn e 47% usam Gupy. A frase dele resume a dor mais forte da pesquisa (redigitar dados: 4,40; 80% de notas 4–5). Entre os 6 respondentes que se candidatam toda semana, essa dor chega a 4,67.
 
-| Aspecto | Descrição |
-|---|---|
-| Necessidade | Entender o que a vaga pede e o que no próprio histórico atende ou não, antes de decidir se candidatar. |
-| Cenário típico | A vaga lista oito requisitos, dois deles "desejáveis". Ela não sabe se o curso técnico conta como "formação na área" nem se dois anos bastam. |
-| Comportamentos | Escolhe poucas vagas; lê a descrição inteira; pesquisa a empresa. |
-| Frustrações | Descrições confusas; requisitos implícitos; perder tempo com vagas que não combinam. |
-| Como o Zyft ajuda | Lê os requisitos **visíveis**, marca cada um como "atende", "parcial", "não encontrado" ou "confirmar", e mostra a linha do perfil que serve de evidência. |
-| O que **não** fazemos | Não damos nota, porcentagem ou promessa de compatibilidade; não deduzimos o que não está escrito na vaga. |
-| Critério de sucesso (hipótese) | Considerar a análise útil para decidir e não encontrar nenhuma evidência falsa. |
-| Perguntas da pesquisa v2 | Dor "Saber se tenho o perfil que a vaga pede"; perfil D; importância de "Comparar a vaga com meu perfil". |
-| Trajetórias de exemplo | Pessoa em transição de carreira; pessoa experiente e seletiva; estudante que não sabe se pode concorrer. |
+**Usuário de demonstração:** `demo@zyft.local` / `Zyft@2026` (perfil de Tecnologia, completo). Ver o [guia do usuário](../06-operacao/guia-do-usuario.md).
 
-### PN5 — Precisa de orientação no preenchimento
+### 3.2 Bia, a iniciante que trava nos textos (secundária)
+
+> "Não sei o que escrever e tenho medo de exagerar."
 
 | Aspecto | Descrição |
 |---|---|
-| Necessidade | Saber o que cada campo pede, o que está faltando e revisar tudo antes de salvar ou enviar. |
-| Cenário típico | O formulário tem campos obrigatórios sem explicação ("Regime pretendido", "Disponibilidade"), uma pergunta sobre deficiência e um aceite de termos. Ela não sabe o que é obrigatório responder. |
-| Comportamentos | Preenche devagar; tem medo de errar e não conseguir corrigir; pede ajuda; usa o celular mais do que o computador. |
-| Frustrações | Formulários confusos; mensagens de erro vagas; insegurança sobre dados pessoais. |
-| Como o Zyft ajuda | Painel lateral com cada campo e seu estado (pronto, ambíguo, ausente, ação sua), explicações em linguagem simples, aviso sobre campos sensíveis e de termos, e um resumo antes de preencher. |
-| O que **não** fazemos | Não aceitamos termos nem respondemos dados sensíveis por ela; não resolvemos CAPTCHA. |
-| Critério de sucesso (hipótese) | Concluir o fluxo sem ajuda externa e dizer que entendeu o que foi preenchido. |
-| Perguntas da pesquisa v2 | Dores "Entender o que o formulário está pedindo" e "Revisar tudo antes de enviar sem errar"; perfil E; confiança numa ferramenta com revisão. |
-| Trajetórias de exemplo | Pessoa com baixa familiaridade digital; pessoa desempregada há muito tempo voltando ao mercado; estudante no primeiro cadastro. |
+| Quem é | 20 anos, estudante procurando estágio (ou em transição de carreira). |
+| Como se candidata | De 6 a 15 candidaturas por semana. Muitas vagas pedem texto livre ("Por que você quer este estágio?"). |
+| Necessidades | PN3 e PN4. |
+| O que mais incomoda | Perguntas abertas; não saber se tem o perfil da vaga; medo de exagerar e ser descartada. |
+| Receios | Confia pouco num assistente (nota 2 de 5) e só usaria se fosse gratuito. |
+| O que o Zyft faz por ela | "A vaga e você" mostra o que a vaga pede e onde isso aparece no perfil, sem nota. O rascunho da IA é "um ponto de partida", com os fatos usados à vista, e só é aprovado depois de ela marcar "Li e é verdade sobre mim". |
+| Plano provável | Gratuito, com anúncio recompensado. |
+| Critério de sucesso | Terminar uma pergunta aberta com as próprias palavras, partindo de um rascunho que não inventou nada. |
 
-## 4. Arquétipos comportamentais (lente secundária)
+**De onde veio.** De uma resposta específica da pesquisa: até 20 anos, estudante, 6 a 15 candidaturas por semana, nota 5 para o incômodo com perguntas abertas, confiança 2, "não pagaria" e "só usaria se fosse totalmente gratuita". Ela não representa a maioria. Representa um grupo que o produto não pode deixar para trás: 47% citam perguntas abertas entre as etapas que mais tomam tempo, e quem ainda não tem trajetória longa é quem mais precisa de ajuda para escrever sem inventar.
 
-A pesquisa usa quatro arquétipos para entender **como** a pessoa age ao buscar vaga. Eles não substituem as personas de necessidade; servem para ajustar a comunicação. Também são hipóteses.
+**Tensão conhecida.** Com 6 a 15 candidaturas por semana (de 24 a 65 por mês), a Bia passa das 10 candidaturas assistidas do plano gratuito. O anúncio recompensado (+9 no mês) e o pacote avulso reduzem o problema, mas não o eliminam. Ver [monetização §8](monetizacao.md#8-riscos).
 
-| Arquétipo | Como age | Necessidades mais prováveis | Mensagem de comunicação |
+### 3.3 Beatriz Lima, técnica de enfermagem (hipótese a validar)
+
+> "Os formulários de hospital pedem COREN, escala e plantão, e o currículo de TI não tem lugar para isso."
+
+| Aspecto | Descrição |
+|---|---|
+| Quem é | 25 anos, técnica de enfermagem em Belo Horizonte/MG, área Saúde. Busca vagas em hospitais e clínicas, de preferência plantão ou escala. |
+| Como se candidata | Sites de carreira de hospitais, portais regionais e grupos de WhatsApp. |
+| Necessidades | PN1 e PN5 (hipótese). |
+| O que ela precisa do produto | Registro profissional (COREN) no perfil; ferramentas da área (prontuário eletrônico, Tasy, MV Soul); tipo de pretensão "por plantão"; campos que nenhum catálogo conhece, como "disponível para plantão noturno". |
+| O que o Zyft faz por ela | O onboarding pergunta pelo registro no conselho porque a área é Saúde; as sugestões de cargos, setores e competências são da área dela; "Informações da sua área" guarda os campos personalizados que a extensão usa quando o formulário perguntar algo parecido. |
+| Critério de sucesso | Completar o perfil sem campos que não se aplicam a ela e ver a extensão reconhecer "COREN" num formulário. |
+
+**Por que ela existe, e por que é hipótese.** A decisão de tornar a área profissional dinâmica ([ADR-0019](../03-arquitetura/adr/0019-area-profissional-dinamica-e-campos-personalizados.md)) diz que o Zyft serve qualquer área. Uma decisão dessas precisa de uma persona de fora da tecnologia que teste se ela se sustenta. Mas a pesquisa não dá base para afirmar como essa pessoa se comporta: **só 1 das 15 respostas é de Saúde (7%)**, e 60% são de tecnologia. Essa única resposta é de uma estudante procurando estágio que deu nota 5 para redigitar dados e para perguntas abertas, o que é coerente com a Beatriz, mas é uma pessoa só. Até haver respostas e entrevistas com profissionais de saúde, tudo o que está acima é suposição.
+
+**Como validar:** divulgar a pesquisa em grupos de enfermagem e cursos técnicos de saúde (meta: pelo menos 10 respostas da área) e fazer 3 entrevistas com técnicos de enfermagem. Se as dores forem outras, a persona é reescrita ou descartada.
+
+**Usuária de demonstração:** `beatriz@demo.zyft` / `Zyft@2026`, com onboarding parcialmente pulado para mostrar o alerta de pendentes.
+
+### 3.4 Antipersona: quem quer candidatura em massa
+
+| Aspecto | Descrição |
+|---|---|
+| Quem é | Quem quer disparar candidaturas sem ler as vagas ou automatizar a própria conta no portal ("auto apply"). |
+| O que pede | Envio automático, várias vagas de uma vez, contorno de CAPTCHA, guardar a senha do portal, respostas "que aumentem a chance" mesmo exageradas. |
+| Por que recusamos | Viola os termos dos portais, desperdiça o tempo de recrutadores, gera candidaturas ruins e contraria os princípios 1 a 3 do [DVP-E](dvp-e.md#6-princípios-do-produto). |
+| Como o produto responde | Não há botão de envio, fila de vagas nem senha guardada. "Aprovar os N" vale só para campos Prontos e não sensíveis de **um** formulário. Nenhuma tela, anúncio ou botão usa "em massa", "com um clique", "piloto automático" ou "candidate-se a N vagas". |
+| Relação com os planos | O Plus tira limites de uso, não tira a revisão. Plano pago nunca libera envio automático. |
+
+## 4. Arquétipo de marca e arquétipos comportamentais
+
+São duas coisas diferentes e não devem ser confundidas.
+
+### 4.1 Arquétipo de marca: Cuidador, com traço de Sábio
+
+Define a personalidade do Zyft (tom, cores, ícones). Detalhes em [design-system.md](../03-arquitetura/design-system.md).
+
+| Arquétipo | Papel | Por quê (pesquisa) |
+|---|---|---|
+| **Cuidador** (principal) | Tira a repetição e guarda os dados com cuidado | A dor mais forte é redigitar (4,40). Os receios são de dados: 67% com CPF/RG, 40% com endereço, 40% citam privacidade como barreira. |
+| **Sábio** (traço) | Explica de onde vem cada valor e o que a vaga pede, sem prometer | Comparar a vaga com o perfil é valorizado por 80%, e a confiança média (3,4) pede transparência, não entusiasmo. |
+| **Mago** (evitar) | "A IA faz tudo por você" | 20% não confiam em IA escrevendo por eles e 33% temem respostas abertas sugeridas. Nada de brilhos, varinhas ou "mágica". |
+
+### 4.2 Arquétipos comportamentais (lente secundária)
+
+Descrevem como a pessoa age na busca. Continuam úteis para mensagens, mas não foram medidos diretamente na v2.
+
+| Arquétipo | Como age | Necessidades | Mensagem |
 |---|---|---|---|
-| O Maratonista | Candidata-se com frequência e quer agilidade. | PN1, PN2 | "Pare de digitar as mesmas informações em cada site. Você revisa e decide o que vai." |
-| O Estrategista | Escolhe poucas vagas e quer acertar cada uma. | PN4, PN3 | "Entenda o que a vaga pede e mostre a melhor versão verdadeira de você." |
-| O Iniciante Inseguro | Não sabe se tem o perfil nem o que escrever; às vezes desiste. | PN3, PN5 | "A gente ajuda a escrever e a entender cada campo, e você revisa tudo antes de enviar." |
-| O Explorador | Está mudando de área e quer mostrar como a experiência se aplica. | PN4, PN3, PN2 | "Mostre, com fatos do seu histórico, como o que você já fez serve para a nova área." |
+| O Maratonista | Candidata-se com frequência | PN1, PN2 | "Pare de digitar as mesmas informações em cada site. Você revisa e decide o que vai." |
+| O Estrategista | Escolhe poucas vagas | PN4, PN3 | "Entenda o que a vaga pede e mostre a melhor versão verdadeira de você." |
+| O Iniciante Inseguro | Não sabe o que escrever | PN3, PN5 | "Um ponto de partida para o seu texto, com o que é verdade sobre você." |
+| O Explorador | Está mudando de área | PN4, PN3, PN2 | "Mostre, com fatos do seu histórico, como o que você já fez serve para a nova área." |
 
-A mensagem original do Maratonista ("candidate-se a 10 vagas no tempo que levava para 1") foi **retirada**: promete volume e se aproxima da candidatura em massa, que está fora do produto. A nova mensagem fala de esforço repetitivo, não de quantidade de candidaturas.
+A mensagem antiga do Maratonista ("candidate-se a 10 vagas no tempo que levava para 1") continua retirada: promete volume e se aproxima da antipersona.
 
-## 5. Antipersona
+## 5. Como usar as personas nas decisões
 
-| Aspecto | Descrição |
-|---|---|
-| Quem é | Quem quer **disparar candidaturas em massa** sem ler as vagas, ou automatizar a própria conta no portal sem supervisão (robôs, "auto apply"). |
-| O que pede | Envio automático, várias vagas de uma vez, contorno de CAPTCHA, guardar a senha do portal, respostas "que aumentem a chance" mesmo que exageradas. |
-| Por que recusamos | Viola os termos dos portais, desperdiça o tempo de recrutadores, gera candidaturas de baixa qualidade e contraria os princípios 1 a 3 do [DVP-E](dvp-e.md#6-princípios-do-produto). |
-| Como o produto responde | Não existe botão de envio, nem fila de vagas, nem armazenamento de senha. A comunicação nunca promete volume. |
+Diante de uma decisão de tela difícil, pergunte nesta ordem:
 
-## 6. Como as personas serão validadas
+1. Isso ajuda o **Rafael** a conferir e seguir?
+2. Isso deixa a **Bia** começar sem exagerar?
+3. Isso funciona para a **Beatriz**, que não é de tecnologia? (Se a resposta depender de suposição, registre como hipótese.)
+4. Isso abre alguma porta para a **antipersona**? Se sim, não entra.
 
-1. A pesquisa v2 mede as dores ligadas a cada persona (seção 2) e pergunta com qual perfil (A–E, um por persona) a pessoa mais se identifica.
-2. Uma persona é **confirmada** quando a dor ligada a ela passa no critério de validação **e** pelo menos 15% das pessoas escolhem o perfil correspondente com identificação ≥ 4. Esse corte de 15% é uma proposta inicial a revisar com o PM.
-3. Personas não confirmadas continuam no documento, marcadas como "não validada", com o que as respostas mostraram.
-4. Depois da pesquisa, as cinco a oito pessoas que aceitarem contato participam de entrevistas e dos testes de usabilidade do MVP 1.
+## 6. Próximos passos de validação
+
+| Lacuna | Ação | Dono |
+|---|---|---|
+| Amostra pequena (n = 15) e 60% de tecnologia | Segunda rodada da pesquisa com divulgação fora de tecnologia (meta de 60 respostas, nenhuma área acima de 50%) | PM |
+| Beatriz sem base de dados | Pelo menos 10 respostas de Saúde e 3 entrevistas | PM, UX |
+| PN5 sem escolha | Recrutar pessoas com baixa familiaridade digital para o teste de usabilidade | UX |
+| Confiança abaixo da meta (3,4 < 3,5) | Medir a confiança depois do uso real no teste moderado (métrica M6) | PM, QA |

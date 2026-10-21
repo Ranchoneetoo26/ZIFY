@@ -6,16 +6,17 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Roadmap MVP 1 e MVP 2 |
-| Versão | 1.0 |
+| Versão | 2.0 |
 | Status | Vigente (revisado a cada marco de decisão) |
 | Dono | Product Manager |
-| Documentos relacionados | [DVP-E](dvp-e.md), [DRP](drp.md), [Métricas](metricas.md), [DVS](../02-viabilidade/dvs.md), [Plano de pesquisa](../05-pesquisa/plano-de-pesquisa.md) |
+| Documentos relacionados | [DVP-E](dvp-e.md), [DRP](drp.md), [Métricas](metricas.md), [DVS](../02-viabilidade/dvs.md), [Plano de pesquisa](../05-pesquisa/plano-de-pesquisa.md), [Resultados da pesquisa v2](../05-pesquisa/resultados-v2.md), [Monetização](monetizacao.md) |
 
 **Histórico de revisões**
 
 | Versão | Data | Alteração |
 |---|---|---|
 | 1.0 | 12/10/2026 | Fase 0, incrementos do MVP 1, critérios de saída e MVP 2. |
+| 2.0 | 21/10/2026 | Situação real: pesquisa v2 concluída (n = 15), incrementos I1 a I5 implementados em .NET na Entrega 3. Novo incremento I6 (versão 2 do produto: onboarding, área, campos personalizados, planos e anúncios), com a justificativa. Itens do mockup de Planos que são MVP 2. |
 
 ## 1. Princípios
 
@@ -39,6 +40,18 @@ flowchart LR
     M0 -- No-go --> R[Rever proposta de valor]
     M1 -- No-go --> I3
 ```
+
+## 2.1 Onde estamos (21/10/2026)
+
+| Etapa | Situação |
+|---|---|
+| F0.1 Pesquisa v2 | **Concluída (rodada 1).** 15 respostas válidas, abaixo da meta de 60 e com 60% de tecnologia. Uma segunda rodada fora de tecnologia continua necessária. Ver [resultados](../05-pesquisa/resultados-v2.md). |
+| F0.2 Entrevistas | Pendente. |
+| F0.3 Spike do primeiro portal | Pendente. O fluxo é demonstrado no portal de demonstração. |
+| F0.5 Decisões técnicas | ADR-0017 (.NET 8) substituiu o ADR-0003; demais ADRs ainda propostos. |
+| Marco 0 | Critério de dores atingido: "redigitar dados" e "manter perfis" passaram no critério da pesquisa. Critérios de portal e de interesse do beta ainda abertos. |
+| I1 a I5 | Implementados na Entrega 3 (API .NET, web, extensão, portal demo, 157 testes). |
+| I6 (versão 2) | Em implementação. |
 
 ## 3. Fase 0 — Descoberta e redução de risco
 
@@ -68,7 +81,14 @@ flowchart LR
 | **I3 — Extensão e preenchimento** | Pareamento; reconhecimento do portal; crawler; de-para; painel de revisão; preenchimento; comparação portal × perfil; campos bloqueados | RF-09 a RF-14, RF-16, RF-18 | Cadastro completo no portal suportado preenchido com revisão, sem envio automático |
 | **I4 — IA para textos livres** | Sugestão de texto; respostas aprovadas; melhorar texto (Could) | RF-06, RF-15, RF-21 | Campos abertos recebem sugestões só com fatos aprovados, passando nos evals |
 | **I5 — Vaga e conclusão** | Análise de vaga com evidência (Should); confirmação de conclusão; registro mínimo (se aprovado) | RF-17, RF-19, RF-22 | Análise de vaga sem evidência falsa nos evals; conclusão visível |
-| **Beta fechado** | Testes com pessoas de trajetórias diversas; correções | — | Critérios de saída medidos |
+| **I6 — Versão 2** | Onboarding em passos; área profissional e catálogo; campos personalizados; planos, limites e pacote; anúncio recompensado; anúncios no gratuito | RF-23 a RF-29 | A pessoa começa o perfil em minutos e adia o que quiser; Beatriz (Saúde) consegue um perfil sem campos de TI; o gratuito tem limite claro e anúncios só onde é permitido (TN-11, TN-12, TN-15) |
+| **Beta fechado** | Testes com pessoas de trajetórias diversas, inclusive fora de tecnologia; correções | — | Critérios de saída medidos |
+
+### 4.1 Por que o I6 entrou antes do beta
+
+- **Onboarding (RF-23):** as duas dores validadas (redigitar dados e manter perfis) dependem de um Perfil Mestre preenchido. O formulário único de perfil da Entrega 3 pedia tudo de uma vez, o que repete a dor dentro do Zyft. Testar o beta sem resolver isso mediria o cansaço do cadastro, não o valor da extensão.
+- **Área e campos personalizados (RF-24, RF-25):** o beta precisa ter pessoas de outras áreas (H8 falhou: 60% de tecnologia). Sem área dinâmica, essas pessoas encontrariam um perfil com GitHub e stack técnica e desistiriam, e o time concluiria errado que o produto não serve para elas.
+- **Planos e anúncios (RF-26 a RF-29):** a pesquisa respondeu às perguntas de preço e de modelo de uso. Medir comportamento (clique em "Assinar", "Comprar pacote", "Ganhar +3") no beta, com pagamento simulado, custa pouco e evita refazer telas depois. A decisão de escopo está no [ADR-0020](../03-arquitetura/adr/0020-monetizacao-com-anuncios-e-planos.md).
 
 O detalhamento dos épicos em histórias fica no backlog; os critérios de aceite estão em [criterios-de-aceite-mvp1.md](../04-qualidade/criterios-de-aceite-mvp1.md).
 
@@ -94,6 +114,8 @@ A ordem será definida no planejamento do MVP 2, a partir do aprendizado do MVP 
 | Acompanhamento | Painel central de candidaturas; estados, próximas ações, lembretes, filtros e busca | RF-M2-01, RF-M2-02 |
 | Expansão de portais | Conectores para outros portais; importação ou sincronização de candidaturas | RF-M2-03, RF-M2-04 |
 | Inteligência | Análise ampliada de vagas e comparação de oportunidades; relatórios e automações sob consentimento | RF-M2-05, RF-M2-06 |
+| Plano Plus ampliado (vindos do mockup de Planos) | Versões do perfil por tipo de vaga; lembretes de retorno; gerar currículo em PDF a partir do perfil; suporte com prazo de resposta | A definir. Não podem ser anunciados como benefício do Plus antes de decisão (RN-06, RN-07) |
+| Cobrança real | Provedor de pagamento, nota fiscal, reembolso, direito de arrependimento, revisão de termos | A definir ([monetização §7](monetizacao.md#7-pagamento-simulado)) |
 | Marketplace (proposta original) | Marketplace bilateral; PJ e CLT; assinaturas sem comissão; matching e fila de prioridade; reputação; chat e liberação de contato | RF-M2-07 a RF-M2-12 |
 
 A documentação do marketplace em [`docs/arquivo/marketplace-v1/`](../arquivo/marketplace-v1/) é o ponto de partida para o grupo Marketplace.
@@ -104,5 +126,6 @@ A documentação do marketplace em [`docs/arquivo/marketplace-v1/`](../arquivo/m
 |---|---|---|---|
 | Marco 0 | Fim da Fase 0 | Seguir com o MVP 1 como está, ajustar o escopo ou rever a proposta | CEO, PO, PM |
 | Marco 0.5 | Fim do I3 | O preenchimento no portal é confiável o bastante para seguir? Se não, mais um ciclo no conector antes da IA | PO, Arquitetura, QA |
+| Marco 0.6 | Antes de publicar a extensão nas lojas | Os anúncios da extensão estão conformes à política de dados das lojas? Se não, a versão da loja sai sem `ext.job.contextual` | PO, Privacidade |
 | Marco 1 | Fim do beta | Critérios de saída atingidos; abrir para mais pessoas e planejar o MVP 2 | CEO, PO, PM |
 | Marco 2 | Planejamento do MVP 2 | Ordem entre acompanhamento, novos portais e marketplace | CEO, PM |
