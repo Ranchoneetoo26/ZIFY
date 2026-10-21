@@ -3,10 +3,17 @@
 | Campo | Valor |
 |---|---|
 | Documento | Histórico e reposicionamento |
-| Versão | 1.0 |
-| Data | 12/10/2026 |
+| Versão | 1.1 |
+| Data | 21/10/2026 |
 | Status | Vigente |
 | Fontes | `ZYFT_visao_produto_reposicionamento_MVP1_MVP2.docx`, `plano-automacao-candidaturas.pdf` (nesta pasta), [ADR-0001](../03-arquitetura/adr/0001-reposicionamento-mvp1-candidatura-assistida.md) |
+
+**Histórico de revisões**
+
+| Versão | Data | Alteração |
+|---|---|---|
+| 1.0 | 12/10/2026 | Versão inicial: do marketplace à Candidatura Assistida. |
+| 1.1 | 21/10/2026 | Linha do tempo até a versão 2; stack .NET (ADR-0017); personas e monetização atualizadas; nova §7 sobre a versão 2. |
 
 ## 1. Resumo
 
@@ -24,6 +31,10 @@ O marketplace não foi descartado. Ele continua como direção estratégica e fo
 | 07/10/2026 | Pesquisa de validação de persona, arquétipo e dor em Google Forms via Apps Script | [`ferramentas/pesquisa/`](../../ferramentas/pesquisa/) |
 | 12/10/2026 | Documento de visão de reposicionamento (MVP 1 × MVP 2) | [`ZYFT_visao_produto_reposicionamento_MVP1_MVP2.docx`](ZYFT_visao_produto_reposicionamento_MVP1_MVP2.docx) |
 | 12/10/2026 | Reescrita de toda a documentação, ADRs, agentes de IA do time e pesquisa v2 | Este repositório |
+| 15/10/2026 | Backend passa a ser C#/.NET 8 com Clean Architecture, por exigência da disciplina; o protótipo Node vira referência de comportamento | [ADR-0017](../03-arquitetura/adr/0017-backend-em-csharp-dotnet-clean-architecture.md) |
+| 15–17/10/2026 | Pesquisa v2 em campo: 15 respostas válidas | [Resultados da pesquisa v2](../05-pesquisa/resultados-v2.md) |
+| 18/10/2026 | Entrega 2: projeto e arquitetura | [Entrega 2](../entregas/entrega-2-projeto-e-arquitetura.md) |
+| 21/10/2026 | Versão 2 do produto: onboarding em passos, área profissional dinâmica, campos personalizados, planos e anúncios | [Por que o Zyft](por-que-o-zyft.md), ADRs [0018](../03-arquitetura/adr/0018-onboarding-em-passos-com-perguntas-adiaveis.md), [0019](../03-arquitetura/adr/0019-area-profissional-dinamica-e-campos-personalizados.md) e [0020](../03-arquitetura/adr/0020-monetizacao-com-anuncios-e-planos.md) |
 
 ## 3. Por que mudou
 
@@ -39,9 +50,9 @@ O marketplace não foi descartado. Ele continua como direção estratégica e fo
 | Público | Profissionais de TI e empresas contratantes | Qualquer pessoa que se candidata a vagas pela internet, de qualquer área, senioridade ou modalidade |
 | Proposta de valor | Contratação PJ/CLT sem comissão, com reputação | Preparar e preencher candidaturas com base nas suas informações, revisando cada resposta e confirmando cada ação |
 | Entrega 1 | Cadastro, oportunidades, matching, avaliações, assinatura | Perfil Mestre, importação de currículo, preenchimento assistido num primeiro portal, IA para textos livres, confirmação explícita |
-| Personas | Júlia (iniciante PJ), Leonardo (experiente PJ/CLT), antipersona Roberto | Cinco personas de **necessidade** (ver [personas](../01-produto/personas.md)) |
-| Monetização | Assinatura fixa por trilha (PJ, CLT, Dual) | A validar na pesquisa v2 (gratuito com limite, assinatura ou pacotes); sem cobrança no MVP 1 |
-| Stack proposta | C#/.NET 8, PostgreSQL | TypeScript/Node.js em monorepo, PostgreSQL, IA open-weight self-hosted (ver ADRs 0003–0006) |
+| Personas | Júlia (iniciante PJ), Leonardo (experiente PJ/CLT), antipersona Roberto | Cinco personas de **necessidade** (PN1–PN5), validadas em parte pela pesquisa v2, e personas narrativas Rafael (primária), Bia (secundária) e Beatriz (hipótese, outra área); antipersona: candidatura em massa (ver [personas](../01-produto/personas.md)) |
+| Monetização | Assinatura fixa por trilha (PJ, CLT, Dual) | Até 20/10: sem cobrança no MVP 1. Desde a v2 (21/10): plano Gratuito com limites e anúncios, Plus (R$ 9,90/mês ou R$ 99/ano) e pacote avulso (R$ 4,90), com **pagamento simulado** ([ADR-0020](../03-arquitetura/adr/0020-monetizacao-com-anuncios-e-planos.md), [monetização](../01-produto/monetizacao.md)) |
+| Stack | C#/.NET 8, PostgreSQL | Proposta de 12/10: TypeScript/Node.js em monorepo (ADR-0003, substituído). Implementada: C#/.NET 8 com Clean Architecture, PostgreSQL (SQLite em desenvolvimento), web sem build e extensão MV3, IA open-weight self-hosted ([ADR-0017](../03-arquitetura/adr/0017-backend-em-csharp-dotnet-clean-architecture.md), ADRs 0004–0006) |
 | Mockups | Painel empresa, painel profissional, mensagens | A refazer para o fluxo do MVP 1 (painel lateral da extensão e plataforma do Perfil Mestre) |
 
 **Fica para o MVP 2:** marketplace bilateral, PJ/CLT, assinaturas sem comissão, matching e fila de prioridade, reputação e avaliações, painel central de candidaturas, histórico completo, lembretes, filtros, conectores adicionais e relatórios. A lista completa está no [roadmap](../01-produto/roadmap.md).
@@ -61,6 +72,19 @@ O protótipo foi feito antes do reposicionamento e implementa coisas que agora s
 | Arquétipo "Maratonista" com a mensagem "candidate-se a 10 vagas no tempo que levava para 1" | Candidatura em massa está **fora** do produto | Mensagem reescrita na pesquisa v2 (ver [plano de pesquisa](../05-pesquisa/plano-de-pesquisa.md)) |
 | Servidor local de um usuário, token fixo | MVP 1 precisa de contas e pareamento seguro da extensão | ADRs [0007](../03-arquitetura/adr/0007-autenticacao-e-pareamento-da-extensao.md) e [0008](../03-arquitetura/adr/0008-postgresql-com-perfil-em-jsonb.md) |
 
-## 7. Documentos antigos
+## 7. Versão 2 (21/10/2026)
+
+A pesquisa v2 confirmou a dor principal (preencher os mesmos dados em cada site: média 4,40 e 80% de notas 4 ou 5) e mostrou o que trava o uso: preço (47%), privacidade (40%) e funcionar em poucos sites (40%). Com isso o produto ganhou quatro mudanças, todas com ADR em status Proposta:
+
+| Mudança | Por quê, em uma linha | Decisão |
+|---|---|---|
+| Onboarding em passos, com toda pergunta adiável | Montar o perfil sem currículo era uma tela longa; perguntas puladas viram pendência no perfil, não bloqueio | [ADR-0018](../03-arquitetura/adr/0018-onboarding-em-passos-com-perguntas-adiaveis.md) |
+| Área profissional dinâmica | O produto é para qualquer área, mas as sugestões e perguntas eram de tecnologia | [ADR-0019](../03-arquitetura/adr/0019-area-profissional-dinamica-e-campos-personalizados.md) |
+| Campos personalizados | Cada profissão pede informações que o Zyft não conhece (registro em conselho, plantão) | [ADR-0019](../03-arquitetura/adr/0019-area-profissional-dinamica-e-campos-personalizados.md) |
+| Planos e anúncios | 60% preferem gratuito com limite; o preço é a maior barreira. É uma **decisão de escopo** (RN-07): a monetização entra no MVP 1, com pagamento simulado | [ADR-0020](../03-arquitetura/adr/0020-monetizacao-com-anuncios-e-planos.md) |
+
+A história completa, com os números e o que a pesquisa **não** confirmou, está em [Por que o Zyft](por-que-o-zyft.md).
+
+## 8. Documentos antigos
 
 Os documentos do marketplace foram movidos para [`docs/arquivo/marketplace-v1/`](../arquivo/marketplace-v1/) sem alteração de conteúdo. Eles servem de ponto de partida para o planejamento do MVP 2 e **não** descrevem o produto atual.
