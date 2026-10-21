@@ -1,5 +1,6 @@
 // Definição dos campos do Perfil Mestre, alinhada às entidades da API (camelCase).
 import * as v from '../validate.js';
+import { registerFieldLabels } from '../api.js';
 
 /** "2021-02-01" → "2021-02" (valor de <input type="month">). */
 export const toMonth = (d) => (d ? String(d).slice(0, 7) : '');
@@ -10,7 +11,9 @@ export const EDUCATION_LEVELS = [['', 'Selecione'], ['ElementarySchool', 'Ensino
 export const EDUCATION_STATUS = [['', 'Selecione'], ['InProgress', 'Cursando', 1], ['Completed', 'Concluído', 2], ['Paused', 'Trancado', 3], ['Incomplete', 'Incompleto', 4]];
 export const PROFICIENCY = [['', 'Selecione'], ['Basic', 'Básico', 1], ['Intermediate', 'Intermediário', 2], ['Advanced', 'Avançado', 3], ['Fluent', 'Fluente', 4], ['Native', 'Nativo', 5]];
 export const SKILL_LEVELS = [['', 'Não informado'], ['Basic', 'Básico', 1], ['Intermediate', 'Intermediário', 2], ['Advanced', 'Avançado', 3]];
+// Sem opção vazia: o select abre em "Curso" (a API também assume Course quando o tipo não vem).
 export const COURSE_TYPES = [['Course', 'Curso', 1], ['Certification', 'Certificação', 2]];
+export const SALARY_TYPES = [['', 'Não informado'], ['CLT (bruto)', 'CLT (bruto)'], ['PJ', 'PJ'], ['Por hora', 'Por hora'], ['Por plantão', 'Por plantão']];
 export const YES_NO = [['', 'Não informado'], ['true', 'Sim'], ['false', 'Não']];
 
 /** Aceita o enum como nome ("Hybrid"), número (2) ou rótulo ("Híbrido") e devolve o nome. */
@@ -37,13 +40,16 @@ export const BASIC_FIELDS = [
   { name: 'portfolioUrl', label: 'Portfólio ou site', type: 'url', optional: true },
   { name: 'headline', label: 'Título profissional', optional: true, hint: 'Ex.: Assistente administrativa', wide: true },
   { name: 'summary', label: 'Resumo profissional', type: 'textarea', optional: true, rows: 4, wide: true, hint: 'Escreva com suas palavras. A IA só usa o que estiver aqui e nas seções abaixo.' },
+  { name: 'workArea', label: 'Área de atuação', optional: true, hint: 'Ex.: Saúde, Tecnologia, Vendas e comercial' },
+  { name: 'professionalRegistration', label: 'Registro profissional', optional: true, hint: 'Ex.: COREN-MG 123456, OAB/MG 123.456' },
   { name: 'desiredRoles', label: 'Cargos desejados', optional: true, hint: 'Separe por vírgula.', wide: true },
-  { name: 'areas', label: 'Áreas de interesse', optional: true, hint: 'Separe por vírgula.' },
-  { name: 'seniority', label: 'Senioridade', optional: true, hint: 'Ex.: Júnior, Pleno' },
+  { name: 'areas', label: 'Setores de interesse', optional: true, hint: 'Separe por vírgula.' },
+  { name: 'seniority', label: 'Momento da carreira', optional: true, hint: 'Ex.: Júnior ou assistente, Sênior' },
   { name: 'workModel', label: 'Modelo de trabalho', type: 'select', options: WORK_MODELS, optional: true },
   { name: 'locationPreference', label: 'Preferência de localidade', optional: true },
   { name: 'availability', label: 'Disponibilidade para início', optional: true, hint: 'Ex.: Imediata, 30 dias' },
   { name: 'salaryExpectation', label: 'Pretensão salarial (R$)', type: 'number', optional: true, attrs: { min: 0, step: '0.01', inputmode: 'decimal' } },
+  { name: 'salaryType', label: 'Tipo de pretensão', type: 'select', options: SALARY_TYPES, optional: true },
   { name: 'contractTypes', label: 'Tipos de contrato aceitos', optional: true, hint: 'Ex.: CLT, PJ, Estágio' },
   { name: 'availableToTravel', label: 'Disponível para viagens', type: 'select', options: YES_NO, optional: true, bool: true },
   { name: 'availableToRelocate', label: 'Disponível para mudar de cidade', type: 'select', options: YES_NO, optional: true, bool: true },
@@ -54,10 +60,12 @@ export const BASIC_FIELDS = [
 const range = (d) => {
   const a = d.startDate ? toMonthBr(d.startDate) : '';
   const b = d.isCurrent ? 'atual' : d.endDate ? toMonthBr(d.endDate) : '';
-  return a || b ? `${a || '?'} a ${b || '?'}` : '';
+  return a || b ? `${a || '?'} – ${b || '?'}` : '';
 };
-const toMonthBr = (d) => { const m = String(d).match(/^(\d{4})-(\d{2})/); return m ? `${m[2]}/${m[1]}` : String(d); };
-const join = (...xs) => xs.filter(Boolean).join(' · ');
+const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+export const toMonthBr = (d) => { const m = String(d).match(/^(\d{4})-(\d{2})/); return m ? `${MONTHS[Number(m[2]) - 1]}/${m[1]}` : String(d); };
+export { range as periodOf };
+export const join = (...xs) => xs.filter(Boolean).join(' · ');
 
 export const SECTIONS = [
   {
@@ -108,7 +116,7 @@ export const SECTIONS = [
     empty: 'Nenhum curso ou certificação ainda.',
     fields: [
       { name: 'name', label: 'Nome', required: true },
-      { name: 'type', label: 'Tipo', type: 'select', options: COURSE_TYPES },
+      { name: 'type', label: 'Tipo', type: 'select', options: COURSE_TYPES, default: 'Course' },
       { name: 'institution', label: 'Instituição ou emissor', optional: true },
       { name: 'hours', label: 'Carga horária (horas)', type: 'number', optional: true, attrs: { min: 1, max: 10000, inputmode: 'numeric' } },
       { name: 'completedAt', label: 'Concluído em', type: 'month', optional: true },
@@ -145,8 +153,12 @@ export const SECTIONS = [
   },
 ];
 
+// Erros 400 da API mostram o mesmo rótulo que a pessoa vê no formulário.
+registerFieldLabels(Object.fromEntries(BASIC_FIELDS.map((f) => [f.name, f.label])));
+
 /** Valor vindo da API → valor do controle de formulário. */
 export function toInput(f, val) {
+  if ((val === null || val === undefined || val === '') && f.default !== undefined) return f.default;
   if (Array.isArray(val)) return val.join(', ');
   if (f.type === 'month') return toMonth(val);
   if (f.type === 'date') return val ? String(val).slice(0, 10) : '';
