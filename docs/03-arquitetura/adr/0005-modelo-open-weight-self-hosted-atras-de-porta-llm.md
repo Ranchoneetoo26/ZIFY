@@ -72,7 +72,7 @@ Critérios do spike:
 | Taxa de JSON válido | ≥ 99% |
 | Valores objetivos fora do perfil | 0 |
 | p95 do de-para com IA | ≤ 10 s |
-| Concordância com o gabarito na análise de vaga | Não inferior à linha de base do `qwen2.5:7b` no Ollama (limiares em [estratégia de testes §5.2](../../04-qualidade/estrategia-de-testes.md#52-métricas-e-limiares)) |
+| Concordância com o gabarito na análise de vaga | Não inferior à linha de base do `qwen2.5:7b` no Ollama (limiares em [estratégia de testes §5.2](../../04-qualidade/estrategia-de-testes.md#62-métricas-e-limiares)) |
 | Custo mensal com 200 pessoas ativas | Estimado e aprovado pelo CEO |
 
 ## Consequências

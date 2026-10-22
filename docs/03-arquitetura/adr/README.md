@@ -67,6 +67,10 @@ Agentes de IA do time podem **redigir** ADRs e marcá-los como Proposta; a passa
 | [0015](0015-observabilidade-sem-dados-pessoais.md) | Observabilidade sem dados pessoais | Proposta |
 | [0016](0016-time-de-agentes-de-ia-no-desenvolvimento.md) | Time de agentes de IA no desenvolvimento | Aceita |
 | [0017](0017-backend-em-csharp-dotnet-clean-architecture.md) | Backend em C#/.NET 8 com Clean Architecture | Proposta |
+| [0018](0018-onboarding-em-passos-com-perguntas-adiaveis.md) | Onboarding em passos com perguntas adiáveis | Proposta |
+| [0019](0019-area-profissional-dinamica-e-campos-personalizados.md) | Área profissional dinâmica e campos personalizados | Proposta |
+| [0020](0020-monetizacao-com-anuncios-e-planos.md) | Monetização com anúncios e planos no MVP 1 (decisão de escopo, RN-07) | Proposta |
+| [0021](0021-rede-de-anuncios-google-adsense.md) | Rede de anúncios Google AdSense para preencher o inventário (simulada) | Proposta |
 
 ## Como criar um ADR
 

@@ -78,7 +78,7 @@ Otimizações de latência (avaliar vários requisitos por chamada, paralelismo,
 ## Conformidade
 
 - Teste unitário: com um LLM falso que devolve `atende` e `line` fora do intervalo, o resultado é `nao_encontrado` com evidência vazia.
-- Evals com gabarito de vagas reais anonimizadas: 100% das evidências são linhas do perfil; concordância de status acompanhada contra a linha de base, sem gate até haver 50+ casos (limiares em [estratégia de testes §5.2](../../04-qualidade/estrategia-de-testes.md#52-métricas-e-limiares)).
+- Evals com gabarito de vagas reais anonimizadas: 100% das evidências são linhas do perfil; concordância de status acompanhada contra a linha de base, sem gate até haver 50+ casos (limiares em [estratégia de testes §5.2](../../04-qualidade/estrategia-de-testes.md#62-métricas-e-limiares)).
 - Teste de interface: nenhuma porcentagem ou nota aparece na tela de análise.
 
 ## Links

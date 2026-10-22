@@ -1,8 +1,8 @@
-# ADR-0012 — Registro mínimo de conclusão no MVP 1
+# ADR-0012 — Registro de conclusão no MVP 1 (com status e anotações)
 
 | Campo | Valor |
 |---|---|
-| Status | Proposta |
+| Status | Aceita (Opção B ampliada com status e anotações; decisão de Guilherme Brogio, 22/10/2026) |
 | Data | 12/10/2026 |
 | Decisores | Product Owner, Arquiteto de software |
 | Consultados | Responsável por privacidade, Designer UX, Product Manager |
@@ -81,6 +81,43 @@ Se a pesquisa v2 e os testes de usabilidade mostrarem que a pessoa não valoriza
 - Teste de contrato: `conclusao_candidatura` só aceita as cinco colunas definidas.
 - Teste: com o consentimento desligado, nenhuma linha é gravada.
 - Revisão de PO em qualquer PR que toque a tela de registro.
+
+## Nota de divergência (21/10/2026)
+
+> Esta nota não muda o status do ADR. Ela registra que a implementação da Entrega 3 e da v2 **não seguiu** a Opção B recomendada e propõe como resolver.
+
+**O que foi implementado** (`src/Zyft.Domain/Applications/JobApplication.cs`, `ApplicationsController`, `web/js/views/applications.js`):
+
+| Ponto | Opção B (recomendada) | Implementação |
+|---|---|---|
+| Quando grava | Só com consentimento "registro de candidaturas" (opt-in na primeira conclusão) | Quando a pessoa toca em "Concluí a candidatura" no painel (`POST /forms/completions`). Não há consentimento específico; o toque é a ação explícita |
+| Campos | data, portal, cargo, empresa, URL | Os cinco, mais `fieldsFilled` (quantidade de campos preenchidos), `status` e `notes` |
+| Status | Nenhum | Enum `ApplicationStatus` com 10 valores herdados do protótipo (Confirmed, InReview, Interview, Test, Offer, Hired, Rejected, Withdrawn, NoResponse, Archived). Toda candidatura nasce como `Confirmed` |
+| Edição | Nenhuma (só leitura e exclusão) | `PATCH /applications/{id}` altera status e anotações (até 2000 caracteres) |
+| Interface | Lista simples | Tabela com busca e filtro por status; detalhe com status, anotações e a contagem de campos (os valores preenchidos não são guardados) |
+| Exclusão | Individual e total | Individual (`DELETE /applications/{id}`); a exclusão total acontece com a exclusão da conta |
+
+O que se manteve fiel ao ADR: nenhum valor preenchido é guardado, a conclusão nunca é automática (ADR-0009) e a auditoria registra só `application.confirmed` com portal e quantidade de campos.
+
+**Proposta de atualização** (para decisão do PO e do arquiteto):
+
+1. Reconhecer o que existe como **Opção B ampliada**: aceitar `fieldsFilled` (útil para a métrica de valor, sem dado pessoal) e manter o registro disparado pelo toque em "Concluí a candidatura", explicando isso na política de privacidade em vez de criar mais um consentimento.
+2. Para status e anotações, escolher um caminho: (a) **manter** e registrar a exceção à RN-07 neste ADR, com a justificativa de que a dor "lembrar onde me candidatei" teve 3,00 de média e 47% de notas 4 e 5 na pesquisa v2; ou (b) **esconder** status, filtro e anotações na interface até o MVP 2, mantendo as colunas no banco sem uso.
+3. Atualizar a seção "Conformidade": o teste de contrato das "cinco colunas" não existe e não passaria hoje.
+
+Até a decisão, a documentação de arquitetura descreve o comportamento real e aponta para esta nota.
+
+## Decisão final (22/10/2026)
+
+**Aceita a Opção B ampliada, com status e anotações** (caminho 2a da nota acima), por decisão de Guilherme Brogio, responsável pela arquitetura do time.
+
+1. O registro acontece quando a pessoa toca em "Concluí a candidatura" no painel e confirma "Confirmo que enviei". É uma ação explícita dela; não há registro automático (ADR-0009).
+2. Campos guardados: data, portal, cargo, empresa, URL, `fieldsFilled`, `status` e `notes`. Os **valores preenchidos nunca são guardados**.
+3. Status (10 valores) e anotações (até 2000 caracteres) ficam no MVP 1, como **exceção registrada à RN-07**. A justificativa vem da pesquisa v2: "lembrar onde me candidatei" teve média 3,00 e 47% de notas 4 e 5, e "sem retorno das empresas" foi a dor mais forte (4,40; 87%). O status é o mínimo para a pessoa acompanhar o retorno.
+4. Continuam **fora** do MVP 1, exigindo novo ADR: lembretes automáticos de retorno, integração com e-mail ou portais para atualizar status, e o painel de acompanhamento do RF-M2-01/RF-M2-02.
+5. A política de privacidade explica o registro, e ele é apagado individualmente ou com a exclusão da conta.
+
+**Conformidade atualizada:** os testes de integração de candidaturas (criação por `POST /forms/completions`, `PATCH` de status e anotações, exclusão) substituem o teste das "cinco colunas" proposto originalmente.
 
 ## Links
 
