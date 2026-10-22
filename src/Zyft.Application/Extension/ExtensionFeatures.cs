@@ -73,7 +73,8 @@ public sealed class PairDeviceHandler(
     ITokenService tokens,
     IAuthTokenIssuer issuer,
     IUnitOfWork uow,
-    IClock clock) : IRequestHandler<PairDeviceCommand, PairResult>
+    IClock clock,
+    Billing.IUsageMeter meter) : IRequestHandler<PairDeviceCommand, PairResult>
 {
     public async Task<PairResult> Handle(PairDeviceCommand cmd, CancellationToken ct)
     {
@@ -82,6 +83,7 @@ public sealed class PairDeviceHandler(
         var code = await codes.FindAsync(c => c.CodeHash == hash && c.UsedAt == null && c.ExpiresAt > now, ct)
                    ?? throw new UnauthorizedException("Código de pareamento inválido ou expirado. Gere um novo na plataforma.");
         var user = await users.FindAsync(u => u.Id == code.UserId, ct) ?? throw new UnauthorizedException("Código de pareamento inválido.");
+        await meter.EnsureDeviceCapacityAsync(user.Id, ct); // 1 navegador no Gratuito, 3 no Plus (402)
 
         code.Use(now);
         var device = ExtensionDevice.Pair(user.Id, cmd.DeviceName, now);
@@ -104,6 +106,16 @@ public sealed class ListDevicesHandler(IRepository<ExtensionDevice> devices, ICu
         var uid = current.UserId;
         return (await devices.ListAsync(d => d.UserId == uid, ct)).OrderByDescending(d => d.PairedAt).Select(DeviceDto.From).ToList();
     }
+}
+
+/// <summary>A própria extensão se desconecta ("Desconectar extensão" no painel): revoga o dispositivo do token atual,
+/// liberando a vaga de navegador do plano. Sem device_id no token (plataforma web) → 404.</summary>
+public sealed record RevokeCurrentDeviceCommand : IRequest<Unit>;
+
+public sealed class RevokeCurrentDeviceHandler(ICurrentUser current, ISender sender) : IRequestHandler<RevokeCurrentDeviceCommand, Unit>
+{
+    public Task<Unit> Handle(RevokeCurrentDeviceCommand cmd, CancellationToken ct) =>
+        current.DeviceId is { } id ? sender.Send(new RevokeDeviceCommand(id), ct) : throw new NotFoundException("Este acesso não é de uma extensão pareada.");
 }
 
 /// <summary>Revoga a extensão: o dispositivo fica inativo e todos os refresh tokens dele são revogados.</summary>
