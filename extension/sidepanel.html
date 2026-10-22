@@ -3,71 +3,34 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Zyft — Copiloto de candidatura</title>
+  <title>Zyft — Candidatura Assistida</title>
+  <link rel="icon" href="icons/icon-32.png" />
   <link rel="stylesheet" href="sidepanel.css" />
 </head>
 <body>
   <a class="skip" href="#main">Pular para o conteúdo</a>
-  <header class="top">
-    <span class="brand"><span aria-hidden="true">◆</span> Zyft <small>Copiloto</small></span>
-    <button id="btn-settings" class="ghost" aria-expanded="false" aria-controls="settings">
-      <span aria-hidden="true">⚙</span> Ajustes
-    </button>
-  </header>
-
-  <section id="settings" class="card" hidden aria-labelledby="settings-title">
-    <h2 id="settings-title">Ajustes</h2>
-    <form id="settings-form" novalidate>
-      <label for="set-url">Endereço da API</label>
-      <input id="set-url" type="url" placeholder="http://localhost:5080" aria-describedby="set-url-help set-url-err" />
-      <p id="set-url-help" class="small muted">Padrão: http://localhost:5080. Endereços fora do localhost pedem permissão do navegador.</p>
-      <p id="set-url-err" class="field-err" role="alert"></p>
-      <div class="row">
-        <button type="submit" class="primary">Salvar endereço</button>
-        <button type="button" id="btn-unpair" class="danger">Desconectar extensão</button>
-      </div>
-    </form>
-  </section>
-
-  <main id="main" tabindex="-1">
-    <!-- Não pareado -->
-    <section id="view-pair" hidden aria-labelledby="pair-title">
-      <div class="card">
-        <h2 id="pair-title">Conectar à sua conta Zyft</h2>
-        <ol class="small steps">
-          <li>Na plataforma web do Zyft, abra <b>Extensão</b> e clique em <b>Gerar código</b>.</li>
-          <li>Digite aqui o código de 6 dígitos. Ele vale por 10 minutos.</li>
-        </ol>
-        <form id="pair-form" novalidate>
-          <label for="pair-code">Código de pareamento</label>
-          <input id="pair-code" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="one-time-code"
-                 aria-describedby="pair-code-err" required />
-          <p id="pair-code-err" class="field-err" role="alert"></p>
-          <label for="pair-name">Nome deste navegador</label>
-          <input id="pair-name" maxlength="80" aria-describedby="pair-name-err" required />
-          <p id="pair-name-err" class="field-err" role="alert"></p>
-          <button type="submit" class="primary wide">Conectar</button>
-        </form>
-        <p class="small muted">A extensão não pede nem guarda a senha dos portais. Você faz login no portal sozinho(a).</p>
-      </div>
-    </section>
-
-    <!-- Pareado -->
-    <section id="view-main" hidden>
-      <div id="page" class="card" aria-live="polite"></div>
-      <div id="unsupported" hidden></div>
-      <div id="job-ctx"></div>
-      <div class="row actions">
-        <button id="btn-job" type="button"><span aria-hidden="true">🔎</span> Analisar vaga</button>
-        <button id="btn-map" type="button" class="primary"><span aria-hidden="true">📝</span> Ler formulário</button>
-      </div>
-      <div id="out"></div>
-      <div id="complete"></div>
-    </section>
+  <div class="panel">
+    <header class="top">
+      <img src="icons/zyft-mark.svg" alt="" width="24" height="24" />
+      <b class="top__name">Zyft</b>
+      <span id="top-status" class="top__status">Não conectada</span>
+      <button id="btn-settings" class="top__btn" type="button" aria-expanded="false" aria-controls="settings" hidden>
+        <span class="sr-only">Ajustes</span>
+      </button>
+    </header>
 
     <div id="status" class="status" role="status" aria-live="polite"></div>
-  </main>
 
+    <section id="settings" class="settings" hidden aria-label="Ajustes"></section>
+
+    <main id="main" tabindex="-1" class="main">
+      <!-- Não conectada (sem API autenticada: nenhum anúncio aqui) -->
+      <section id="view-pair" class="view" hidden aria-labelledby="pair-title"></section>
+      <!-- Conectada -->
+      <section id="view-main" class="view" hidden></section>
+    </main>
+
+  </div>
   <script src="sidepanel.js" type="module"></script>
 </body>
 </html>

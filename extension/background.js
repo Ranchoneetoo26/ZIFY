@@ -85,8 +85,10 @@ async function callApi(method, path, body) {
 async function pair(code, deviceName) {
   const r = await rawFetch('POST', '/api/v1/extension/pair', { code, deviceName });
   if (!r.ok) return r;
-  await saveTokens(r.data || {});
-  if (r.data?.deviceId) await chrome.storage.local.set({ deviceId: r.data.deviceId });
+  // A API responde { device: {id,…}, tokens: {accessToken, refreshToken} }; aceita também o formato plano antigo.
+  await saveTokens(r.data?.tokens || r.data || {});
+  const deviceId = r.data?.device?.id ?? r.data?.deviceId;
+  if (deviceId) await chrome.storage.local.set({ deviceId });
   return { ok: true, status: r.status, data: { paired: true } };
 }
 
@@ -96,14 +98,19 @@ async function status() {
 
 async function unpair() {
   const rt = await getRefresh();
+  // Revoga o próprio dispositivo no servidor (libera a vaga de navegador do plano); falha aqui não impede desconectar.
+  try { await rawFetch('DELETE', '/api/v1/extension/devices/current', undefined, await getAccess()); } catch { /* segue */ }
   if (rt) await rawFetch('POST', '/api/v1/auth/logout', { refreshToken: rt }, await getAccess());
   await clearTokens();
   return { ok: true, data: { paired: false } };
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
-  // Só aceita mensagens das páginas da própria extensão (painel), nunca de content scripts.
-  if (sender.id !== chrome.runtime.id || sender.tab) return false;
+  // Só aceita mensagens das páginas da própria extensão (painel), nunca de content scripts:
+  // content scripts têm sender.url da página do portal; páginas da extensão têm chrome-extension://<id>/
+  // (vale também para o painel aberto numa aba com ?tabId=N, usado nos testes).
+  const fromExtensionPage = sender.id === chrome.runtime.id && String(sender.url || '').startsWith(chrome.runtime.getURL(''));
+  if (!fromExtensionPage) return false;
   const handlers = {
     api: () => callApi(msg.method || 'GET', msg.path, msg.body),
     pair: () => pair(msg.code, msg.deviceName),
