@@ -1,102 +1,120 @@
-// Respostas aprovadas (RF-06): biblioteca de respostas para perguntas recorrentes.
+// Banco de respostas (RF-06): "Responda uma vez e o Zyft guarda". Banner web.banner.
 import { api, asList } from '../api.js';
-import { h, clear, field, readForm, showErrors, clearErrors, toast, announce, confirmDialog, fmtDate, badge } from '../dom.js';
+import { h, clear, field, readForm, showErrors, clearErrors, toast, announce, confirmDialog, fmtDay, fmtDate } from '../dom.js';
+import { Button, Stamp, PageHead, Card } from '../ui.js';
+import { adSlot, PLACEMENTS } from '../ads.js';
+import { getBilling } from '../store.js';
 import * as v from '../validate.js';
 
 const MAX_TEXT = 4000;
 
 export async function render(main) {
-  let items = asList(await api('/answers'));
-  const list = h('ul', { class: 'items' });
-  const formSlot = h('div');
+  const [list, billing] = await Promise.all([api('/answers').then(asList), getBilling().catch(() => null)]);
+  let items = list;
+  const listEl = h('div', { class: 'stack' });
+  const usage = h('p', { class: 'small muted', role: 'status' });
 
-  const paint = () => clear(list, items.length
-    ? items.map((a) => row(a))
-    : h('li', { class: 'empty' }, 'Nenhuma resposta aprovada ainda. Quando a extensão sugerir um texto e você aprovar, ele também aparece aqui.'));
-
-  const row = (a) => {
-    const li = h('li', { class: 'item' });
-    const edit = h('button', { type: 'button', class: 'link', 'aria-expanded': 'false' }, 'Editar', h('span', { class: 'sr-only' }, `: ${a.question}`));
-    const remove = h('button', { type: 'button', class: 'link danger' }, 'Excluir', h('span', { class: 'sr-only' }, `: ${a.question}`));
-    li.append(
-      h('div', { class: 'item-head' },
-        h('div', { class: 'item-title' }, a.question),
-        h('div', { class: 'item-actions' }, badge('Aprovada', 'ready', '✓'), edit, remove)),
-      h('p', { class: 'answer-text' }, a.text),
-      h('p', { class: 'small muted' },
-        a.approvedAt ? `Aprovada em ${fmtDate(a.approvedAt)}` : '',
-        a.lastUsedAt ? ` · Último uso em ${fmtDate(a.lastUsedAt)}` : ' · Ainda não usada'));
-    edit.addEventListener('click', () => {
-      edit.setAttribute('aria-expanded', 'true');
-      li.append(editor(a, () => { edit.setAttribute('aria-expanded', 'false'); edit.focus(); }));
-    });
-    remove.addEventListener('click', async () => {
-      if (!(await confirmDialog({ title: 'Excluir resposta?', message: `A resposta para “${a.question}” deixa de ser sugerida pela extensão.`, confirmText: 'Excluir', danger: true }))) return remove.focus();
-      try {
-        await api(`/answers/${encodeURIComponent(a.id)}`, { method: 'DELETE' });
-        items = items.filter((x) => x !== a);
-        paint();
-        announce('Resposta excluída.');
-        newBtn.focus();
-      } catch (err) { toast(err.message, 'err'); }
-    });
-    return li;
+  const paintUsage = () => {
+    const lim = billing?.answersLimit;
+    usage.textContent = lim != null ? `${items.length} de ${lim} respostas no plano gratuito.` : `${items.length} ${items.length === 1 ? 'resposta guardada' : 'respostas guardadas'}.`;
   };
 
-  const editor = (a, onClose) => {
-    const isNew = !a;
-    const save = h('button', { class: 'primary', type: 'submit' }, isNew ? 'Aprovar e salvar' : 'Salvar alterações');
-    const cancel = h('button', { type: 'button' }, 'Cancelar');
-    const form = h('form', { class: 'editor', novalidate: true, 'aria-label': isNew ? 'Nova resposta aprovada' : 'Editar resposta' },
-      field({ name: 'question', label: 'Pergunta', required: true, value: a?.question, hint: 'Ex.: Por que você quer trabalhar conosco?', attrs: { maxlength: 500 } }),
-      field({ name: 'text', label: 'Resposta', type: 'textarea', rows: 6, required: true, value: a?.text, hint: `Escreva só fatos verdadeiros. Até ${MAX_TEXT} caracteres.`, attrs: { maxlength: MAX_TEXT } }),
-      h('div', { class: 'form-actions' }, save, cancel));
-    const close = () => { form.remove(); onClose?.(); };
-    cancel.addEventListener('click', close);
-    form.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      clearErrors(form);
-      const data = readForm(form);
-      const errors = v.collect({
-        question: v.required(data.question, 'Escreva a pergunta.') || v.maxLen(data.question, 500),
-        text: v.required(data.text, 'Escreva a resposta.') || v.maxLen(data.text, MAX_TEXT),
+  const validate = (form, data) => {
+    const errors = v.collect({
+      question: v.required(data.question, 'Escreva a pergunta.') || v.maxLen(data.question, 500),
+      text: v.required(data.text, 'Escreva a resposta.') || v.maxLen(data.text, MAX_TEXT),
+    });
+    if (v.hasErrors(errors)) { showErrors(form, errors); return false; }
+    return true;
+  };
+
+  const article = (a) => {
+    const el = h('article', { class: 'answer', 'aria-labelledby': `ans-${a.id}` });
+    const view = () => {
+      const edit = Button({ variant: 'ghost', size: 'sm', icon: 'edit', 'aria-label': `Editar a resposta para: ${a.question}` }, 'Editar');
+      const del = Button({ variant: 'ghost', size: 'sm', 'aria-label': `Excluir a resposta para: ${a.question}` }, 'Excluir');
+      edit.addEventListener('click', editMode);
+      del.addEventListener('click', async () => {
+        if (!(await confirmDialog({ title: 'Excluir resposta?', message: `A resposta para “${a.question}” deixa de ser sugerida pela extensão.`, confirmText: 'Excluir', danger: true }))) return;
+        try {
+          await api(`/answers/${encodeURIComponent(a.id)}`, { method: 'DELETE' });
+          items = items.filter((x) => x !== a);
+          paint();
+          announce('Resposta excluída.');
+          document.querySelector('#new-answer')?.focus();
+        } catch (err) { if (!err.handled) toast(err.message, 'err'); }
       });
-      if (v.hasErrors(errors)) return showErrors(form, errors);
-      save.disabled = true;
-      try {
-        const r = isNew
-          ? await api('/answers', { method: 'POST', body: data })
-          : await api(`/answers/${encodeURIComponent(a.id)}`, { method: 'PUT', body: data });
-        if (isNew) items.unshift(r && typeof r === 'object' ? r : { ...data, approvedAt: new Date().toISOString() });
-        else Object.assign(a, r && typeof r === 'object' ? r : data);
-        paint();
-        toast(isNew ? 'Resposta aprovada e salva' : 'Resposta atualizada', 'ok');
-        close();
-      } catch (err) {
-        showErrors(form, err);
-      } finally {
-        save.disabled = false;
-      }
-    });
-    setTimeout(() => form.querySelector('input')?.focus());
-    return form;
+      const meta = [`Aprovada em ${fmtDate(a.approvedAt)}`, a.lastUsedAt ? `Usada pela última vez em ${fmtDate(a.lastUsedAt)}` : 'Ainda não usada'].join(' · ');
+      clear(el,
+        h('div', { class: 'answer__top' }, h('h3', { class: 'answer__q', id: `ans-${a.id}` }, a.question), Stamp({ size: 'sm', label: 'Aprovada', at: fmtDay(a.approvedAt) })),
+        h('p', { class: 'answer__text' }, a.text),
+        h('div', { class: 'answer__foot' }, h('span', { class: 'caption' }, meta), h('div', { class: 'row', style: { gap: '4px' } }, edit, del)));
+    };
+    const editMode = () => {
+      const save = Button({ variant: 'primary', size: 'sm', icon: 'check', type: 'submit' }, 'Aprovar e guardar');
+      const cancel = Button({ variant: 'ghost', size: 'sm' }, 'Cancelar');
+      const form = h('form', { novalidate: true, class: 'stack' },
+        field({ name: 'question', label: 'Pergunta', value: a.question, attrs: { maxlength: 500 } }),
+        field({ name: 'text', label: 'Sua resposta', type: 'textarea', rows: 5, value: a.text, attrs: { maxlength: MAX_TEXT } }),
+        h('div', { class: 'row' }, save, cancel));
+      cancel.addEventListener('click', () => { view(); el.querySelector('button')?.focus(); });
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        clearErrors(form);
+        const data = readForm(form);
+        if (!validate(form, data)) return;
+        save.disabled = true;
+        try {
+          const r = await api(`/answers/${encodeURIComponent(a.id)}`, { method: 'PUT', body: data });
+          Object.assign(a, r && typeof r === 'object' ? r : data);
+          view();
+          toast('Resposta aprovada e guardada', 'ok');
+          el.querySelector('h3')?.setAttribute('tabindex', '-1');
+          el.querySelector('h3')?.focus();
+        } catch (err) { if (!err.handled) showErrors(form, err); } finally { save.disabled = false; }
+      });
+      clear(el, form);
+      form.querySelector('input')?.focus();
+    };
+    view();
+    return el;
   };
 
-  const newBtn = h('button', { type: 'button', class: 'primary', 'aria-expanded': 'false' }, 'Nova resposta');
-  newBtn.addEventListener('click', () => {
-    if (formSlot.firstChild) return formSlot.querySelector('input')?.focus();
-    newBtn.setAttribute('aria-expanded', 'true');
-    formSlot.append(editor(null, () => { newBtn.setAttribute('aria-expanded', 'false'); newBtn.focus(); }));
+  const paint = () => {
+    paintUsage();
+    clear(listEl, items.length ? items.map(article)
+      : h('p', { class: 'card empty' }, 'Nenhuma resposta guardada ainda. Quando a extensão sugerir um texto e você aprovar, ele também aparece aqui.'));
+  };
+
+  // Nova resposta
+  const save = Button({ variant: 'primary', icon: 'check', type: 'submit' }, 'Aprovar e guardar');
+  const cancel = Button({ variant: 'ghost' }, 'Cancelar');
+  const form = h('form', { novalidate: true, class: 'stack', 'aria-labelledby': 'new-answer' },
+    field({ name: 'question', label: 'Pergunta', placeholder: 'Ex.: Por que você quer trabalhar aqui?', attrs: { maxlength: 500 } }),
+    field({ name: 'text', label: 'Sua resposta', type: 'textarea', rows: 5, hint: 'Escreva com as suas palavras. Ela só é usada depois que você aprova.', attrs: { maxlength: MAX_TEXT } }),
+    h('div', { class: 'row' }, save, cancel));
+  cancel.addEventListener('click', () => { form.reset(); clearErrors(form); });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearErrors(form);
+    const data = readForm(form);
+    if (!validate(form, data)) return;
+    save.disabled = true;
+    try {
+      const r = await api('/answers', { method: 'POST', body: data });
+      items.unshift(r && typeof r === 'object' ? r : { ...data, id: String(Date.now()), approvedAt: new Date().toISOString() });
+      form.reset();
+      paint();
+      toast('Resposta aprovada e guardada', 'ok');
+      announce('Resposta guardada no banco.');
+    } catch (err) { if (!err.handled) showErrors(form, err); } finally { save.disabled = false; }
   });
 
   paint();
-  main.append(
-    h('div', { class: 'page-head' },
-      h('div', {},
-        h('h1', {}, 'Respostas aprovadas'),
-        h('p', { class: 'lead' }, 'Respostas para perguntas que se repetem nos formulários. Quando a extensão encontra uma pergunta parecida, ela sugere a resposta aprovada, e você ainda revisa antes de preencher.')),
-      newBtn),
-    formSlot,
-    h('section', { class: 'card', 'aria-label': 'Lista de respostas aprovadas' }, list));
+  main.append(h('div', { class: 'content' },
+    PageHead({ title: 'Banco de respostas', lead: 'Responda uma vez e o Zyft guarda. Quando um formulário fizer uma pergunta parecida, a extensão propõe a sua resposta aprovada.' }),
+    adSlot(PLACEMENTS.banner),
+    Card({ title: 'Nova resposta', titleId: 'new-answer' }, form),
+    usage,
+    listEl));
 }
