@@ -32,6 +32,7 @@ internal sealed class ProfileRepository(ZyftDbContext db) : IProfileRepository
             .Include(p => p.Courses)
             .Include(p => p.Skills)
             .Include(p => p.Languages)
+            .Include(p => p.CustomFields)
             .AsSplitQuery()
             .FirstOrDefaultAsync(p => p.UserId == userId, ct);
 

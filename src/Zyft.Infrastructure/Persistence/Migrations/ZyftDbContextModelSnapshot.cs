@@ -22,6 +22,77 @@ namespace Zyft.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Zyft.Domain.Ads.AdHide", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AdId")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("HiddenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("Topic")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("AdHides", (string)null);
+                });
+
+            modelBuilder.Entity("Zyft.Domain.Ads.AdStat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AdId")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<long>("Clicks")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("Impressions")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdId")
+                        .IsUnique();
+
+                    b.ToTable("AdStats", (string)null);
+                });
+
             modelBuilder.Entity("Zyft.Domain.Answers.ApprovedAnswer", b =>
                 {
                     b.Property<Guid>("Id")
@@ -147,6 +218,170 @@ namespace Zyft.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId", "OccurredAt");
 
                     b.ToTable("AuditEvents", (string)null);
+                });
+
+            modelBuilder.Entity("Zyft.Domain.Billing.MonthlyUsage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AiUsed")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("AssistedUsed")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BonusGranted")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BonusUsed")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("JobAnalysesUsed")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Month")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)");
+
+                    b.Property<int>("ResumeImportsUsed")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RewardedClaims")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "Month")
+                        .IsUnique();
+
+                    b.ToTable("MonthlyUsages", (string)null);
+                });
+
+            modelBuilder.Entity("Zyft.Domain.Billing.Subscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CanceledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Period")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("Plan")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<DateTime?>("RenewsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("TrialEndsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("TrialUsed")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("Subscriptions", (string)null);
+                });
+
+            modelBuilder.Entity("Zyft.Domain.Billing.UsageMark", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("KeyHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Month")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)");
+
+                    b.Property<string>("Resource")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "Month", "Resource", "KeyHash")
+                        .IsUnique();
+
+                    b.ToTable("UsageMarks", (string)null);
+                });
+
+            modelBuilder.Entity("Zyft.Domain.Billing.UsagePack", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AiRemaining")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("AssistedRemaining")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("PurchasedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "ExpiresAt");
+
+                    b.ToTable("UsagePacks", (string)null);
                 });
 
             modelBuilder.Entity("Zyft.Domain.Consents.Consent", b =>
@@ -310,6 +545,45 @@ namespace Zyft.Infrastructure.Persistence.Migrations
                     b.ToTable("ResumeImports", (string)null);
                 });
 
+            modelBuilder.Entity("Zyft.Domain.Onboarding.OnboardingProgress", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Answered")
+                        .IsRequired()
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastStep")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Skipped")
+                        .IsRequired()
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("OnboardingProgress", (string)null);
+                });
+
             modelBuilder.Entity("Zyft.Domain.Profiles.Course", b =>
                 {
                     b.Property<Guid>("Id")
@@ -349,6 +623,38 @@ namespace Zyft.Infrastructure.Persistence.Migrations
                     b.HasIndex("ProfileId");
 
                     b.ToTable("Courses", (string)null);
+                });
+
+            modelBuilder.Entity("Zyft.Domain.Profiles.CustomField", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<Guid>("ProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProfileId", "Label")
+                        .IsUnique();
+
+                    b.ToTable("CustomFields", (string)null);
                 });
 
             modelBuilder.Entity("Zyft.Domain.Profiles.Education", b =>
@@ -568,9 +874,17 @@ namespace Zyft.Infrastructure.Persistence.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<string>("ProfessionalRegistration")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
                     b.Property<decimal?>("SalaryExpectation")
                         .HasPrecision(12, 2)
                         .HasColumnType("numeric(12,2)");
+
+                    b.Property<string>("SalaryType")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
                     b.Property<string>("Seniority")
                         .HasMaxLength(60)
@@ -589,6 +903,10 @@ namespace Zyft.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("WorkArea")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
 
                     b.Property<string>("WorkModel")
                         .HasMaxLength(20)
@@ -750,6 +1068,15 @@ namespace Zyft.Infrastructure.Persistence.Migrations
                     b.ToTable("Users", (string)null);
                 });
 
+            modelBuilder.Entity("Zyft.Domain.Ads.AdHide", b =>
+                {
+                    b.HasOne("Zyft.Domain.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Zyft.Domain.Answers.ApprovedAnswer", b =>
                 {
                     b.HasOne("Zyft.Domain.Users.User", null)
@@ -769,6 +1096,42 @@ namespace Zyft.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("Zyft.Domain.Audit.AuditEvent", b =>
+                {
+                    b.HasOne("Zyft.Domain.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Zyft.Domain.Billing.MonthlyUsage", b =>
+                {
+                    b.HasOne("Zyft.Domain.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Zyft.Domain.Billing.Subscription", b =>
+                {
+                    b.HasOne("Zyft.Domain.Users.User", null)
+                        .WithOne()
+                        .HasForeignKey("Zyft.Domain.Billing.Subscription", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Zyft.Domain.Billing.UsageMark", b =>
+                {
+                    b.HasOne("Zyft.Domain.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Zyft.Domain.Billing.UsagePack", b =>
                 {
                     b.HasOne("Zyft.Domain.Users.User", null)
                         .WithMany()
@@ -822,10 +1185,28 @@ namespace Zyft.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Zyft.Domain.Onboarding.OnboardingProgress", b =>
+                {
+                    b.HasOne("Zyft.Domain.Users.User", null)
+                        .WithOne()
+                        .HasForeignKey("Zyft.Domain.Onboarding.OnboardingProgress", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Zyft.Domain.Profiles.Course", b =>
                 {
                     b.HasOne("Zyft.Domain.Profiles.Profile", null)
                         .WithMany("Courses")
+                        .HasForeignKey("ProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Zyft.Domain.Profiles.CustomField", b =>
+                {
+                    b.HasOne("Zyft.Domain.Profiles.Profile", null)
+                        .WithMany("CustomFields")
                         .HasForeignKey("ProfileId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -902,6 +1283,8 @@ namespace Zyft.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Zyft.Domain.Profiles.Profile", b =>
                 {
                     b.Navigation("Courses");
+
+                    b.Navigation("CustomFields");
 
                     b.Navigation("Educations");
 

@@ -2,7 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Zyft.Application.Ads;
 using Zyft.Application.Common.Interfaces;
+using Zyft.Infrastructure.Ads;
 using Zyft.Infrastructure.Ai;
 using Zyft.Infrastructure.Files;
 using Zyft.Infrastructure.Persistence;
@@ -32,6 +34,8 @@ public static class DependencyInjection
         services.Configure<JwtOptions>(config.GetSection(JwtOptions.Section));
         services.Configure<EncryptionOptions>(config.GetSection(EncryptionOptions.Section));
         services.Configure<LlmOptions>(config.GetSection(LlmOptions.Section));
+        services.Configure<AdNetworkOptions>(config.GetSection(AdNetworkOptions.Section));
+        services.AddSingleton<IAdNetwork, AdSenseNetwork>();
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
         services.AddSingleton<ITokenService, JwtTokenService>();

@@ -1,13 +1,16 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Zyft.Application.Common.Interfaces;
+using Zyft.Domain.Ads;
 using Zyft.Domain.Answers;
 using Zyft.Domain.Applications;
 using Zyft.Domain.Audit;
+using Zyft.Domain.Billing;
 using Zyft.Domain.Common;
 using Zyft.Domain.Consents;
 using Zyft.Domain.Extension;
 using Zyft.Domain.Imports;
+using Zyft.Domain.Onboarding;
 using Zyft.Domain.Profiles;
 using Zyft.Domain.Sensitive;
 using Zyft.Domain.Users;
@@ -33,6 +36,14 @@ public sealed class ZyftDbContext(DbContextOptions<ZyftDbContext> options, ICloc
     public DbSet<AuthorizedSite> AuthorizedSites => Set<AuthorizedSite>();
     public DbSet<JobApplication> Applications => Set<JobApplication>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+    public DbSet<CustomField> CustomFields => Set<CustomField>();
+    public DbSet<OnboardingProgress> OnboardingProgress => Set<OnboardingProgress>();
+    public DbSet<Subscription> Subscriptions => Set<Subscription>();
+    public DbSet<MonthlyUsage> MonthlyUsages => Set<MonthlyUsage>();
+    public DbSet<UsagePack> UsagePacks => Set<UsagePack>();
+    public DbSet<UsageMark> UsageMarks => Set<UsageMark>();
+    public DbSet<AdHide> AdHides => Set<AdHide>();
+    public DbSet<AdStat> AdStats => Set<AdStat>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

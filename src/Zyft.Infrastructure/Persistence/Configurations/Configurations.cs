@@ -1,11 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Zyft.Domain.Ads;
 using Zyft.Domain.Answers;
 using Zyft.Domain.Applications;
 using Zyft.Domain.Audit;
+using Zyft.Domain.Billing;
 using Zyft.Domain.Consents;
 using Zyft.Domain.Extension;
 using Zyft.Domain.Imports;
+using Zyft.Domain.Onboarding;
 using Zyft.Domain.Profiles;
 using Zyft.Domain.Sensitive;
 using Zyft.Domain.Users;
@@ -80,13 +83,17 @@ internal sealed class ProfileConfig : IEntityTypeConfiguration<Profile>
         b.Property(x => x.SalaryExpectation).HasPrecision(12, 2);
         b.Property(x => x.ContractTypes).HasMaxLength(200);
         b.Property(x => x.DriverLicenseCategory).HasMaxLength(5);
+        b.Property(x => x.WorkArea).HasMaxLength(80);
+        b.Property(x => x.ProfessionalRegistration).HasMaxLength(120);
+        b.Property(x => x.SalaryType).HasMaxLength(30);
 
         b.HasMany(x => x.Experiences).WithOne().HasForeignKey(x => x.ProfileId).OnDelete(DeleteBehavior.Cascade);
         b.HasMany(x => x.Educations).WithOne().HasForeignKey(x => x.ProfileId).OnDelete(DeleteBehavior.Cascade);
         b.HasMany(x => x.Courses).WithOne().HasForeignKey(x => x.ProfileId).OnDelete(DeleteBehavior.Cascade);
         b.HasMany(x => x.Skills).WithOne().HasForeignKey(x => x.ProfileId).OnDelete(DeleteBehavior.Cascade);
         b.HasMany(x => x.Languages).WithOne().HasForeignKey(x => x.ProfileId).OnDelete(DeleteBehavior.Cascade);
-        foreach (var nav in new[] { nameof(Profile.Experiences), nameof(Profile.Educations), nameof(Profile.Courses), nameof(Profile.Skills), nameof(Profile.Languages) })
+        b.HasMany(x => x.CustomFields).WithOne().HasForeignKey(x => x.ProfileId).OnDelete(DeleteBehavior.Cascade);
+        foreach (var nav in new[] { nameof(Profile.Experiences), nameof(Profile.Educations), nameof(Profile.Courses), nameof(Profile.Skills), nameof(Profile.Languages), nameof(Profile.CustomFields) })
             b.Navigation(nav).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
@@ -243,5 +250,103 @@ internal sealed class AuditEventConfig : IEntityTypeConfiguration<AuditEvent>
         b.Property(x => x.Portal).HasMaxLength(200);
         b.HasIndex(x => new { x.UserId, x.OccurredAt });
         b.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class CustomFieldConfig : IEntityTypeConfiguration<CustomField>
+{
+    public void Configure(EntityTypeBuilder<CustomField> b)
+    {
+        b.ToTable("CustomFields");
+        b.Property(x => x.Label).HasMaxLength(CustomField.MaxLabel).IsRequired();
+        b.Property(x => x.Value).HasMaxLength(CustomField.MaxValue).IsRequired();
+        b.Ignore(x => x.Key);
+        b.HasIndex(x => new { x.ProfileId, x.Label }).IsUnique();
+    }
+}
+
+internal sealed class OnboardingProgressConfig : IEntityTypeConfiguration<OnboardingProgress>
+{
+    public void Configure(EntityTypeBuilder<OnboardingProgress> b)
+    {
+        b.ToTable("OnboardingProgress");
+        b.Property(x => x.Answered).HasMaxLength(600).IsRequired();
+        b.Property(x => x.Skipped).HasMaxLength(600).IsRequired();
+        b.Property(x => x.LastStep).HasMaxLength(30);
+        b.Ignore(x => x.AnsweredSteps);
+        b.Ignore(x => x.SkippedSteps);
+        b.HasIndex(x => x.UserId).IsUnique();
+        b.HasOne<User>().WithOne().HasForeignKey<OnboardingProgress>(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class SubscriptionConfig : IEntityTypeConfiguration<Subscription>
+{
+    public void Configure(EntityTypeBuilder<Subscription> b)
+    {
+        b.ToTable("Subscriptions");
+        b.Property(x => x.Plan).HasConversion<string>().HasMaxLength(10);
+        b.Property(x => x.Period).HasConversion<string>().HasMaxLength(10);
+        b.HasIndex(x => x.UserId).IsUnique();
+        b.HasOne<User>().WithOne().HasForeignKey<Subscription>(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class MonthlyUsageConfig : IEntityTypeConfiguration<MonthlyUsage>
+{
+    public void Configure(EntityTypeBuilder<MonthlyUsage> b)
+    {
+        b.ToTable("MonthlyUsages");
+        b.Property(x => x.Month).HasMaxLength(7).IsRequired();
+        b.Ignore(x => x.BonusRemaining);
+        b.HasIndex(x => new { x.UserId, x.Month }).IsUnique();
+        b.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class UsagePackConfig : IEntityTypeConfiguration<UsagePack>
+{
+    public void Configure(EntityTypeBuilder<UsagePack> b)
+    {
+        b.ToTable("UsagePacks");
+        b.HasIndex(x => new { x.UserId, x.ExpiresAt });
+        b.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class UsageMarkConfig : IEntityTypeConfiguration<UsageMark>
+{
+    public void Configure(EntityTypeBuilder<UsageMark> b)
+    {
+        b.ToTable("UsageMarks");
+        b.Property(x => x.Month).HasMaxLength(7).IsRequired();
+        b.Property(x => x.Resource).HasConversion<string>().HasMaxLength(30);
+        b.Property(x => x.KeyHash).HasMaxLength(64).IsRequired();
+        b.HasIndex(x => new { x.UserId, x.Month, x.Resource, x.KeyHash }).IsUnique();
+        b.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class AdHideConfig : IEntityTypeConfiguration<AdHide>
+{
+    public void Configure(EntityTypeBuilder<AdHide> b)
+    {
+        b.ToTable("AdHides");
+        b.Property(x => x.Scope).HasConversion<string>().HasMaxLength(10);
+        b.Property(x => x.AdId).HasMaxLength(60).IsRequired();
+        b.Property(x => x.Topic).HasMaxLength(60);
+        b.HasIndex(x => x.UserId);
+        b.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+/// <summary>Contadores agregados por anúncio: sem FK para usuário (não há dado pessoal).</summary>
+internal sealed class AdStatConfig : IEntityTypeConfiguration<AdStat>
+{
+    public void Configure(EntityTypeBuilder<AdStat> b)
+    {
+        b.ToTable("AdStats");
+        b.Property(x => x.AdId).HasMaxLength(60).IsRequired();
+        b.HasIndex(x => x.AdId).IsUnique();
     }
 }
