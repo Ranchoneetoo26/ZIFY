@@ -48,10 +48,15 @@ builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(o => o.InvalidModelStateResponseFactory = ctx =>
     {
         // Erros de desserialização/model binding → 400 pt-BR (sem expor mensagens internas do .NET).
-        var errors = ctx.ModelState.Where(kv => kv.Value?.Errors.Count > 0)
+        // A chave do parâmetro da action (ex.: "cmd") não é um campo: só aparece quando nada mais explica o erro.
+        var paramNames = ctx.ActionDescriptor.Parameters.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var invalid = ctx.ModelState.Where(kv => kv.Value?.Errors.Count > 0).Select(kv => kv.Key.TrimStart('$', '.')).ToList();
+        var fields = invalid.Where(k => k.Length > 0 && !paramNames.Contains(k)).ToList();
+        var errors = (fields.Count > 0 ? fields : new List<string> { "body" })
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
-                kv => Problems.CamelPath(kv.Key.TrimStart('$', '.').Length == 0 ? "body" : kv.Key.TrimStart('$', '.')),
-                kv => new[] { kv.Key.Contains("Date", StringComparison.OrdinalIgnoreCase) ? "Data inválida. Use AAAA-MM-DD ou AAAA-MM." : "Valor ausente ou em formato inválido." });
+                k => Problems.CamelPath(k),
+                k => new[] { Problems.BindingMessage(k) });
         var pd = Problems.Create(ctx.HttpContext, 400, "Um ou mais campos são inválidos.", "validation_failed", errors);
         return new BadRequestObjectResult(pd) { ContentTypes = { "application/problem+json" } };
     });

@@ -2,6 +2,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Zyft.Application.Common.Exceptions;
+using Zyft.Domain.Billing;
 using Zyft.Domain.Common;
 
 namespace Zyft.Api.Infrastructure;
@@ -44,11 +45,19 @@ public sealed class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Ex
                 await Problems.WriteAsync(ctx, 404, nf.Message, "not_found");
                 break;
             case ConflictException ce:
-                await Problems.WriteAsync(ctx, 409, ce.Message, "conflict");
+                await Problems.WriteAsync(ctx, 409, ce.Message, ce.Code);
                 break;
             case DbUpdateException:
                 logger.LogWarning("Conflito de persistência em {Path}", ctx.Request.Path);
                 await Problems.WriteAsync(ctx, 409, "Não foi possível salvar: o registro conflita com outro já existente.", "conflict");
+                break;
+            case PlanLimitReachedException pl:
+                // 402 com resource/used/limit no topo (extensões do ProblemDetails) e também agrupados em "extensions".
+                var ext = new Dictionary<string, object?> { ["resource"] = pl.Resource, ["used"] = pl.Used, ["limit"] = pl.Limit };
+                await Problems.WriteAsync(ctx, 402, pl.Message, pl.Code, extra: new Dictionary<string, object?>(ext) { ["extensions"] = ext });
+                break;
+            case RewardedExhaustedException re:
+                await Problems.WriteAsync(ctx, 409, re.Message, re.Code);
                 break;
             case DomainException de:
                 await Problems.WriteAsync(ctx, 422, de.Message, de.Code);

@@ -21,6 +21,7 @@ public sealed class AnswersController : ApiControllerBase
     [HttpPost]
     [Authorize(Policy = Policies.ExtensionOrWeb)]
     [ProducesResponseType(typeof(AnswerDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status402PaymentRequired)]
     public async Task<IActionResult> Create(CreateAnswerCommand cmd, CancellationToken ct) =>
         StatusCode(StatusCodes.Status201Created, await Sender.Send(cmd, ct));
 

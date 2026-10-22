@@ -116,5 +116,24 @@ public sealed class ProfileController : ApiControllerBase
     [HttpDelete("languages/{id:guid}")]
     public async Task<IActionResult> DeleteLanguage(Guid id, CancellationToken ct) { await Sender.Send(new DeleteLanguageCommand(id), ct); return NoContent(); }
 
+    // ---------------- Campos personalizados ("Informações da sua área")
+    /// <summary>Lista os campos personalizados.</summary>
+    [HttpGet("custom-fields")]
+    public Task<IReadOnlyList<CustomFieldDto>> ListCustomFields(CancellationToken ct) => Sender.Send(new ListCustomFieldsQuery(), ct);
+
+    /// <summary>Cria campo (label ≤ 80, value ≤ 500). Rótulo que pareça dado sensível → 422 profile.custom_field_sensitive.</summary>
+    [HttpPost("custom-fields")]
+    [ProducesResponseType(typeof(CustomFieldDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> AddCustomField(AddCustomFieldCommand cmd, CancellationToken ct) => Created201(await Sender.Send(cmd, ct));
+
+    /// <summary>Edita campo personalizado.</summary>
+    [HttpPut("custom-fields/{id:guid}")]
+    public Task<CustomFieldDto> UpdateCustomField(Guid id, UpdateCustomFieldCommand cmd, CancellationToken ct) => Sender.Send(cmd with { Id = id }, ct);
+
+    /// <summary>Remove campo personalizado.</summary>
+    [HttpDelete("custom-fields/{id:guid}")]
+    public async Task<IActionResult> DeleteCustomField(Guid id, CancellationToken ct) { await Sender.Send(new DeleteCustomFieldCommand(id), ct); return NoContent(); }
+
     private IActionResult Created201(object value) => StatusCode(StatusCodes.Status201Created, value);
 }

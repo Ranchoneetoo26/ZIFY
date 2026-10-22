@@ -12,6 +12,7 @@ public static class Problems
     {
         [400] = "Requisição inválida",
         [401] = "Não autenticado",
+        [402] = "Limite do plano atingido",
         [403] = "Acesso negado",
         [404] = "Não encontrado",
         [409] = "Conflito",
@@ -22,7 +23,7 @@ public static class Problems
         [500] = "Erro interno",
     };
 
-    public static ProblemDetails Create(HttpContext ctx, int status, string detail, string? code = null, IDictionary<string, string[]>? errors = null)
+    public static ProblemDetails Create(HttpContext ctx, int status, string detail, string? code = null, IDictionary<string, string[]>? errors = null, IDictionary<string, object?>? extra = null)
     {
         var pd = errors is null ? new ProblemDetails() : new ValidationProblemDetails(errors);
         pd.Status = status;
@@ -32,16 +33,28 @@ public static class Problems
         pd.Instance = ctx.Request.Path;
         pd.Extensions["traceId"] = ctx.TraceIdentifier;
         if (code is not null) pd.Extensions["code"] = code;
+        if (extra is not null)
+            foreach (var (k, v) in extra) pd.Extensions[k] = v;
         return pd;
     }
 
-    public static async Task WriteAsync(HttpContext ctx, int status, string detail, string? code = null, IDictionary<string, string[]>? errors = null)
+    public static async Task WriteAsync(HttpContext ctx, int status, string detail, string? code = null, IDictionary<string, string[]>? errors = null, IDictionary<string, object?>? extra = null)
     {
         if (ctx.Response.HasStarted) return;
-        var pd = Create(ctx, status, detail, code, errors);
+        var pd = Create(ctx, status, detail, code, errors, extra);
         ctx.Response.StatusCode = status;
         ctx.Response.ContentType = "application/problem+json; charset=utf-8";
         await ctx.Response.WriteAsync(JsonSerializer.Serialize<object>(pd, Json));
+    }
+
+    /// <summary>Mensagem pt-BR para erro de desserialização/model binding de um campo (sem expor mensagens do .NET).</summary>
+    public static string BindingMessage(string key)
+    {
+        if (key == "body") return "O corpo da requisição está ausente ou não é um JSON válido.";
+        var last = key.Split('.').Last();
+        if (last.Contains("Date", StringComparison.OrdinalIgnoreCase) || last.EndsWith("At", StringComparison.Ordinal))
+            return "Data inválida. Use AAAA-MM-DD ou AAAA-MM.";
+        return "Valor ausente ou em formato inválido.";
     }
 
     /// <summary>"Experiences[0].StartDate" → "experiences[0].startDate".</summary>
