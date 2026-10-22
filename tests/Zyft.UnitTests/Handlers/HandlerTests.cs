@@ -27,7 +27,7 @@ public class HandlerTests
         consents.Add(Consent.Create(uid, ConsentPurpose.JobAnalysis, false));
         var analyzer = new Mock<IJobAnalyzer>(MockBehavior.Strict);
         var handler = new AnalyzeJobHandler(new InMemoryProfileRepository(), new InMemoryRepository<AuditEvent>(), new ConsentGuard(consents),
-            analyzer.Object, new FakeCurrentUser(uid), new FakeUnitOfWork(), new FixedClock(Now));
+            analyzer.Object, new FakeCurrentUser(uid), new FakeUnitOfWork(), new FixedClock(Now), Mock.Of<Zyft.Application.Billing.IUsageMeter>());
 
         var act = () => handler.Handle(new AnalyzeJobCommand("texto da vaga"), default);
 
