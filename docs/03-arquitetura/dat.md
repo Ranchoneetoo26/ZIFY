@@ -6,7 +6,7 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Arquitetura Técnica (DAT) |
-| Versão | 2.0 (substitui o DAT do marketplace, arquivado em `docs/arquivo/marketplace-v1/dat.md`) |
+| Versão | 2.3 (substitui o DAT do marketplace, arquivado em `docs/arquivo/marketplace-v1/dat.md`) |
 | Status | Em revisão. A arquitetura-alvo depende dos ADRs marcados como "Proposta". |
 | Dono | Arquitetura de software |
 | Documentos relacionados | [DRP](../01-produto/drp.md), [Backend](backend.md), [Extensão](extensao.md), [Frontend web](frontend-web.md), [IA](ia.md), [Modelo de dados](modelo-de-dados.md), [API](api.md), [Segurança](seguranca.md), [ADRs](adr/) |
@@ -17,14 +17,34 @@
 |---|---|---|
 | 1.x | até 05/10/2026 | Arquitetura do marketplace (C#/.NET 8, PostgreSQL). Arquivada. |
 | 2.0 | 12/10/2026 | Reescrita para a Candidatura Assistida: estado do protótipo, arquitetura-alvo do MVP 1, fluxos, qualidades e riscos. |
+| 2.1 | 21/10/2026 | Nova seção "Versão 2 (21/10/2026)": o estado real é a API .NET 8 ([ADR-0017](adr/0017-backend-em-csharp-dotnet-clean-architecture.md)) e entram os componentes da versão 2 do produto. Tabela de evolução atualizada (planos do assistente no MVP 1; assinaturas do marketplace continuam MVP 2). |
+| 2.2 | 21/10/2026 | Seções 3 a 6 reescritas para o sistema real, consistentes com o [backend](backend.md) e o ADR-0017: contexto sem e-mail nem login social; contêineres .NET 8 (Clean Architecture, MediatR/CQRS, FluentValidation, EF Core com PostgreSQL ou SQLite), Ollama atrás de `ILlmClient`, SPA em JavaScript puro servida pela API e extensão MV3 sem build; componentes da API e da extensão; estrutura real do repositório; fluxos com as rotas `/api/v1`, a cota de uso e o pareamento por código, incluindo a desconexão (`DELETE /extension/devices/current`). As seções 2 (protótipo) e 7 a 12 não mudaram. |
+| 2.3 | 21/10/2026 | Contagem de testes atualizada: 252 (156 + 84 + 12). |
+
+## Versão 2 (21/10/2026)
+
+> Leia esta seção antes do resto. Desde a versão 2.2, as **seções 3 a 6 descrevem o sistema real**. A seção 2 continua descrevendo o protótipo Node de 05–06/10/2026 (ponto de partida histórico), e as seções 7 a 11 ainda trazem nomes da arquitetura-alvo em TypeScript de 12/10/2026 (módulos, tabelas e ferramentas); em caso de divergência, valem as seções 3 a 6 e os documentos específicos. Em resumo: a API foi construída em C#/.NET 8 com Clean Architecture ([ADR-0017](adr/0017-backend-em-csharp-dotnet-clean-architecture.md), que substitui o ADR-0003), a plataforma web é HTML/CSS/JavaScript sem build servida pela própria API, e a extensão MV3 pareia por código de 6 dígitos. Os detalhes atualizados estão em [backend](backend.md), [API](api.md), [modelo de dados](modelo-de-dados.md), [segurança](seguranca.md) e na [Entrega 3](../entregas/entrega-3-desenvolvimento-e-validacao.md). Os princípios (regras antes da IA, IA só aponta chave, nunca enviar, sensíveis segregados, logs sem dados pessoais) não mudaram.
+
+A versão 2 do produto acrescenta, sem mudar a forma dos contêineres:
+
+| Componente | Onde | Requisitos | Decisão |
+|---|---|---|---|
+| Onboarding em passos ("passaporte"), com perguntas adiáveis | Web (`#/boas-vindas`) + `GET/PUT /onboarding` | RF-23 | [ADR-0018](adr/0018-onboarding-em-passos-com-perguntas-adiaveis.md) |
+| Catálogo por área e área profissional no perfil | `Application/Catalog` (estático) + `GET /catalog/areas` | RF-24 | [ADR-0019](adr/0019-area-profissional-dinamica-e-campos-personalizados.md) |
+| Campos personalizados (`custom:<id>` no de-para e nos fatos da IA) | `Profiles` + `/profile/custom-fields` | RF-25 | ADR-0019 |
+| Planos, cota de uso, pacote avulso, recompensado (pagamento simulado) | `Application/Billing` (`UsageMeter`, `PlanRules`) + `/billing` | RF-26 a RF-28 | [ADR-0020](adr/0020-monetizacao-com-anuncios-e-planos.md) |
+| Anúncios rotulados, sem dados pessoais | `Application/Ads` (catálogo de demonstração) + `/ads`; web e painel da extensão | RF-29, RN-08 a RN-11 | ADR-0020 |
+| Design system Zyft (tokens, componentes, estados de campo, voz) | Web e extensão | RNF-06, RNF-11 | [design-system.md](design-system.md) |
+
+Requisitos e regras: [DRP](../01-produto/drp.md). Modelo de negócio: [monetização](../01-produto/monetizacao.md).
 
 ## 1. Objetivo e escopo
 
 Este documento descreve como o Zyft é construído para atender ao MVP 1 definido no [DVP-E](../01-produto/dvp-e.md) e no [DRP](../01-produto/drp.md). Ele cobre:
 
 - o protótipo funcional que já existe (seção 2), que é o ponto de partida técnico;
-- a arquitetura-alvo do MVP 1 em visão C4 (seções 3 a 5);
-- os fluxos críticos em diagramas de sequência (seção 6);
+- a arquitetura implementada do MVP 1 em visão C4 (seções 3 a 5);
+- os fluxos críticos em diagramas de sequência, com as rotas reais (seção 6);
 - rastreabilidade, atributos de qualidade, ambientes, riscos e evolução para o MVP 2 (seções 7 a 12).
 
 Detalhes por contêiner ficam nos documentos específicos: [backend](backend.md), [extensão](extensao.md), [frontend web](frontend-web.md), [IA](ia.md).
@@ -96,20 +116,20 @@ extension/ (Chrome/Edge, Manifest V3)        server/ (Node.js 22, Express, ESM)
 flowchart LR
   P([Pessoa candidata])
   subgraph Zyft
-    Z[Sistema Zyft<br/>plataforma web, API, extensão, serviço de IA]
+    Z[Sistema Zyft<br/>API .NET 8 + plataforma web,<br/>extensão MV3, IA local]
   end
   Portal[(Portal de vagas<br/>site de terceiros)]
-  Email[Serviço de e-mail<br/>transacional]
-  Google[Google Identity<br/>login opcional]
+  Demo[(Portal de demonstração<br/>/demo/, servido pela API)]
 
   P -- "mantém o Perfil Mestre,<br/>consentimentos e dados" --> Z
   P -- "faz login e envia a candidatura<br/>por conta própria" --> Portal
   Z -- "lê e preenche o DOM da página<br/>aberta pela pessoa (extensão)" --> Portal
-  Z -- "verificação de e-mail" --> Email
-  Z -- "OIDC" --> Google
+  Z -- "mesmo fluxo, para testes e vídeos" --> Demo
 ```
 
 O Zyft **não** se integra a portais por API, **não** faz requisições ao portal (RNF-13) e **não** conhece a senha do portal (RNF-01). Toda interação com o portal acontece no DOM da aba que a pessoa abriu.
+
+Não há sistema externo de e-mail nem de login social no MVP 1 implementado: a conta é por e-mail e senha (BCrypt), sem verificação de e-mail. Verificação de e-mail e login com Google estão previstos para a Entrega 4. O serviço de IA (Ollama) roda ao lado da API e é opcional: sem ele, o de-para segue só com regras (RNF-12).
 
 ## 4. Visão de contêineres (C4 nível 2)
 
@@ -117,45 +137,36 @@ O Zyft **não** se integra a portais por API, **não** faz requisições ao port
 flowchart TB
   P([Pessoa candidata])
   subgraph Navegador da pessoa
-    EXT[Extensão MV3<br/>TypeScript<br/>painel lateral + service worker]
-    CS[Content script / crawler<br/>injetado sob demanda]
-    WEB[Plataforma web<br/>React + Vite + TypeScript]
+    EXT[Extensão MV3 0.4.0<br/>JavaScript sem build<br/>painel lateral + service worker]
+    CS[Content script<br/>injetado sob demanda]
+    WEB[Plataforma web<br/>HTML, CSS e JavaScript puro<br/>SPA com rotas por hash]
     PG[(Página do portal)]
   end
-  subgraph Nuvem Zyft
-    API[API Zyft<br/>Node.js + TypeScript<br/>Fastify]
-    WRK[Worker de tarefas<br/>importação e IA longas]
-    DB[(PostgreSQL<br/>perfil em JSONB)]
-    Q[(Fila<br/>pg-boss no PostgreSQL)]
-    KMS[Gerência de chaves<br/>criptografia de sensíveis]
-    LLM[Serviço de IA<br/>modelo open-weight<br/>vLLM ou Ollama]
+  subgraph Servidor Zyft
+    API[Zyft.Api<br/>ASP.NET Core 8<br/>serve /api/v1, a web em / e o demo em /demo/]
+    DB[(Banco<br/>PostgreSQL 16 ou SQLite<br/>EF Core 8)]
+    LLM[Ollama<br/>qwen2.5:7b<br/>opcional]
   end
 
   P --> WEB
   P --> EXT
-  EXT <-- "mensagens chrome.runtime" --> CS
+  EXT <-- "chrome.tabs.sendMessage" --> CS
   CS <-- "DOM" --> PG
-  WEB -- "HTTPS, cookie de sessão" --> API
-  EXT -- "HTTPS, Bearer de curta duração" --> API
-  API --> DB
-  API --> Q
-  Q --> WRK
-  WRK --> DB
-  API -- "porta LLMProvider" --> LLM
-  WRK -- "porta LLMProvider" --> LLM
-  API --> KMS
+  WEB -- "HTTPS, Bearer scope=web<br/>(mesma origem)" --> API
+  EXT -- "HTTPS, Bearer scope=extension<br/>(só o service worker)" --> API
+  API -- "EF Core" --> DB
+  API -- "porta ILlmClient<br/>HTTP /api/chat com JSON Schema" --> LLM
 ```
 
-| Contêiner | Tecnologia (proposta) | Responsabilidade | Documento |
+| Contêiner | Tecnologia (implementada) | Responsabilidade | Documento |
 |---|---|---|---|
-| Plataforma web | React 18, Vite, TypeScript, TanStack Query | Conta, Perfil Mestre, importação com revisão, respostas aprovadas, consentimentos, extensões pareadas, registro de ações, exportar e excluir | [frontend-web.md](frontend-web.md) |
-| Extensão | MV3, TypeScript, bundler Vite (CRXJS ou similar) | Reconhecer o portal, ler campos, mostrar o de-para, preencher o aprovado, analisar a vaga | [extensao.md](extensao.md) |
-| API | Node.js 22 LTS, TypeScript, Fastify, Zod | Regras de negócio, autenticação, mapeamento, orquestração da IA, auditoria | [backend.md](backend.md), [api.md](api.md) |
-| Worker | Mesmo código da API, processo separado, pg-boss | Importação de currículo e análise de vaga quando passarem do tempo síncrono | [backend.md](backend.md#6-tarefas-assíncronas) |
-| PostgreSQL | PostgreSQL 16 | Dados de conta, perfil (JSONB versionado), consentimentos, auditoria, fila | [modelo-de-dados.md](modelo-de-dados.md) |
-| Serviço de IA | Modelo open-weight (baseline `qwen2.5:7b`) servido por Ollama (dev) e vLLM ou Ollama em GPU (produção, a decidir) | De-para residual, redação, extração de currículo e de vaga | [ia.md](ia.md) |
+| Plataforma web | HTML, CSS e JavaScript puro (módulos ES, sem build), rotas por hash (`#/perfil`, `#/planos`…), servida pela própria API a partir de `web/` | Conta, onboarding em passos, Perfil Mestre, importação com revisão, banco de respostas, consentimentos, dados sensíveis, pareamento e navegadores conectados, sites autorizados, candidaturas, registro de ações, planos e anúncios, exportar e excluir | [frontend-web.md](frontend-web.md) |
+| Extensão | Manifest V3, JavaScript sem build: `background.js` (service worker, único que guarda tokens e fala com a API), `content.js` (lê e preenche a página), `sidepanel.{html,js,css}` (painel lateral) | Reconhecer o site, ler campos e a vaga, mostrar o de-para para revisão, preencher só o aprovado, registrar a conclusão; medidor de uso e anúncios do painel | [extensao.md](extensao.md) |
+| API | C#/.NET 8, ASP.NET Core, Clean Architecture em quatro projetos (`Zyft.Domain`, `Zyft.Application`, `Zyft.Infrastructure`, `Zyft.Api`), MediatR (CQRS), FluentValidation, Serilog, Swagger, rate limiting, health checks | Regras de negócio, autenticação (JWT + refresh rotativo), pareamento, de-para, orquestração da IA, cota de uso, anúncios, auditoria; 77 operações em `/api/v1` | [backend.md](backend.md), [api.md](api.md) |
+| Banco | EF Core 8. PostgreSQL 16 (Npgsql, migrations) em Docker; SQLite (`EnsureCreated`) no desenvolvimento local e nos testes | Conta, Perfil Mestre **relacional** (uma tabela por seção), consentimentos, sensíveis cifrados (AES-256-GCM), dispositivos, candidaturas, auditoria, planos e uso; 25 tabelas | [modelo-de-dados.md](modelo-de-dados.md) |
+| Serviço de IA | Ollama com modelo open-weight (`qwen2.5:7b`), atrás da porta `ILlmClient` (`OllamaLlmClient`; `NullLlmClient` quando desligado) | De-para residual (só aponta chave), texto livre com fatos, extração de currículo, extração e avaliação de requisitos da vaga | [ia.md](ia.md) |
 
-A escolha das tecnologias está nos ADRs [0003](adr/0003-monorepo-typescript-node.md) (TypeScript/Node, **proposta**), [0005](adr/0005-modelo-open-weight-self-hosted-atras-de-porta-llm.md) (porta de IA aceita; hospedagem de produção **proposta**) e [0008](adr/0008-postgresql-com-perfil-em-jsonb.md) (PostgreSQL, **proposta**).
+Não há worker nem fila: as chamadas de IA são síncronas, com tempo limite e queda para as regras quando a IA não responde (RNF-12). A escolha está no [ADR-0017](adr/0017-backend-em-csharp-dotnet-clean-architecture.md) (Proposta), que substitui o [ADR-0003](adr/0003-monorepo-typescript-node.md); a porta de IA segue o [ADR-0005](adr/0005-modelo-open-weight-self-hosted-atras-de-porta-llm.md). O ADR-0017 ajusta o [ADR-0008](adr/0008-postgresql-com-perfil-em-jsonb.md): o perfil é relacional, não JSONB.
 
 ## 5. Visão de componentes (C4 nível 3)
 
@@ -163,71 +174,77 @@ A escolha das tecnologias está nos ADRs [0003](adr/0003-monorepo-typescript-nod
 
 ```mermaid
 flowchart LR
-  subgraph API
-    R[Rotas HTTP v1<br/>validação Zod]
-    AUTH[auth<br/>sessão web, pareamento,<br/>tokens da extensão]
-    PROF[profile<br/>CRUD, versões, achatamento]
-    IMP[import<br/>extração de texto,<br/>proposta, revisão]
-    MAP[mapping<br/>bloqueios, regras,<br/>IA, validação]
-    WR[writing<br/>texto livre, melhoria]
-    JOB[job-analysis<br/>extração, evidência]
-    CON[consent<br/>finalidades, histórico]
-    AUD[audit<br/>eventos sem valores]
-    PRIV[privacy<br/>exportação, exclusão]
-    SENS[sensitive-vault<br/>criptografia por campo]
-    LLMP[llm port<br/>adaptadores]
+  subgraph Zyft.Api
+    MW[Middleware<br/>Serilog, ExceptionHandling → ProblemDetails,<br/>JWT, policies WebUser / ExtensionOrWeb,<br/>rate limiting, CORS]
+    CTRL[Controllers finos<br/>17, só Sender.Send]
   end
-  R --> AUTH & PROF & IMP & MAP & WR & JOB & CON & PRIV
-  MAP --> PROF & WR & LLMP & CON & SENS
-  IMP --> LLMP
-  WR --> LLMP & PROF
-  JOB --> LLMP & PROF & CON
-  PROF --> SENS
-  MAP & IMP & WR & JOB & PROF & CON & PRIV --> AUD
+  subgraph Zyft.Application
+    PIPE[Pipeline MediatR<br/>LoggingBehavior → ValidationBehavior<br/>FluentValidation]
+    H[Handlers por módulo<br/>Auth, Profiles, Imports, Answers, Sensitive,<br/>Extension, Sites, Forms, Writing, Jobs,<br/>Applications, Audit, Catalog, Onboarding,<br/>Billing, Ads]
+    SVC[Serviços<br/>FieldMapper + FieldRules, AnswerWriter,<br/>JobAnalyzer, ProfileFacts, UsageMeter,<br/>AdSelector, ConsentGuard]
+    PORTS[Portas<br/>IRepository, IUnitOfWork, ILlmClient,<br/>ITokenService, IPasswordHasher,<br/>ISensitiveDataProtector, IResumeTextExtractor,<br/>ICurrentUser, IClock]
+  end
+  subgraph Zyft.Domain
+    DOM[Entidades e regras puras<br/>Profile, CustomField, ExtensionDevice,<br/>MonthlyUsage, PlanRules, AuditEvent…]
+  end
+  subgraph Zyft.Infrastructure
+    INF[EF Core: ZyftDbContext, migrations,<br/>repositórios, UnitOfWork<br/>JWT, BCrypt, AES-256-GCM<br/>OllamaLlmClient, PdfPig/OpenXml]
+  end
+  MW --> CTRL --> PIPE --> H
+  H --> SVC & DOM & PORTS
+  SVC --> DOM & PORTS
+  INF -. implementa .-> PORTS
 ```
+
+Regras de dependência: `Domain` não referencia nada; `Application` só referencia `Domain`; `Infrastructure` implementa as portas; `Api` compõe tudo por injeção de dependência e nenhum controller acessa o `DbContext`. Detalhes por módulo, cota de uso, anúncios e erros estão no [backend](backend.md).
 
 ### 5.2 Extensão
 
 ```mermaid
 flowchart LR
-  subgraph Extensão
-    SW[service worker<br/>tokens, chamadas à API,<br/>permissões]
-    SP[painel lateral<br/>revisão e aprovação]
-    CON[conector do portal<br/>reconhecimento de telas,<br/>regras específicas]
-    CR[crawler<br/>leitura de campos e da vaga]
-    FL[filler<br/>setter nativo + eventos]
+  subgraph Extensão MV3
+    SW[background.js<br/>service worker: tokens,<br/>chamadas à API, pareamento,<br/>desconexão]
+    SP[sidepanel.js<br/>painel: abas "A vaga e você"<br/>e "Formulário", revisão,<br/>sensíveis trancados, anúncios]
+    CS[content.js<br/>lê campos e a vaga,<br/>preenche o aprovado,<br/>avisa o envio feito pela pessoa]
   end
-  SP <--> SW
-  SP <--> CR
-  CR --> CON
-  SP --> FL
+  API[(API /api/v1)]
+  SP <-- "chrome.runtime.sendMessage<br/>(só de páginas da extensão)" --> SW
+  SP <-- "chrome.tabs.sendMessage<br/>scan, job, fill, highlight" --> CS
+  SW -- "fetch com Bearer" --> API
 ```
 
-### 5.3 Pacotes compartilhados
+Não existe conector por portal nem regra específica de site: o content script é genérico e as regras de campo ficam na API (`FieldRules`). O conector por portal continua como evolução ([ADR-0011](adr/0011-primeiro-portal-e-conectores-por-portal.md)).
 
-As regras determinísticas e o esquema do perfil são usados pela API **e** pela extensão. Por isso ficam em pacotes do monorepo, não duplicados.
+### 5.3 Estrutura do repositório
+
+As regras determinísticas e o esquema do perfil ficam **só na API** (C#); a web e a extensão não duplicam regras de negócio, só a apresentação.
 
 ```
-zyft/
-  apps/
-    api/            Fastify, módulos de domínio, worker (entrypoint separado)
-    web/            plataforma React
-    extension/      MV3: service worker, side panel, content script
-  packages/
-    profile-schema/ esquema Zod do Perfil Mestre, achatamento, rótulos, fatos (profileFacts)
-    field-rules/    normalização, TOP_RULES, GROUPS, alinhamento de blocos, pickOption, bloqueios
-    connectors/     conectores por portal (detecção de telas, regras, fixtures HTML gravadas)
-    llm/            porta LLMProvider, adaptadores Ollama/OpenAI-compatível, schemas e prompts versionados
-    api-contract/   tipos de request/response da API v1 (gerados a partir dos schemas Zod)
-    ui/             design tokens e componentes compartilhados entre web e painel lateral
-    test-fixtures/  perfis sintéticos, páginas de portal gravadas, casos de avaliação de IA
-  docs/             esta documentação
-  ferramentas/      scripts de apoio (pesquisa, migração)
+ZIFY/
+  Zyft.sln
+  src/
+    Zyft.Domain/          entidades, enums, regras puras (sem pacotes)
+    Zyft.Application/     commands/queries (MediatR), validators, DTOs, portas, FieldMapper,
+                          FieldRules, AnswerWriter, JobAnalyzer, catálogos estáticos (áreas, anúncios)
+    Zyft.Infrastructure/  EF Core (PostgreSQL/SQLite), migrations, JWT, BCrypt, AES-GCM,
+                          OllamaLlmClient, extração de PDF/DOCX
+    Zyft.Api/             controllers, middleware, policies, Swagger, Serilog, Program.cs
+  tests/
+    Zyft.UnitTests/         xUnit + FluentAssertions + Moq
+    Zyft.IntegrationTests/  WebApplicationFactory + SQLite em memória
+    Zyft.AcceptanceTests/   Reqnroll (Gherkin em português)
+  web/                    plataforma (index.html, css/, js/, js/views/) e portal demo (demo/)
+  extension/              manifest.json, background.js, content.js, sidepanel.*, icons/, fonts/
+  docs/                   esta documentação
+  ferramentas/            scripts de apoio (pesquisa, geradores das entregas)
+  docker-compose.yml      API + PostgreSQL 16 (+ Ollama no perfil "ai")
 ```
 
-Ferramentas: pnpm workspaces, Turborepo, TypeScript `strict`, ESLint, Prettier, Vitest e Playwright.
+Ferramentas: .NET 8 SDK (`global.json`), `dotnet test` (252 testes: 156 de unidade, 84 de integração, 12 de aceitação), Docker Compose e CI no GitHub Actions ([estratégia de testes](../04-qualidade/estrategia-de-testes.md)).
 
 ## 6. Fluxos principais
+
+Rotas relativas a `/api/v1`. Toda resposta de erro é ProblemDetails em português; limite do plano estourado responde 402 `plan.limit_reached` ([API §4.5](api.md)).
 
 ### 6.1 Importação de currículo (RF-03, RF-04, RF-05)
 
@@ -236,27 +253,25 @@ sequenceDiagram
   actor P as Pessoa
   participant W as Plataforma web
   participant A as API
-  participant Q as Fila/Worker
-  participant L as Serviço de IA
-  participant D as PostgreSQL
+  participant L as Ollama
+  participant D as Banco
 
   P->>W: envia PDF ou DOCX (até 10 MB)
-  W->>A: POST /v1/resume-imports (multipart)
-  A->>A: valida tipo e tamanho; extrai texto em memória
-  A->>D: cria resume_import (status=processing), sem o arquivo
-  A->>Q: enfileira parse(importId)
-  A-->>W: 202 {importId}
-  Q->>L: texto (até 12k caracteres) + schema do perfil
-  L-->>Q: JSON da proposta
-  Q->>Q: normaliza; descarta campos sensíveis; limpezas determinísticas
-  Q->>D: grava proposta (status=ready)
-  W->>A: GET /v1/resume-imports/{id} (polling ou SSE)
-  A-->>W: proposta + diferenças em relação ao perfil atual
-  P->>W: aceita, edita ou descarta cada campo
-  W->>A: POST /v1/resume-imports/{id}/apply {decisões}
-  A->>D: nova versão do perfil; import=applied
-  A->>D: audit_event (curriculo.aplicado, contagens)
-  A-->>W: perfil + perguntas sobre o que falta (RF-05)
+  W->>A: POST /resume-imports (multipart, scope=web)
+  A->>A: valida tipo e tamanho (400); cota resumeImports (402 se esgotada)
+  A->>A: extrai o texto em memória (PdfPig/OpenXml); o arquivo não é guardado<br/>PDF sem texto → 422 import.no_text
+  alt IA disponível
+    A->>L: texto + JSON Schema do perfil, sem pedir sensíveis
+    L-->>A: proposta em JSON
+  else IA fora do ar
+    A->>A: ResumeParser cai na heurística
+  end
+  A->>D: ResumeImport (status Pending), evento e consumo da cota no mesmo SaveChanges<br/>(se algo falhar antes, nada é cobrado)
+  A-->>W: 201 com a proposta
+  P->>W: aceita, edita ou descarta cada item
+  W->>A: POST /resume-imports/{id}/apply (ou /discard)
+  A->>D: grava no Perfil Mestre; evento de auditoria sem valores
+  A-->>W: perfil atualizado + perguntas sobre o que falta (RF-05)
 ```
 
 ### 6.2 Ler formulário, de-para, revisão e preenchimento (RF-10 a RF-14, RF-16, RF-18)
@@ -268,37 +283,41 @@ sequenceDiagram
   participant CS as Content script
   participant SW as Service worker
   participant A as API
-  participant L as Serviço de IA
+  participant L as Ollama
 
-  P->>SP: "Ler formulário"
-  SP->>SW: verificar permissão do host
-  SW-->>SP: ok (portal suportado ou site autorizado)
+  P->>SP: "Ler o formulário desta página"
+  SP->>SP: site autorizado? (senão pede permissão do host)
   SP->>CS: scan
-  CS->>CS: lê campos visíveis (ou só o modal)<br/>ignora senha, hidden, submit
-  CS-->>SP: campos {id, rótulo, seção, tipo, opções, valor atual}
-  SP->>SW: map-fields(campos, connectorId, jobId?)
-  SW->>A: POST /v1/mappings (Bearer)
-  A->>A: bloqueios (sensível, declaração, CAPTCHA, anexo)
-  A->>A: regras determinísticas + alinhamento de blocos
+  CS->>CS: lê campos visíveis (ou só o modal)<br/>descarta senha antes de ler; ignora hidden e submit
+  CS-->>SP: {fields, url, title, host}
+  SP->>SW: api POST /forms/mappings
+  SW->>A: POST /forms/mappings (Bearer scope=extension)
+  A->>A: cota assistedApplications por origem + caminho (402 se esgotada)
+  A->>A: bloqueios (senha, CAPTCHA, anexo, termos, sensível sem consentimento)
+  A->>A: FieldRules sobre rótulos normalizados + blocos repetidos + custom:<id>
+  A->>A: respostas aprovadas parecidas
   alt sobram campos e IA disponível
-    A->>L: rótulos dos campos restantes + chaves do perfil
-    L-->>A: {fieldId, action, profileKey}
-    A->>A: valida chave; valor vem do perfil; opção existe
+    A->>L: rótulos restantes + chaves do perfil (sem valores sensíveis)
+    L-->>A: {fieldId, profileKey}
+    A->>A: valida chave; valor sai do perfil; opção precisa existir
   end
-  A-->>SW: propostas só para os campos enviados
+  A-->>SW: propostas (Ready, Ambiguous, Missing, Divergent, Blocked)
   SW-->>SP: propostas
-  SP-->>P: lista com estados (pronto, ambíguo, ausente, bloqueado)
-  P->>SP: revisa, edita, marca e desmarca
-  P->>SP: "Preencher selecionados"
+  SP-->>P: Prontos compactos, sensíveis trancados um a um, "Ação sua"
+  P->>SP: aprova (destranca sensíveis um a um), edita, pula
+  P->>SP: "Preencher N campos aprovados"
   SP->>CS: fill(itens aprovados)
   CS->>CS: setter nativo + input/change/blur
   CS-->>SP: relatório por campo
-  SP->>SW: registrar ação (contagens, sem valores)
-  SW->>A: POST /v1/audit-events
-  SP-->>P: "18 preenchidos. 3 precisam de você. Envie pelo portal."
+  P->>P: envia o formulário no portal, por conta própria
+  CS-->>SP: aviso "submitted" (envio feito pela pessoa)
+  SP-->>P: tela de conclusão
+  P->>SP: "Concluí a candidatura"
+  SP->>SW: api POST /forms/completions
+  SW->>A: registra a candidatura e o evento de auditoria (sem valores)
 ```
 
-A extensão nunca chama `submit()`, `requestSubmit()` nem clica em botões ([ADR-0009](adr/0009-nunca-enviar-confirmacao-explicita.md)).
+A extensão nunca chama `submit()`, `requestSubmit()` nem clica em botões ([ADR-0009](adr/0009-nunca-enviar-confirmacao-explicita.md)). As regras determinísticas são o primeiro passo depois dos bloqueios ([ADR-0006](adr/0006-regras-deterministicas-antes-da-ia.md)); a normalização dos rótulos está descrita em [IA §2](ia.md).
 
 ### 6.3 Texto livre (RF-15, RF-06)
 
@@ -306,21 +325,22 @@ A extensão nunca chama `submit()`, `requestSubmit()` nem clica em botões ([ADR
 sequenceDiagram
   participant SP as Painel lateral
   participant A as API
-  participant L as Serviço de IA
+  participant L as Ollama
 
-  SP->>A: POST /v1/writing/answers {pergunta, maxLength, jobId?}
-  A->>A: consentimento "IA para textos livres"?
-  alt resposta aprovada parecida (Jaccard ≥ 0,6)
-    A-->>SP: {kind: approved, texto, pergunta original}
+  SP->>A: POST /forms/open-answers {question, maxLength, contexto da vaga}
+  A->>A: consentimento "IA para textos"? senão 403
+  A->>A: cota aiSuggestions (402 se esgotada)
+  alt resposta aprovada parecida no banco (Jaccard ≥ 0,6)
+    A-->>SP: resposta aprovada, para revisar
   else
-    A->>A: monta fatos do perfil (sem sensíveis)
+    A->>A: ProfileFacts (sem sensíveis; campos personalizados como fatos)
     A->>L: fatos + pergunta + limite
-    L-->>A: {answer, usedFacts, missingInfo}
-    A->>A: corta no limite; verifica usedFacts contra os fatos
-    A-->>SP: {kind: generated, texto, fatos usados, aviso}
+    L-->>A: {answer, usedFacts}
+    A->>A: corta no limite; confere usedFacts contra os fatos
+    A-->>SP: rascunho (AiText), nunca pré-selecionado
   end
-  Note over SP: sugestão nunca vem pré-selecionada
-  SP->>A: (opcional) POST /v1/approved-answers ao aprovar
+  Note over SP: aprovar exige marcar "Li e tudo o que está escrito é verdade sobre mim."
+  SP->>A: (opcional) POST /answers ao guardar no banco de respostas
 ```
 
 ### 6.4 Análise de vaga (RF-17)
@@ -331,15 +351,15 @@ sequenceDiagram
   participant SP as Painel lateral
   participant CS as Content script
   participant A as API
-  participant L as Serviço de IA
+  participant L as Ollama
 
-  P->>SP: "Analisar vaga"
-  SP->>CS: readJob
-  CS-->>SP: {url, título, texto visível ≤ 15k}
-  SP->>A: POST /v1/job-analyses
-  A->>A: consentimento "análise de vaga"? senão 403
-  A->>L: extrair dados visíveis (schema)
-  L-->>A: cargo, empresa, requisitos...
+  P->>SP: "Analisar esta vaga"
+  SP->>CS: job
+  CS-->>SP: {url, title, text ≤ 15.000 caracteres}
+  SP->>A: POST /jobs/analyze
+  A->>A: consentimento "análise de vaga"? senão 403 (sem chamar a IA)
+  A->>A: cota jobAnalyses (402 se esgotada)
+  A->>L: extrair dados visíveis e requisitos (schema)
   loop cada requisito (até 20)
     A->>L: fatos numerados + requisito
     L-->>A: {status, line}
@@ -347,33 +367,39 @@ sequenceDiagram
   end
   A->>A: pontos a confirmar por regra (CNH, salário, modalidade...)
   A-->>SP: requisitos + evidência (linha real) + aviso
-  SP-->>P: sem nota nem porcentagem
+  SP-->>P: sem nota nem porcentagem; anúncio contextual só depois do conteúdo
 ```
 
-### 6.5 Pareamento da extensão (RF-09)
+### 6.5 Pareamento e desconexão da extensão (RF-09)
 
-Fluxo proposto no [ADR-0007](adr/0007-autenticacao-e-pareamento-da-extensao.md). **Principal:** OAuth 2.1 Authorization Code + PKCE via `chrome.identity.launchWebAuthFlow`, com a plataforma web como servidor de autorização.
+Implementado com o fluxo de **código curto** do [ADR-0007](adr/0007-autenticacao-e-pareamento-da-extensao.md); o fluxo PKCE com `launchWebAuthFlow` ficou para depois do MVP 1 acadêmico ([ADR-0017](adr/0017-backend-em-csharp-dotnet-clean-architecture.md)).
 
 ```mermaid
 sequenceDiagram
   actor P as Pessoa
+  participant W as Plataforma web
   participant SP as Painel lateral
   participant SW as Service worker
-  participant A as API / servidor de autorização
-  participant W as Plataforma web
+  participant A as API
 
-  P->>SP: "Conectar à minha conta"
-  SW->>SW: gera code_verifier e code_challenge (S256), state
-  SW->>W: launchWebAuthFlow(/oauth/authorize?client_id=extensao&code_challenge&state&redirect_uri=chromiumapp.org)
-  P->>W: faz login (se preciso) e autoriza "Extensão Zyft neste navegador"
-  W-->>SW: redirect para https://<id>.chromiumapp.org/?code&state
-  SW->>A: POST /v1/oauth/token {grant_type=authorization_code, code, code_verifier}
-  A-->>SW: {accessToken 15 min, refreshToken rotativo}
+  P->>W: Extensão → "Gerar código de pareamento"
+  W->>A: POST /extension/pairing-codes (scope=web)
+  A-->>W: código de 6 dígitos, 10 min, uso único
+  P->>SP: digita o código e o nome do navegador
+  SP->>SW: pair {code, deviceName}
+  SW->>A: POST /extension/pair
+  A->>A: limite de navegadores do plano (402 devices se cheio)
+  A-->>SW: {device, tokens: {accessToken 15 min, refreshToken 7 dias}}
   SW->>SW: access em chrome.storage.session;<br/>refresh em chrome.storage.local
-  Note over W: a plataforma lista os dispositivos e permite revogar
+  Note over W,A: a plataforma lista os navegadores (GET /extension/devices)<br/>e revoga qualquer um (DELETE /extension/devices/{id})
+  P->>SP: Ajustes → "Desconectar extensão"
+  SP->>SW: unpair
+  SW->>A: DELETE /extension/devices/current (revoga o próprio dispositivo, libera a vaga)
+  SW->>A: POST /auth/logout {refreshToken}
+  SW->>SW: apaga os tokens locais
 ```
 
-**Alternativa** (quando `launchWebAuthFlow` falha, por exemplo em diferenças do Edge): código de pareamento no estilo *device authorization* (RFC 8628, adaptado). A extensão pede um código (`POST /v1/devices/pairing`), mostra `userCode` (ex.: "K7Q-4MZP", válido por 10 min, uso único), a pessoa confirma o código na plataforma logada (`POST /v1/devices/pairing/confirm`) e o service worker consulta `POST /v1/devices/token {grantType: device_code}` a cada 5 s até receber o mesmo par de tokens. Armazenamento, validade e rotação são idênticos nos dois fluxos.
+A revogação vale na hora: a validação do JWT confere a cada requisição se o `device_id` ainda está ativo. Um token web chamando `DELETE /extension/devices/current` recebe 404, porque não tem `device_id`.
 
 ## 7. Mapeamento requisito → componente
 
@@ -461,9 +487,9 @@ Hospedagem da API, do banco e da GPU: **a decidir**. Os candidatos e critérios 
 
 | Capacidade do MVP 2 | Base criada no MVP 1 | Mudança esperada |
 |---|---|---|
-| Painel central de candidaturas | `completion_records` (se o ADR-0012 for aceito), eventos de auditoria | Novo módulo `applications` com estados configuráveis e lembretes |
+| Painel central de candidaturas | Tabela `Applications` com status e anotações (implementada além do que o ADR-0012 propunha), eventos de auditoria | Lembretes, próximas ações, filtros e busca (RF-M2-02) |
 | Outros portais | Pacote `connectors` com interface comum | Um conector por portal, cada um com fixtures e testes |
 | Marketplace PJ/CLT, matching, reputação | Perfil Mestre estruturado e versionado | Novos contextos (empresas, oportunidades, avaliações) em módulos ou serviços separados; os documentos arquivados em `docs/arquivo/marketplace-v1/` são o ponto de partida |
-| Assinaturas | Contas e consentimentos | Módulo de cobrança com provedor de pagamento |
+| Assinaturas do marketplace (RF-M2-09) | Planos do assistente da versão 2 (Gratuito, Plus, pacote), com pagamento **simulado** e cota de uso ([ADR-0020](adr/0020-monetizacao-com-anuncios-e-planos.md)) | Integração com provedor de pagamento real (gateway, nota fiscal, webhooks, estorno) e planos do marketplace. A cobrança real não faz parte do MVP 1 |
 
 A API é um monólito modular. A separação em serviços só deve acontecer quando um módulo tiver carga ou ciclo de vida próprios (por exemplo, o serviço de IA, que já é separado).
