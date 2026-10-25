@@ -25,6 +25,17 @@ Cada papel tem **uma pessoa responsável** (humana) e, quando útil, **um agente
 | QA | Estratégia de testes, E2E, evals, testes negativos de confiança | `qa` |
 | Encarregado de dados / AppSec | LGPD, RIPD, modelo de ameaças, revisão de segurança | `privacidade-e-seguranca` |
 
+### 1.1 Quem ocupa cada papel (2026/2)
+
+| Integrante | Papel | Responsabilidades |
+|---|---|---|
+| Antonio Randolfo Barroso Neto | Product Owner, Product Manager e gestão | Escopo do MVP 1, backlog, critérios de aceite, pesquisa com usuários e prazos das entregas |
+| Guilherme Brogio Macedo da Silva | Arquiteto de software e dev full stack | Arquitetura, ADRs, modelagem do banco, contratos da API, integração e IA |
+| Lucas Ulisses Clementino De Arruda E Silva | Dev frontend | Telas, navegação, formulários e validações da web e do painel da extensão |
+| Matheus Guilherme Moreira De Oliveira | Dev backend | Controllers, handlers CQRS, repositórios, EF Core, autenticação e testes da API |
+
+Papéis não listados (UX, QA, Arquiteto de IA, Privacidade e Segurança) são acumulados: UX com o dev frontend, QA com os devs, Arquiteto de IA e Privacidade com o arquiteto.
+
 ## 2. Matriz RACI
 
 **R** = executa · **A** = responde pela decisão (um por linha) · **C** = consultado · **I** = informado

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Zyft — Candidatura Assistida</title>
+  <link rel="icon" href="icons/icon-32.png" />
+  <link rel="stylesheet" href="sidepanel.css" />
+</head>
+<body>
+  <a class="skip" href="#main">Pular para o conteúdo</a>
+  <div class="panel">
+    <header class="top">
+      <img src="icons/zyft-mark.svg" alt="" width="24" height="24" />
+      <b class="top__name">Zyft</b>
+      <span id="top-status" class="top__status">Não conectada</span>
+      <button id="btn-settings" class="top__btn" type="button" aria-expanded="false" aria-controls="settings" hidden>
+        <span class="sr-only">Ajustes</span>
+      </button>
+    </header>
+
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+
+    <section id="settings" class="settings" hidden aria-label="Ajustes"></section>
+
+    <main id="main" tabindex="-1" class="main">
+      <!-- Não conectada (sem API autenticada: nenhum anúncio aqui) -->
+      <section id="view-pair" class="view" hidden aria-labelledby="pair-title"></section>
+      <!-- Conectada -->
+      <section id="view-main" class="view" hidden></section>
+    </main>
+
+  </div>
+  <script src="sidepanel.js" type="module"></script>
+</body>
+</html>

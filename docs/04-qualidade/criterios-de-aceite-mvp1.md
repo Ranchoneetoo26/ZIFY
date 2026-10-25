@@ -6,16 +6,17 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Critérios de aceite (CA) do MVP 1 |
-| Versão | 1.0 |
+| Versão | 2.0 |
 | Status | Aprovado para refinamento |
 | Dono | Product Owner (com QA) |
-| Documentos relacionados | [DRP](../01-produto/drp.md), [Fluxos](../01-produto/fluxos.md), [Estratégia de testes](estrategia-de-testes.md) |
+| Documentos relacionados | [DRP](../01-produto/drp.md), [Fluxos](../01-produto/fluxos.md), [Estratégia de testes](estrategia-de-testes.md), [Monetização](../01-produto/monetizacao.md), ADRs [0018](../03-arquitetura/adr/0018-onboarding-em-passos-com-perguntas-adiaveis.md), [0019](../03-arquitetura/adr/0019-area-profissional-dinamica-e-campos-personalizados.md) e [0020](../03-arquitetura/adr/0020-monetizacao-com-anuncios-e-planos.md) |
 
 **Histórico de revisões**
 
 | Versão | Data | Alteração |
 |---|---|---|
 | 1.0 | 12/10/2026 | CA-01 a CA-22, um por requisito funcional do DRP (mesma numeração). |
+| 2.0 | 21/10/2026 | CA-09 ajustado ao pareamento implementado (código de 6 dígitos gerado na plataforma; PKCE ficou para depois, [ADR-0017](../03-arquitetura/adr/0017-backend-em-csharp-dotnet-clean-architecture.md)). CA-19 ajustado ao registro de conclusão implementado. Novos CA-23 a CA-29 para onboarding em passos, área e catálogo, campos personalizados, planos e limites, pacote avulso, anúncio recompensado e anúncios (RF-23 a RF-29). |
 
 ## Convenções
 
@@ -94,12 +95,16 @@
 
 ## CA-09 — Pareamento da extensão (RF-09)
 
+O MVP 1 usa o fluxo de **código de pareamento** do [ADR-0007](../03-arquitetura/adr/0007-autenticacao-e-pareamento-da-extensao.md), na forma ajustada pelo [ADR-0017](../03-arquitetura/adr/0017-backend-em-csharp-dotnet-clean-architecture.md): a plataforma gera o código e a pessoa o digita na extensão. O fluxo Authorization Code + PKCE ficou para depois do MVP 1 acadêmico.
+
 | # | Dado | Quando | Então |
 |---|---|---|---|
-| 09.1 | a extensão recém-instalada | a pessoa clica em "Conectar" e autoriza a extensão na tela da plataforma (Authorization Code + PKCE) | a extensão fica pareada e aparece na lista de extensões da conta |
-| 09.1b | o fluxo `launchWebAuthFlow` falhou | a pessoa usa o código de pareamento mostrado na extensão e o confirma na plataforma | a extensão fica pareada da mesma forma |
-| 09.2 | uma extensão pareada | a pessoa revoga o pareamento na plataforma | a próxima chamada da extensão falha com 401 e o painel volta para "Conectar" |
-| 09.3 (negativo) | um código de pareamento expirado ou já usado | alguém tenta confirmá-lo | a confirmação é recusada |
+| 09.1 | a pessoa logada na plataforma | ela abre **Extensão** e clica em "Gerar código de pareamento" | aparece um código de 6 dígitos válido por 10 minutos (`POST /extension/pairing-codes`) |
+| 09.2 | um código válido e a extensão recém-instalada | a pessoa digita o código no painel e clica em "Conectar" | a extensão recebe tokens com `scope=extension` (`POST /extension/pair`) e aparece na lista de navegadores conectados |
+| 09.3 | uma extensão pareada | a pessoa clica em "Desconectar" na plataforma | a próxima chamada da extensão falha com 401 (access e refresh revogados na hora) e o painel volta para "Conectar" |
+| 09.4 (negativo) | um código expirado ou já usado | alguém tenta pareá-lo | o pareamento é recusado |
+| 09.5 (negativo) | um token com `scope=extension` | a extensão chama `GET /me/export` ou `GET /profile` | a API responde 403: a extensão nunca recebe o perfil inteiro nem a exportação |
+| 09.6 | o plano Gratuito com 1 navegador já conectado | a pessoa tenta conectar um segundo navegador | o pareamento explica o limite de 1 navegador e oferece desconectar o atual ou conhecer o Plus (até 3); nada é desconectado sem escolha da pessoa (RF-26) |
 
 ## CA-10 — Página autorizada e ações (RF-10)
 
@@ -186,11 +191,15 @@
 
 ## CA-19 — Conclusão (RF-19)
 
+Implementação atual: depois de enviar no portal, a pessoa clica em "Concluí a candidatura" e confirma "Confirmo que enviei: registrar". O registro (`POST /forms/completions`) guarda portal, cargo, empresa, endereço da vaga e quantidade de campos preenchidos, e aparece em **Candidaturas**. O acompanhamento por status e anotações vai além da Opção B do [ADR-0012](../03-arquitetura/adr/0012-registro-minimo-de-conclusao-no-mvp1.md), que continua **Proposta**; essa diferença está registrada como decisão pendente.
+
 | # | Dado | Quando | Então |
 |---|---|---|---|
-| 19.1 | campos preenchidos pelo Zyft | a pessoa envia no portal e confirma "Concluí" no painel | o painel mostra a confirmação visual com a quantidade de campos preenchidos |
-| 19.2 | o [ADR-0012](../03-arquitetura/adr/0012-registro-minimo-de-conclusao-no-mvp1.md) aceito com registro mínimo | a pessoa confirma a conclusão | o registro guarda só os campos definidos no ADR |
-| 19.3 (negativo) | o ADR-0012 sem decisão ou recusado | a pessoa confirma a conclusão | nenhum registro de candidatura é criado além do registro de ações |
+| 19.1 | campos preenchidos pelo Zyft | a pessoa envia no portal e confirma "Concluí a candidatura" no painel | o painel mostra o resumo (preenchidos, pulados, para fazer no site) e "Candidatura registrada" |
+| 19.2 | o registro criado | a pessoa abre **Candidaturas** na plataforma | a candidatura aparece com data, cargo, empresa, portal e campos preenchidos, **sem** os valores preenchidos |
+| 19.3 (negativo) | a pessoa não confirma o envio | ela fecha o painel | nenhum registro de candidatura é criado; só o registro de ações do preenchimento existe |
+| 19.4 (negativo) | o painel detectou o `submit` feito pela pessoa | — | o Zyft só destaca o botão de registrar; nada é registrado sem o clique dela e o envio do formulário nunca é interceptado |
+| 19.5 | um registro existente | a pessoa exclui o registro | o registro some do Zyft, com o aviso de que a candidatura continua no site da empresa |
 
 ## CA-20 — Registro de ações (RF-20)
 
@@ -214,3 +223,93 @@
 |---|---|---|---|
 | 22.1 | um formulário com campo de anexo | o painel exibe o campo | ele aparece como "ação sua", com a opção de registrar qual versão do currículo a pessoa anexou |
 | 22.2 (negativo) | qualquer fluxo | — | o Zyft não anexa arquivos |
+
+## CA-23 — Onboarding em passos (RF-23)
+
+| # | Dado | Quando | Então |
+|---|---|---|---|
+| 23.1 | uma conta recém-criada | a pessoa entra pela primeira vez | ela é levada a `#/boas-vindas`, com uma pergunta por tela, o capítulo atual ("Capítulo 2 · Sua área") e "Pergunta N de M" |
+| 23.2 | qualquer pergunta do onboarding | a pessoa clica em "Preencher mais tarde" | a pergunta é marcada como pulada (`PUT /onboarding` com o id em `skipped`) e a próxima aparece |
+| 23.3 | uma resposta preenchida | a pessoa avança | a resposta é gravada nos endpoints do perfil (`PUT /profile`, `POST /profile/experiences` etc.) e o passo entra em `answered` |
+| 23.4 | o onboarding parado no capítulo 3 | a pessoa fecha o navegador e volta outro dia | o onboarding retoma no último passo (`lastStep`), sem perder respostas (RNF-17) |
+| 23.5 | três perguntas puladas | a pessoa abre o Perfil Mestre | um alerta no topo diz quantas perguntas ficaram para depois e oferece "Continuar de onde parei" e "Responda agora" |
+| 23.6 | o capítulo "Combinados" | a pessoa chega ao fim | os consentimentos aparecem desligados, cada um com a finalidade explicada; ao concluir, `completed=true` e o registro de ações ganha `onboarding.completed`, sem conteúdo pessoal |
+| 23.7 (negativo) | a pessoa pulou todas as perguntas | ela tenta usar a plataforma e parear a extensão | nada é bloqueado (RN-14); a extensão marca os campos sem dado como "Precisa de você" |
+| 23.8 (negativo) | o onboarding | a pessoa percorre todas as telas | não há anúncio em nenhuma delas (RN-08) |
+
+## CA-24 — Área profissional e catálogo por área (RF-24)
+
+| # | Dado | Quando | Então |
+|---|---|---|---|
+| 24.1 | a pergunta "Em que área você trabalha ou quer trabalhar?" | a pessoa escolhe **Saúde** | as sugestões de cargos, setores, ferramentas e competências passam a ser as de Saúde (ex.: "Técnico(a) de enfermagem", "Prontuário eletrônico") e aparece a pergunta "Registro no conselho" com o exemplo "COREN-MG 123456" |
+| 24.2 | a área **Tecnologia** | a pessoa chega à pergunta de links | o link pedido é "GitHub" e não há pergunta de registro profissional |
+| 24.3 | a área **Outra área** | a pessoa chega às listas | as listas vêm sem sugestões e a pessoa cadastra os próprios valores |
+| 24.4 | qualquer lista de sugestões | a pessoa digita um valor que não está na lista ("Cuidador(a) de idosos") | o valor é salvo como os demais e aparece no perfil |
+| 24.5 | o perfil | a pessoa salva área, registro profissional e tipo de pretensão ("Por plantão") | `GET /profile` devolve `workArea`, `professionalRegistration` e `salaryType` com esses valores |
+| 24.6 | `GET /catalog/areas` autenticado | a plataforma pede o catálogo | a resposta traz as 8 áreas com `roles`, `sectors`, `tools`, `skills`, `linkLabel` e `registration` (ou `null`) |
+| 24.7 (negativo) | uma pessoa sem login | ela chama `GET /catalog/areas` | a API responde 401 |
+| 24.8 (negativo) | a área escolhida | a análise de vaga ou o de-para rodam | a área nunca vira nota, filtro de vaga nem promessa de compatibilidade (RN-06) |
+
+## CA-25 — Campos personalizados (RF-25, Should)
+
+| # | Dado | Quando | Então |
+|---|---|---|---|
+| 25.1 | o bloco "Informações da sua área" | a pessoa cria "Disponível para plantão noturno" = "Sim, 12x36" | o campo é salvo (`POST /profile/custom-fields`) e aparece em `GET /profile` em `customFields`, com data de atualização |
+| 25.2 | um campo personalizado | a pessoa edita ou exclui | a mudança vale nas próximas leituras de formulário; o registro de ações ganha `custom_field.changed`, sem o rótulo nem o valor |
+| 25.3 | o campo "Registro no COREN" no perfil e um formulário que pergunta "Número do COREN" | a extensão lê o formulário | o campo aparece como Pronto com origem "Informações da sua área" e chave `custom:<id>`, e o valor é exatamente o do perfil |
+| 25.4 | uma pergunta aberta da vaga sobre plantões | a pessoa pede sugestão de texto | a IA pode usar o campo personalizado como fato aprovado e o mostra entre os fatos usados |
+| 25.5 (negativo) | um rótulo como "Religião", "Tenho deficiência", "CPF" ou "Senha do portal" | a pessoa tenta salvar | a API responde 422 `profile.custom_field_sensitive` e a tela orienta usar **Dados sensíveis** ou não informar (RN-15, TN-13) |
+| 25.6 (negativo) | um rótulo com mais de 80 caracteres ou um valor com mais de 500 | a pessoa tenta salvar | a API responde 400 com a mensagem do campo |
+| 25.7 (negativo) | um campo personalizado de outra pessoa | alguém chama `PUT` ou `DELETE` com o id | a API responde 404 |
+
+## CA-26 — Planos e limites de uso (RF-26)
+
+| # | Dado | Quando | Então |
+|---|---|---|---|
+| 26.1 | uma conta nova | a pessoa abre **Planos** | ela vê o plano Gratuito como atual, o Plus por R$ 9,90/mês ou R$ 99/ano, o pacote avulso de R$ 4,90, a tabela comparativa, o bloco "Sempre de graça" e o aviso "Ambiente de demonstração: nenhuma cobrança real" (RN-13) |
+| 26.2 | o plano Gratuito | a pessoa abre o medidor de uso | ela vê, por recurso e pelo mês corrente, quanto usou e o limite: 10 candidaturas assistidas, 5 sugestões de IA, 10 análises de vaga, 2 importações; banco de respostas até 15; 1 navegador |
+| 26.3 | o plano Gratuito | a pessoa escolhe "Testar 7 dias grátis" (mensal ou anual) e confirma | `POST /billing/subscribe` deixa o plano `plus` com `trialEndsAt` em 7 dias; anúncios somem e os limites viram "sem limite"; o registro de ações ganha `plan.changed` |
+| 26.4 | o plano Plus | a pessoa cancela | `POST /billing/cancel` volta ao Gratuito (na demonstração pode ser imediato); **nenhum dado do perfil é apagado** |
+| 26.5 | 10 candidaturas assistidas usadas no mês | a pessoa lê um formulário numa página nova | a API responde 402 `plan.limit_reached` com `resource`, `used` e `limit`, e o painel mostra as opções: ver uma oferta patrocinada (se ainda houver), comprar pacote ou conhecer o Plus |
+| 26.6 | uma página já contada no mês | a pessoa clica em "Ler novamente" na mesma página (origem e caminho iguais) | o uso não aumenta (RNF-16) |
+| 26.7 | bônus recompensado e um pacote ativos | o limite do mês acaba | o consumo segue a ordem limite do mês, depois bônus recompensado, depois pacotes (o que vence antes primeiro) |
+| 26.8 (negativo) | o limite atingido | a pessoa edita o perfil, exporta os dados ou exclui a conta | tudo funciona normalmente (RN-12, TN-14) |
+| 26.9 (negativo) | qualquer tela de planos | a pessoa percorre a assinatura | nenhum dado de cartão é pedido nem coletado (RN-13) |
+| 26.10 (negativo) | o banco de respostas com 15 respostas no Gratuito | a pessoa tenta guardar a 16ª | a API recusa com 402 e a tela explica o limite; as 15 existentes continuam editáveis e excluíveis |
+
+## CA-27 — Pacote avulso (RF-27, Should)
+
+| # | Dado | Quando | Então |
+|---|---|---|---|
+| 27.1 | o plano Gratuito | a pessoa clica em "Comprar pacote" e confirma | `POST /billing/packs` cria um pacote com +15 candidaturas assistidas e +10 sugestões de IA, com validade de 60 dias; o registro de ações ganha `pack.purchased` |
+| 27.2 | um pacote ativo | a pessoa abre o medidor de uso | ela vê o saldo restante e a data de validade |
+| 27.3 | dois pacotes com validades diferentes | o limite do mês acaba | é consumido primeiro o pacote que vence antes |
+| 27.4 (negativo) | um pacote vencido | o limite do mês acaba | o pacote vencido não é usado e a API responde 402 |
+| 27.5 (negativo) | o pacote comprado | — | nenhuma cobrança real acontece e nenhum dado de pagamento é guardado (RN-13) |
+
+## CA-28 — Anúncio recompensado (RF-28, Could)
+
+| # | Dado | Quando | Então |
+|---|---|---|---|
+| 28.1 | o plano Gratuito | a pessoa clica em "Ganhar +3" e vê a oferta patrocinada até o fim | `POST /ads/rewarded/claim` soma +3 candidaturas assistidas de bônus no mês; o registro de ações ganha `rewarded.claimed` |
+| 28.2 | 3 resgates no mês | a pessoa tenta um quarto | a API responde 409 `ads.rewarded_exhausted` e o botão some até o mês seguinte |
+| 28.3 (negativo) | a pessoa não quer ver ofertas | ela ignora o botão | nada muda no uso nem no perfil: o recompensado é sempre opcional |
+| 28.4 (negativo) | o plano Plus | a pessoa abre o painel | não aparece o botão de recompensado |
+
+## CA-29 — Anúncios no plano gratuito (RF-29, Should)
+
+| # | Dado | Quando | Então |
+|---|---|---|---|
+| 29.1 | o plano Gratuito, área Tecnologia | a pessoa abre o Perfil Mestre | aparece no máximo um card nativo na coluna lateral (`web.profile.rail`), com o selo "Patrocinado", "Por que estou vendo isso?" e "Não tenho interesse" |
+| 29.2 | um anúncio exibido | a pessoa clica em "Por que estou vendo isso?" | o texto (`reason`) explica em linguagem simples que o anúncio usa só a área, os cargos buscados ou o requisito da vaga |
+| 29.3 | um anúncio exibido | a pessoa escolhe ocultar este anúncio | ele não volta por 30 dias (`scope=ad`); ao ocultar o tema, nenhum anúncio daquele tema volta (`scope=topic`); o registro de ações ganha `ad.hidden` |
+| 29.4 | a análise da vaga com um requisito que não aparece no perfil ("Inglês avançado") | o painel mostra "A vaga e você" | o banner do rodapé pode ser trocado por um card contextual (`ext.job.contextual`) com "Sobre: Inglês avançado" |
+| 29.5 | a candidatura registrada no painel | a pessoa vê a confirmação | pode aparecer um card de próximo passo (`ext.after-complete`), sempre depois da conclusão |
+| 29.6 | um anúncio | a pessoa clica nele | `POST /ads/{id}/click` aumenta só um contador agregado, sem identificar a pessoa |
+| 29.7 (negativo) | os placements proibidos (onboarding, entrar e criar conta, importar currículo, dados sensíveis, conta e privacidade, painel "Ler formulário") | a interface pede anúncio ou a pessoa navega por essas telas | não há anúncio; a API responde 204 se for chamada (RN-08, TN-11, TN-15) |
+| 29.8 (negativo) | o plano Plus | qualquer tela pede anúncio | a API responde 204 e nenhum espaço de anúncio aparece |
+| 29.9 (negativo) | qualquer chamada a `GET /ads` | — | a requisição só leva `placement` e `topic`; a resposta não tem nome, contato, dado sensível nem identificador da pessoa; os logs não têm dado pessoal (RN-09, RNF-14, TN-12) |
+| 29.10 (negativo) | qualquer tela com anúncio | — | há no máximo um anúncio na tela (RN-11) |
+| 29.11 (negativo) | a API de anúncios fora do ar ou lenta (mais de 1,5 s) | a tela carrega | o espaço do anúncio some e a tela funciona normalmente (RNF-15) |
+| 29.12 (negativo) | o catálogo de anúncios | — | todo anunciante é marcado como "Anunciante de demonstração" e nenhum anúncio promete contratação ou candidatura em massa (RN-06, RN-10) |
+

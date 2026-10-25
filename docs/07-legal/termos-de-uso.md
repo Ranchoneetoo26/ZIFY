@@ -8,7 +8,7 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Termos de Uso |
-| Versão | 0.1 (rascunho) |
+| Versão | 0.2 (rascunho) |
 | Status | Rascunho para revisão jurídica |
 | Dono | Product Owner (com Privacidade e segurança) |
 | Documentos relacionados | [Política de privacidade](politica-de-privacidade.md), [DVP-E](../01-produto/dvp-e.md), termos do marketplace em [`arquivo/marketplace-v1/`](../arquivo/marketplace-v1/termos-de-uso-e-privacidade.md) |
@@ -18,6 +18,7 @@
 | Versão | Data | Alteração |
 |---|---|---|
 | 0.1 | 12/10/2026 | Primeiro rascunho para a Candidatura Assistida (MVP 1). |
+| 0.2 | 21/10/2026 | Cláusula 7 reescrita para os planos (Gratuito, Plus, pacote avulso), limites de uso, anúncios e pagamento simulado no ambiente de demonstração ([ADR-0020](../03-arquitetura/adr/0020-monetizacao-com-anuncios-e-planos.md)). |
 
 ## 1. O que é o Zyft
 
@@ -79,7 +80,15 @@
 
 ## 7. Preço
 
-7.1. Durante o MVP 1 o Zyft é gratuito. Qualquer cobrança futura será comunicada com antecedência e dependerá de aceite expresso.
+7.1. O Zyft tem um plano **Gratuito**, com limites mensais de uso e anúncios, e um plano **Plus** (R$ 9,90 por mês ou R$ 99 por ano, com 7 dias de teste), sem anúncios e sem esses limites. Também há um **pacote avulso** (R$ 4,90, com 15 candidaturas assistidas e 10 sugestões de texto com IA, válido por 60 dias). Os limites e o que cada plano inclui estão na tela Planos.
+
+7.2. Revisar cada campo, manter dados sensíveis trancados, nunca pedir a senha dos portais, gerenciar consentimentos e exportar ou apagar seus dados são funções gratuitas em qualquer plano e não têm limite. Atingir um limite nunca impede você de editar o perfil, exportar seus dados ou excluir a conta.
+
+7.3. **Ambiente de demonstração.** Durante o MVP 1, a assinatura e a compra de pacotes são simuladas: nenhuma cobrança é feita e nenhum dado de pagamento é pedido. A interface avisa isso. Qualquer cobrança real será comunicada com antecedência e dependerá de aceite expresso.
+
+7.4. Você pode cancelar o Plus quando quiser, sem multa. Ao cancelar, a conta volta ao plano Gratuito e nada do seu perfil é apagado.
+
+7.5. **Anúncios.** No plano Gratuito aparecem anúncios marcados como "Patrocinado", no máximo um por tela, escolhidos sem usar seus dados pessoais identificáveis ou sensíveis (ver a [Política de Privacidade](politica-de-privacidade.md#61-anúncios-no-plano-gratuito)). O Zyft não endossa produtos anunciados e o anúncio não tem relação com o resultado de nenhuma candidatura. Ver uma oferta recompensada é sempre opcional.
 
 ## 8. Propriedade intelectual
 

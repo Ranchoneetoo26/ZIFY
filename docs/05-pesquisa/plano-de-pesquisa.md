@@ -7,7 +7,7 @@
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Plano de pesquisa (v2) |
 | Versão | 2.0 |
-| Status | Em campo |
+| Status | Rodada 1 concluída (15 respostas válidas). Resultados em [resultados-v2.md](resultados-v2.md) |
 | Dono | Product Manager |
 | Relacionados | [Questionário v2](questionario-v2.md), [Personas](../01-produto/personas.md), [Métricas](../01-produto/metricas.md), [DVP-E §3](../01-produto/dvp-e.md#3-problema), [`ferramentas/pesquisa/`](../../ferramentas/pesquisa/) |
 
@@ -17,6 +17,7 @@
 |---|---|---|
 | 1.0 | 30/09/2026 | Pesquisa "Como você busca oportunidades em tecnologia?", sobre o marketplace de TI (PJ/CLT, assinatura, reputação). 1 resposta de teste. |
 | 2.0 | 12/10/2026 | O mesmo formulário foi reescrito para a Candidatura Assistida. As respostas da v1 foram copiadas para a aba "Arquivo v1 — marketplace" da planilha. |
+| 2.1 | 21/10/2026 | Rodada 1 encerrada (15/10 a 17/10/2026): 15 respostas válidas, após excluir uma linha copiada da v1. Resultados e o que mudou no produto em [resultados-v2.md](resultados-v2.md). A meta de 60 respostas e a de 10 por grupo não foram atingidas. |
 
 ## 1. Objetivo
 
@@ -103,7 +104,7 @@ Os mesmos critérios valem dentro de cada recorte (persona, momento profissional
 2. Calcular média e % de notas 4–5 por dor, no geral e por persona.
 3. Cruzar persona × dores, persona × familiaridade digital e persona × receios.
 4. Ler todos os relatos livres e agrupá-los por tema (afinidade). Citar no relatório apenas trechos sem dados identificáveis.
-5. Registrar o resultado em `docs/05-pesquisa/resultados-v2.md`, com data, número de respostas e o que mudou em personas, DVP-E e métricas.
+5. Registrar o resultado em [`resultados-v2.md`](resultados-v2.md), com data, número de respostas e o que mudou em personas, DVP-E e métricas. **Feito para a rodada 1 (21/10/2026).**
 
 O `Codigo.gs` em `ferramentas/pesquisa/` gera um relatório automático (persona, arquétipos e ranking de dores) num Google Docs. Ele serve de apoio e não substitui a leitura dos relatos.
 
@@ -120,7 +121,7 @@ O `Codigo.gs` em `ferramentas/pesquisa/` gera um relatório automático (persona
 |---|---|---|
 | Divulgar o formulário v2 | PM e todo o time | Meta de 60 respostas |
 | Entrevistas curtas (20 min) com 5–8 pessoas que deixaram contato, cobrindo ao menos 3 personas | PM e Designer UX | Notas de entrevista e mapa de afinidade |
-| Consolidar resultados | PM | `resultados-v2.md` |
+| Consolidar resultados | PM | [`resultados-v2.md`](resultados-v2.md) (rodada 1 concluída em 21/10/2026) |
 | Revisar personas, DVP-E §3 e métricas | PO e PM | Novas versões dos documentos |
 | Teste de usabilidade com o protótipo no portal de demonstração | Designer UX e QA | Tempo por candidatura e campos aceitos sem edição (O1, O2) |
 

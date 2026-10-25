@@ -78,7 +78,7 @@ function migrarParaV2() {
       form.deleteItem(item);
       item = null;
     }
-    if (!item) item = criar_(form, e.tipo);
+    if (!item) item = criarGenerico_(form, e.tipo);
     aplicar_(item, e);
     criados[e.chave] = item.getId();
     if (item.getIndex() !== posicao) form.moveItem(item.getIndex(), posicao);
@@ -109,6 +109,11 @@ function criar_(form, tipo) {
     case 'curta': return form.addTextItem();
   }
   throw new Error('Tipo desconhecido: ' + tipo);
+}
+
+// Os add*Item() devolvem o item já tipado, que não tem asXxxItem(); aplicar_ espera o Item genérico.
+function criarGenerico_(form, tipo) {
+  return form.getItemById(criar_(form, tipo).getId());
 }
 
 function aplicar_(item, e) {
