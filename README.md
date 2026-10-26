@@ -1,5 +1,7 @@
 # Zyft — Candidatura Assistida
 
+> **Professor(a):** o passo a passo de avaliação, com a instalação da IA (Ollama) e da extensão, está em [LEIA-ME-PROFESSOR.md](LEIA-ME-PROFESSOR.md).
+
 O **Zyft** é um assistente digital para pessoas que se candidatam a vagas de emprego pela internet. Ele reduz o esforço repetitivo da candidatura, ajuda a pessoa a apresentar informações profissionais **verdadeiras** e facilita o preenchimento de formulários de vagas, **mantendo a pessoa no controle de cada decisão**.
 
 > "Um assistente que ajuda você a preparar e preencher candidaturas com base nas suas informações, revisar cada resposta e confirmar cada ação antes do envio."
