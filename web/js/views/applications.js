@@ -1,7 +1,7 @@
 // Candidaturas (RF-19, ADR-0012): registro do que a pessoa concluiu no site, com status e anotações.
 // Lista com faixa web.applications.feed; detalhe com banner web.banner. Sem métricas de sucesso (RN-06).
 import { api, asList } from '../api.js';
-import { h, clear, field, readForm, showErrors, toast, announce, confirmDialog, fmtDay, fmtDateTime, go, safeUrl } from '../dom.js';
+import { h, clear, field, readForm, showErrors, toast, announce, confirmDialog, confirmDiscard, fmtDate, fmtDateTime, go, safeUrl } from '../dom.js';
 import { Button, PageHead, Card } from '../ui.js';
 import { adSlot, PLACEMENTS } from '../ads.js';
 import { labelOf, enumName } from './profile-schema.js';
@@ -14,10 +14,12 @@ export const STATUSES = [
 ];
 const statusLabel = (s) => labelOf(STATUSES, s) || '—';
 const SECONDS_PER_FIELD = 30; // estimativa de digitação poupada por campo
+const filters = { status: '', search: '' }; // ficam ao voltar do detalhe para a lista
 
 export async function render(main, { id, refreshShell }) {
   if (id) return detail(main, id, refreshShell);
   const apps = asList(await api('/applications'));
+  refreshShell?.({ applications: true }); // uma candidatura nova vem da extensão: o contador do menu não fica sabendo
   const now = new Date();
   const thisMonth = apps.filter((a) => { const d = new Date(a.confirmedAt || a.createdAt); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); });
   const fields = apps.reduce((n, a) => n + (a.fieldsFilled || 0), 0);
@@ -27,19 +29,23 @@ export async function render(main, { id, refreshShell }) {
 
   const statusSel = h('select', { id: 'f-status' }, h('option', { value: '' }, 'Todos'), STATUSES.map(([v, t]) => h('option', { value: v }, t)));
   const search = h('input', { id: 'f-search', type: 'search', placeholder: 'Ex.: Nuvem Fiscal', autocomplete: 'off' });
+  statusSel.value = filters.status;
+  search.value = filters.search;
   const tableSlot = h('div');
   const count = h('p', { class: 'sr-only', role: 'status' });
 
   const paint = () => {
+    filters.status = statusSel.value;
+    filters.search = search.value;
     const q = search.value.trim().toLowerCase();
     const s = statusSel.value;
-    const shown = apps.filter((a) => (!s || enumName(STATUSES, a.status) === s) && (!q || `${a.jobTitle} ${a.company} ${a.portal}`.toLowerCase().includes(q)));
+    const shown = apps.filter((a) => (!s || enumName(STATUSES, a.status) === s) && (!q || [a.jobTitle, a.company, a.portal].filter(Boolean).join(' ').toLowerCase().includes(q)));
     count.textContent = `${shown.length} ${shown.length === 1 ? 'candidatura' : 'candidaturas'} na lista.`;
     clear(tableSlot, shown.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'table', style: { minWidth: '760px' } },
       h('caption', { class: 'sr-only' }, 'Candidaturas registradas'),
       h('thead', {}, h('tr', {}, ['Data', 'Vaga', 'Empresa', 'Portal', 'Campos preenchidos', 'Status'].map((t) => h('th', { scope: 'col' }, t)))),
       h('tbody', {}, shown.map((a) => h('tr', {},
-        h('td', { class: 'muted', style: { whiteSpace: 'nowrap' } }, fmtDay(a.confirmedAt || a.createdAt)),
+        h('td', { class: 'muted', style: { whiteSpace: 'nowrap' } }, fmtDate(a.confirmedAt || a.createdAt)),
         h('td', {}, h('a', { href: `#/candidaturas/${encodeURIComponent(a.id)}` }, a.jobTitle || 'Vaga sem título')),
         h('td', {}, a.company || '—'),
         h('td', {}, a.portal || '—'),
@@ -62,7 +68,24 @@ export async function render(main, { id, refreshShell }) {
       h('label', { class: 'mini-label', for: 'f-search', style: { flex: '1 1 240px' } }, 'Buscar vaga ou empresa', search)),
     count,
     h('section', { class: 'card card--flush', 'aria-label': 'Lista de candidaturas' }, tableSlot)));
-  void refreshShell;
+}
+
+/** Pergunta antes de sair pelos links da tela ou recarregar com o formulário alterado. */
+function guardUnsaved(form, isDirty, forget) {
+  const onClick = async (e) => {
+    if (!form.isConnected) { document.removeEventListener('click', onClick, true); return; }
+    const link = e.target.closest?.('a[href^="#/"]');
+    if (!link || !isDirty()) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (await confirmDiscard()) { forget(); go(link.getAttribute('href')); }
+  };
+  const onUnload = (e) => {
+    if (!form.isConnected) window.removeEventListener('beforeunload', onUnload);
+    else if (isDirty()) e.preventDefault();
+  };
+  document.addEventListener('click', onClick, true);
+  window.addEventListener('beforeunload', onUnload);
 }
 
 async function detail(main, id, refreshShell) {
@@ -72,13 +95,18 @@ async function detail(main, id, refreshShell) {
     field({ name: 'status', label: 'Status', type: 'select', options: STATUSES, value: enumName(STATUSES, a.status) }),
     field({ name: 'notes', label: 'Anotações', type: 'textarea', optional: true, rows: 5, value: a.notes, hint: 'Só para você. Ex.: data da entrevista.', attrs: { maxlength: 2000 } }),
     save);
+  const snapshot = () => JSON.stringify(readForm(form));
+  let savedForm = snapshot();
+  guardUnsaved(form, () => snapshot() !== savedForm, () => { savedForm = snapshot(); });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     save.disabled = true;
     try {
       const data = readForm(form);
-      const r = await api(`/applications/${encodeURIComponent(id)}`, { method: 'PATCH', body: { status: data.status, notes: data.notes } });
-      Object.assign(a, r && typeof r === 'object' ? r : data);
+      // readForm devolve null para campo vazio; "" diz à API para limpar as anotações.
+      const r = await api(`/applications/${encodeURIComponent(id)}`, { method: 'PATCH', body: { status: data.status, notes: data.notes ?? '' } });
+      Object.assign(a, { notes: null }, r && typeof r === 'object' ? r : data);
+      savedForm = snapshot();
       toast('Acompanhamento salvo', 'ok');
       announce(`Status: ${statusLabel(a.status)}.`);
     } catch (err) { if (!err.handled) showErrors(form, err); } finally { save.disabled = false; }

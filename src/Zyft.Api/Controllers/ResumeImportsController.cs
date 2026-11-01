@@ -40,6 +40,18 @@ public sealed class ResumeImportsController : ApiControllerBase
         return StatusCode(StatusCodes.Status201Created, dto);
     }
 
+    /// <summary>Importação pendente mais recente, para retomar a revisão. Não consome o limite do plano.</summary>
+    /// <response code="200">Há importação pendente, com a proposta.</response>
+    /// <response code="204">Nenhuma importação pendente.</response>
+    [HttpGet("pending")]
+    [ProducesResponseType(typeof(ResumeImportDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> Pending(CancellationToken ct)
+    {
+        var dto = await Sender.Send(new GetPendingResumeImportQuery(), ct);
+        return dto is null ? NoContent() : Ok(dto);
+    }
+
     /// <summary>Consulta a importação e a proposta (enquanto pendente).</summary>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ResumeImportDto), StatusCodes.Status200OK)]

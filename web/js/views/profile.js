@@ -5,13 +5,15 @@ import { api, asList } from '../api.js';
 import { h, clear, field, readForm, showErrors, clearErrors, toast, announce, confirmDialog, modal, nextId, fmtDate, fmtMoney, safeUrl } from '../dom.js';
 import { Button, LinkButton, Icon, Card, Chip, Stamp, SensitiveValue, PageHead, initials } from '../ui.js';
 import { adSlot, PLACEMENTS } from '../ads.js';
-import { loadAreas, findArea } from '../catalog.js';
-import { getProfile, saveBasics, getOnboarding, markAnswered, splitList, basicsOf } from '../store.js';
-import { SECTIONS, BASIC_FIELDS, toInput, toApi, labelOf, enumName, WORK_MODELS, EDUCATION_LEVELS, EDUCATION_STATUS, COURSE_TYPES, PROFICIENCY, SKILL_LEVELS, periodOf, toMonthBr, join } from './profile-schema.js';
-import { STEP_SHORT } from './onboarding.js';
+import { loadAreas, findArea, areaOrOther, OTHER } from '../catalog.js';
+import { getProfile, saveBasics, getOnboarding, markAnswered, settleSkipped, splitList, basicsOf, toUrl } from '../store.js';
+import { SECTIONS, BASIC_FIELDS, toInput, toApi, numberErrors, labelOf, enumName, WORK_MODELS, EDUCATION_LEVELS, EDUCATION_STATUS, COURSE_TYPES, PROFICIENCY, SKILL_LEVELS, periodOf, toMonthBr, join } from './profile-schema.js';
+import { STEP_SHORT, stepHasData, radioKeys } from './onboarding.js';
 import * as v from '../validate.js';
 
 const SECTION = Object.fromEntries(SECTIONS.map((s) => [s.key, s]));
+// "Tanto faz", "Às vezes" e "Talvez" gravam null: com o passo respondido, a API ainda lista como faltando.
+const OPEN_ANSWERS = { 'objective.workModel': 'modelo', 'preferences.travel': 'mobilidade', 'preferences.relocation': 'mobilidade' };
 
 // /profile/missing → passo do onboarding e rótulo curto.
 const MISSING_MAP = {
@@ -27,7 +29,12 @@ const SENSITIVE_KINDS = [
   ['SexualOrientation', 'Orientação sexual'], ['Health', 'Saúde'], ['SocialName', 'Nome social'], ['Other', 'Outro dado sensível'],
 ];
 const kindLabel = (k) => labelOf(SENSITIVE_KINDS, k) || String(k);
-const mask = (s) => { const t = String(s || ''); return t ? `${t.slice(0, 1)}${'•'.repeat(Math.min(8, Math.max(3, t.length - 1)))}` : 'Trancado'; };
+const LOCKED = '••••••••'; // tamanho fixo: trancado não revela nem a primeira letra nem o comprimento
+const setSaving = (save, cancel, on) => {
+  save.disabled = on;
+  cancel.disabled = on;
+  if (on) { save.dataset.label = save.textContent; save.textContent = 'Salvando…'; } else if (save.dataset.label) save.textContent = save.dataset.label;
+};
 
 const PROF_INDEX = { Basic: 1, Intermediate: 2, Advanced: 3, Fluent: 4, Native: 5 };
 const SKILL_INDEX = { Basic: 1, Intermediate: 2, Advanced: 3 };
@@ -43,25 +50,18 @@ const STAMPS = [
 // "Responda agora": perguntas rápidas que costumam aparecer nos formulários.
 const MISSIONS = [
   { id: 'salario', where: 'Pretensão salarial', freq: 'Muito pedida', q: 'Quanto você quer ganhar por mês?', input: { label: 'Valor mensal (R$)', ph: 'Ex.: 4.500,00' },
-    pending: (p) => p.salaryExpectation == null, save: (val) => ({ salaryExpectation: parseMoney(val) }), show: (p) => fmtMoney(p.salaryExpectation) },
+    pending: (p) => p.salaryExpectation == null, save: (val) => ({ salaryExpectation: v.parseMoney(val).value }), show: (p) => fmtMoney(p.salaryExpectation) },
   { id: 'disponibilidade', where: 'Disponibilidade', freq: 'Muito pedida', q: 'Quando você pode começar?', opts: ['Imediatamente', 'Em 15 dias', 'Em 30 dias', 'A combinar'],
     pending: (p) => !p.availability, save: (val) => ({ availability: val }), show: (p) => p.availability },
   { id: 'cnh', step: 'mobilidade', where: 'Mobilidade', freq: 'Pedida com frequência', q: 'Qual a categoria da sua CNH?', opts: ['A', 'B', 'AB', 'Não tenho'],
     pending: (p) => p.hasDriverLicense == null, save: (val) => (val === 'Não tenho' ? { hasDriverLicense: false, driverLicenseCategory: null } : { hasDriverLicense: true, driverLicenseCategory: val }), show: (p) => (p.hasDriverLicense === false ? 'Não tenho' : p.driverLicenseCategory) },
   { id: 'modelo', where: 'Modelo de trabalho', freq: 'Pedida com frequência', q: 'Como você prefere trabalhar?', opts: ['Presencial', 'Híbrido', 'Remoto'],
-    pending: (p) => !p.workModel, save: (val) => ({ workModel: { Presencial: 'OnSite', Híbrido: 'Hybrid', Remoto: 'Remote' }[val] }), show: (p) => labelOf(WORK_MODELS, p.workModel) },
+    pending: (p, answered) => !p.workModel && !answered.includes('modelo'), save: (val) => ({ workModel: { Presencial: 'OnSite', Híbrido: 'Hybrid', Remoto: 'Remote' }[val] }), show: (p) => labelOf(WORK_MODELS, p.workModel) },
   { id: 'viagem', step: 'mobilidade', where: 'Mobilidade', freq: 'Aparece às vezes', q: 'Topa viajar a trabalho?', opts: ['Sim', 'Não'],
-    pending: (p) => p.availableToTravel == null, save: (val) => ({ availableToTravel: val === 'Sim' }), show: (p) => (p.availableToTravel ? 'Sim' : 'Não') },
+    pending: (p, answered) => p.availableToTravel == null && !answered.includes('mobilidade'), save: (val) => ({ availableToTravel: val === 'Sim' }), show: (p) => (p.availableToTravel ? 'Sim' : 'Não') },
   { id: 'mudanca', step: 'mobilidade', where: 'Mobilidade', freq: 'Aparece às vezes', q: 'Mudaria de cidade por uma vaga?', opts: ['Sim', 'Não'],
-    pending: (p) => p.availableToRelocate == null, save: (val) => ({ availableToRelocate: val === 'Sim' }), show: (p) => (p.availableToRelocate ? 'Sim' : 'Não') },
+    pending: (p, answered) => p.availableToRelocate == null && !answered.includes('mobilidade'), save: (val) => ({ availableToRelocate: val === 'Sim' }), show: (p) => (p.availableToRelocate ? 'Sim' : 'Não') },
 ];
-
-function parseMoney(s) {
-  let t = String(s || '').replace(/[^\d.,]/g, '');
-  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
-  const n = Number(t);
-  return Number.isFinite(n) && t !== '' ? n : null;
-}
 
 const yesNo = (b) => (b === true ? 'Sim' : b === false ? 'Não' : null);
 
@@ -69,7 +69,7 @@ export async function render(main) {
   const [areas, first, missingRaw, ob] = await Promise.all([
     loadAreas(), getProfile(), api('/profile/missing').then(asList).catch(() => []), getOnboarding().catch(() => ({ answered: [], skipped: [] })),
   ]);
-  const st = { p: first, missing: missingRaw, ob, customs: null, customsAvailable: true, sensitive: null, sensitiveBlocked: false, done: {}, newSkills: [] };
+  const st = { p: first, missing: missingRaw, ob, customs: null, customsAvailable: true, sensitive: null, sensitiveBlocked: false, done: {}, newSkills: [], addingSkill: false, customDraft: { label: '', value: '' }, customEdit: null };
 
   const loadCustoms = async () => {
     try { st.customs = asList(await api('/profile/custom-fields')); st.customsAvailable = true; } catch (e) {
@@ -90,9 +90,20 @@ export async function render(main) {
   };
   await Promise.all([loadCustoms(), loadSensitive()]);
 
+  const currentArea = () => areaOrOther(areas, findArea(areas, st.p.workArea)?.name || OTHER);
+  const stepCtx = () => ({ customs: st.customs || [], linkLabel: currentArea().linkLabel, answered: st.ob.answered || [] });
+  // "registro" só existe nas áreas que pedem registro: ao trocar de área, a pendência deixa de fazer sentido.
+  const stepExists = (id) => Boolean(STEP_SHORT[id]) && (id !== 'registro' || Boolean(currentArea().registration));
+  const settle = async () => {
+    const skipped = st.ob.skipped || [];
+    st.ob = await settleSkipped(st.ob, skipped.filter((id) => stepExists(id) && stepHasData(id, st.p, stepCtx())), skipped.filter((id) => !stepExists(id)));
+  };
+  await settle();
+
   const reload = async (focusSel) => {
     const [p, missing] = await Promise.all([getProfile(), api('/profile/missing').then(asList).catch(() => st.missing)]);
     st.p = p; st.missing = missing;
+    await settle();
     paint(focusSel);
   };
 
@@ -109,8 +120,9 @@ export async function render(main) {
 
   function pendingList() {
     const out = new Map();
-    for (const id of st.ob.skipped || []) out.set(id, STEP_SHORT[id] || id);
+    for (const id of st.ob.skipped || []) if (stepExists(id) && !stepHasData(id, st.p, stepCtx())) out.set(id, STEP_SHORT[id]);
     for (const mi of st.missing) {
+      if ((st.ob.answered || []).includes(OPEN_ANSWERS[mi.key])) continue;
       const [step, label] = MISSING_MAP[mi.key] || [null, mi.question || mi.key];
       const k = step ? `${step}:${label}` : mi.key;
       if (step && out.has(step)) continue;
@@ -134,11 +146,11 @@ export async function render(main) {
 
   function paintMissions() {
     const p = st.p;
-    const list = MISSIONS.filter((m) => st.done[m.id] || m.pending(p)).slice(0, 3);
+    const list = MISSIONS.filter((m) => st.done[m.id] || m.pending(p, st.ob.answered || [])).slice(0, 3);
     if (!list.length) { clear(missionsSlot); return; }
     clear(missionsSlot, h('section', { class: 'stack', 'aria-labelledby': 'prox' },
       h('div', { class: 'section-head' },
-        h('h2', { id: 'prox', class: 'section-title' }, 'Responda agora, em 10 segundos'),
+        h('h2', { id: 'prox', class: 'section-title', tabindex: '-1' }, 'Responda agora, em 10 segundos'),
         h('span', { class: 'small muted' }, 'Pendentes que costumam aparecer nos formulários')),
       h('div', { class: 'missions' }, list.map((m) => missionCard(m)))));
   }
@@ -153,26 +165,37 @@ export async function render(main) {
       return card;
     }
     let value = '';
+    let moneyError = () => {};
     const stampBtn = Button({ variant: 'primary', size: 'sm', disabled: true }, 'Carimbar');
     if (m.opts) {
       const group = h('div', { class: 'row', role: 'radiogroup', 'aria-labelledby': `mq-${m.id}` });
-      for (const o of m.opts) {
-        const b = h('button', { type: 'button', role: 'radio', class: 'pill', 'aria-checked': 'false' }, o);
+      m.opts.forEach((o, i) => {
+        const b = h('button', { type: 'button', role: 'radio', class: 'pill', 'aria-checked': 'false', tabindex: i ? '-1' : '0' }, o);
         b.addEventListener('click', () => {
           value = o;
-          group.querySelectorAll('.pill').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
+          group.querySelectorAll('.pill').forEach((x) => { x.setAttribute('aria-checked', String(x === b)); x.tabIndex = x === b ? 0 : -1; });
           stampBtn.disabled = false;
         });
         group.append(b);
-      }
+      });
+      radioKeys(group);
       card.append(group);
     } else {
       const id = nextId('mission');
-      const input = h('input', { id, class: 'zy-tf__input', inputmode: 'decimal', placeholder: m.input.ph });
-      input.addEventListener('input', () => { value = input.value; stampBtn.disabled = parseMoney(value) === null; });
-      card.append(h('div', { class: 'zy-tf' }, h('label', { class: 'zy-tf__label', for: id }, m.input.label), input));
+      const input = h('input', { id, class: 'zy-tf__input', name: 'value', inputmode: 'decimal', placeholder: m.input.ph, maxlength: 17, 'aria-describedby': `${id}-err` });
+      const err = h('p', { class: 'zy-tf__error', id: `${id}-err`, hidden: true });
+      const box = h('div', { class: 'zy-tf' }, h('label', { class: 'zy-tf__label', for: id }, m.input.label), input, err);
+      moneyError = (msg) => {
+        err.textContent = msg || ''; err.hidden = !msg;
+        box.classList.toggle('has-error', Boolean(msg));
+        if (msg) { input.setAttribute('aria-invalid', 'true'); input.focus(); } else input.removeAttribute('aria-invalid');
+      };
+      input.addEventListener('input', () => { value = input.value; stampBtn.disabled = !value.trim(); moneyError(null); });
+      card.append(box);
     }
     stampBtn.addEventListener('click', async () => {
+      const invalid = m.input ? v.parseMoney(value).error : null;
+      if (invalid) { moneyError(invalid); return; }
       stampBtn.disabled = true;
       try {
         st.p = { ...st.p, ...(await saveBasics(m.save(value), st.p)) };
@@ -183,7 +206,7 @@ export async function render(main) {
         st.missing = await api('/profile/missing').then(asList).catch(() => st.missing);
         paintPending(); paintMissions(); paintMe(); paintMainCol();
         announce(`${m.where}: carimbado.`);
-        document.querySelector('#prox')?.focus?.();
+        (document.querySelector('#prox') || document.querySelector('#about-title'))?.focus();
       } catch (err) { stampBtn.disabled = false; if (!err.handled) toast(err.message, 'err'); }
     });
     card.append(h('div', { class: 'mission__foot' }, stampBtn));
@@ -221,12 +244,12 @@ export async function render(main) {
   // Sobre você
   function aboutCard() {
     const p = st.p;
-    const city = [p.city, p.state].filter(Boolean).join(', ') + (p.country ? ` · ${p.country}` : '');
+    const city = join([p.city, p.state].filter(Boolean).join(', '), p.country);
     const rows = [
       ['Nome completo', p.fullName], ['E-mail', p.email], ['Telefone', p.phone], ['Nascimento', p.birthDate ? fmtDate(`${String(p.birthDate).slice(0, 10)}T12:00:00`) : null],
-      ['Cidade', city.trim() || null], ['CEP', p.zipCode], ['Área', p.workArea], ['Registro profissional', p.professionalRegistration],
+      ['Cidade', city || null], ['CEP', p.zipCode], ['Área', p.workArea], ['Registro profissional', p.professionalRegistration],
       ['Título profissional', p.headline], ['Busca', p.desiredRoles], ['Setores', p.areas], ['Momento da carreira', p.seniority],
-      ['Modelo de trabalho', labelOf(WORK_MODELS, p.workModel) || null], ['Localidade', p.locationPreference], ['Contrato', p.contractTypes],
+      ['Modelo de trabalho', labelOf(WORK_MODELS, p.workModel) || ((st.ob.answered || []).includes('modelo') ? 'Tanto faz' : null)], ['Localidade', p.locationPreference], ['Contrato', p.contractTypes],
       ['Disponibilidade', p.availability], ['Pretensão salarial', p.salaryExpectation != null ? `${fmtMoney(p.salaryExpectation)}${p.salaryType ? ` · ${p.salaryType}` : ''}` : null],
       ['Viagens', yesNo(p.availableToTravel)], ['Mudança de cidade', yesNo(p.availableToRelocate)],
       ['CNH', p.hasDriverLicense === false ? 'Não tenho' : p.driverLicenseCategory || (p.hasDriverLicense ? 'Sim' : null)],
@@ -253,24 +276,34 @@ export async function render(main) {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       clearErrors(form);
-      const data = toApi(BASIC_FIELDS, readForm(form));
-      for (const k of ['linkedinUrl', 'githubUrl', 'portfolioUrl']) if (data[k] && !/^https?:\/\//i.test(data[k])) data[k] = `https://${data[k]}`;
+      const raw = readForm(form);
+      const numbers = numberErrors(BASIC_FIELDS, raw);
+      // Salário antigo fora das regras novas continua como está se a pessoa não mexeu nele.
+      const salaryKept = (raw.salaryExpectation ?? '') === toInput(BASIC_FIELDS.find((f) => f.money), p.salaryExpectation);
+      const data = toApi(BASIC_FIELDS, raw);
+      if (salaryKept) { numbers.salaryExpectation = null; data.salaryExpectation = p.salaryExpectation ?? null; }
+      for (const k of ['linkedinUrl', 'githubUrl', 'portfolioUrl']) data[k] = toUrl(data[k]);
+      if (data.driverLicenseCategory && data.hasDriverLicense === null) data.hasDriverLicense = true; // sem isso a API descarta a categoria
+      // Valor já salvo não barra a pessoa ao editar outro campo: só valida o que ela mudou.
+      const ifEdited = (k, check) => (data[k] && (data[k] ?? null) !== (p[k] ?? null) ? check(data[k]) : null);
       const errors = v.collect({
+        ...numbers,
         fullName: v.required(data.fullName, 'Informe seu nome completo.'),
-        email: data.email ? v.email(data.email) : null,
-        linkedinUrl: v.url(data.linkedinUrl), githubUrl: v.url(data.githubUrl), portfolioUrl: v.url(data.portfolioUrl),
+        email: ifEdited('email', v.email), phone: ifEdited('phone', v.phone),
+        state: ifEdited('state', (x) => v.uf(x, data.country)), zipCode: ifEdited('zipCode', (x) => v.cep(x, data.country)),
+        linkedinUrl: ifEdited('linkedinUrl', v.webUrl), githubUrl: ifEdited('githubUrl', v.webUrl), portfolioUrl: ifEdited('portfolioUrl', v.webUrl),
         summary: v.maxLen(data.summary, 4000),
-        salaryExpectation: data.salaryExpectation !== null && !(data.salaryExpectation >= 0) ? 'Informe um valor numérico, sem pontos de milhar.' : null,
+        driverLicenseCategory: data.hasDriverLicense === false && data.driverLicenseCategory ? 'Para informar a categoria, escolha Sim em Possui CNH.' : ifEdited('driverLicenseCategory', v.cnh),
         birthDate: v.notFuture(data.birthDate, 'A data de nascimento não pode estar no futuro.'),
       });
       if (v.hasErrors(errors)) return showErrors(form, errors);
-      save.disabled = true;
+      setSaving(save, cancel, true);
       try {
         await saveBasics({ ...basicsOf(p), ...data }, p);
         m.close();
         toast('Sobre você: carimbado', 'ok');
         await reload(headingFocus('about-title'));
-      } catch (err) { if (!err.handled) showErrors(form, err); } finally { save.disabled = false; }
+      } catch (err) { if (!err.handled) showErrors(form, err); } finally { setSaving(save, cancel, false); }
     });
   }
 
@@ -296,23 +329,25 @@ export async function render(main) {
         m.close();
         toast('Item excluído do perfil.');
         await reload(`#${focusId}`);
-      } catch (err) { if (!err.handled) toast(err.message, 'err'); }
+      } catch (err) { if (!err.handled) showErrors(form, err); } // o modal cobre o toast: o erro aparece nele
     });
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       clearErrors(form);
-      const data = toApi(s.fields, readForm(form));
+      const raw = readForm(form);
+      const numbers = numberErrors(s.fields, raw);
+      const data = toApi(s.fields, raw);
       if (cur && cur.checked) data.endDate = null;
-      const errors = v.collect(s.validate(data));
+      const errors = v.collect({ ...s.validate(data), ...numbers });
       if (v.hasErrors(errors)) return showErrors(form, errors);
-      save.disabled = true;
+      setSaving(save, cancel, true);
       try {
         if (isNew) await api(s.endpoint, { method: 'POST', body: data });
         else await api(`${s.endpoint}/${encodeURIComponent(item.id)}`, { method: 'PUT', body: data });
         m.close();
         toast(isNew ? 'Adicionado e carimbado' : 'Alterações carimbadas', 'ok');
         await reload(`#${focusId}`);
-      } catch (err) { if (!err.handled) showErrors(form, err); } finally { save.disabled = false; }
+      } catch (err) { if (!err.handled) showErrors(form, err); } finally { setSaving(save, cancel, false); }
     });
   }
 
@@ -343,18 +378,20 @@ export async function render(main) {
     const area = findArea(areas, st.p.workArea);
     const have = new Set(skills.map((s) => s.name.toLowerCase()));
     const sugs = (area?.skills || []).filter((s) => !have.has(s.toLowerCase())).slice(0, 6);
-    const inputId = nextId('skill');
+    const inputId = 'skill-new'; // id fixo: o foco volta ao campo depois de repintar a coluna
     const input = h('input', { id: inputId, class: 'mini-input', placeholder: 'Ex.: Mediação de conflitos', maxlength: 100 });
     const addBtn = Button({ variant: 'secondary', size: 'sm', disabled: true }, 'Adicionar');
     input.addEventListener('input', () => { addBtn.disabled = !input.value.trim(); });
     const addSkill = async (name, origin) => {
+      if (st.addingSkill) return;
       if (have.has(name.toLowerCase())) { toast('Essa competência já está no seu perfil.'); return; }
+      st.addingSkill = true;
       try {
         await api('/profile/skills', { method: 'POST', body: { name, level: null } });
         st.newSkills.push(name.toLowerCase());
         announce(`${name} adicionada às competências.`);
         await reload(origin === 'input' ? `#${inputId}` : '#skills-title');
-      } catch (err) { if (!err.handled) toast(err.message, 'err'); }
+      } catch (err) { if (!err.handled) toast(err.message, 'err'); } finally { st.addingSkill = false; }
     };
     addBtn.addEventListener('click', () => addSkill(input.value.trim(), 'input'));
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (input.value.trim()) addSkill(input.value.trim(), 'input'); } });
@@ -413,13 +450,16 @@ export async function render(main) {
   function customCard() {
     const list = st.customs || [];
     const msg = h('div', { 'aria-live': 'polite' });
-    const kId = nextId('cf-k');
-    const vId = nextId('cf-v');
-    const k = h('input', { id: kId, class: 'mini-input', name: 'label', maxlength: 80, placeholder: 'Ex.: Disponível para plantão noturno' });
-    const val = h('input', { id: vId, class: 'mini-input', name: 'value', maxlength: 500, placeholder: 'Ex.: Sim, até 2 por semana' });
-    const add = Button({ variant: 'secondary', size: 'sm', disabled: true }, 'Adicionar informação');
-    const sync = () => { add.disabled = !k.value.trim() || !val.value.trim(); };
+    // Ids fixos e texto em st: outras seções repintam a coluna, e o que está sendo escrito aqui não pode sumir.
+    const kId = 'cf-new-label';
+    const vId = 'cf-new-value';
+    const k = h('input', { id: kId, class: 'mini-input', name: 'label', maxlength: 80, placeholder: 'Ex.: Disponível para plantão noturno', value: st.customDraft.label });
+    const val = h('input', { id: vId, class: 'mini-input', name: 'value', maxlength: 500, placeholder: 'Ex.: Sim, até 2 por semana', value: st.customDraft.value });
+    const add = Button({ variant: 'secondary', size: 'sm', disabled: !k.value.trim() || !val.value.trim() }, 'Adicionar informação');
+    const sync = () => { st.customDraft = { label: k.value, value: val.value }; add.disabled = !k.value.trim() || !val.value.trim(); };
     k.addEventListener('input', sync); val.addEventListener('input', sync);
+    const enterAdds = (e) => { if (e.key === 'Enter') { e.preventDefault(); if (!add.disabled) add.click(); } };
+    k.addEventListener('keydown', enterAdds); val.addEventListener('keydown', enterAdds);
 
     const sensitiveMsg = (err) => h('div', { class: 'notice notice--care', role: 'alert' },
       Icon('shield', { size: 16 }),
@@ -432,6 +472,7 @@ export async function render(main) {
         if (id) await api(`/profile/custom-fields/${encodeURIComponent(id)}`, { method: 'PUT', body: { label, value } });
         else await api('/profile/custom-fields', { method: 'POST', body: { label, value } });
         await loadCustoms();
+        if (id) st.customEdit = null; else st.customDraft = { label: '', value: '' };
         toast(id ? 'Informação atualizada' : 'Informação adicionada e carimbada', 'ok');
         paintMainCol(id ? '#custom-title' : `#${kId}`);
         return true;
@@ -449,24 +490,36 @@ export async function render(main) {
       const view = () => {
         const edit = Button({ variant: 'ghost', size: 'sm', icon: 'edit', 'aria-label': `Editar ${x.label}` }, 'Editar');
         const del = Button({ variant: 'ghost', size: 'sm', 'aria-label': `Excluir ${x.label}` }, 'Excluir');
-        edit.addEventListener('click', editMode);
+        edit.addEventListener('click', () => editMode());
         del.addEventListener('click', async () => {
           if (!(await confirmDialog({ title: 'Excluir esta informação?', message: `“${x.label}” deixa de ser usada pela extensão.`, confirmText: 'Excluir', danger: true }))) return;
-          try { await api(`/profile/custom-fields/${encodeURIComponent(x.id)}`, { method: 'DELETE' }); await loadCustoms(); paintMainCol('#custom-title'); announce('Informação excluída.'); } catch (err) { if (!err.handled) toast(err.message, 'err'); }
+          try { await api(`/profile/custom-fields/${encodeURIComponent(x.id)}`, { method: 'DELETE' }); await loadCustoms(); paintMainCol('#custom-title'); toast('Informação excluída.', 'ok'); } catch (err) { if (!err.handled) toast(err.message, 'err'); }
         });
         clear(r, h('span', { class: 'extra__k' }, x.label), h('span', { class: 'extra__v' }, x.value), h('span', { class: 'extra__actions' }, edit, del));
       };
-      const editMode = () => {
-        const ek = h('input', { class: 'mini-input', value: x.label, maxlength: 80, 'aria-label': 'Nome da informação' });
-        const ev = h('input', { class: 'mini-input', value: x.value, maxlength: 500, 'aria-label': 'Sua resposta' });
+      const editMode = (focus = true) => {
+        if (st.customEdit?.id !== x.id) st.customEdit = { id: x.id, label: x.label, value: x.value };
+        const ek = h('input', { class: 'mini-input', value: st.customEdit.label, maxlength: 80, 'aria-label': 'Nome da informação' });
+        const ev = h('input', { class: 'mini-input', value: st.customEdit.value, maxlength: 500, 'aria-label': 'Sua resposta' });
         const ok = Button({ variant: 'primary', size: 'sm', icon: 'check' }, 'Salvar');
         const no = Button({ variant: 'ghost', size: 'sm' }, 'Cancelar');
-        ok.addEventListener('click', () => { if (ek.value.trim() && ev.value.trim()) submit(ek.value.trim(), ev.value.trim(), x.id); });
-        no.addEventListener('click', () => { view(); r.querySelector('button')?.focus(); });
+        const remember = () => { st.customEdit = { id: x.id, label: ek.value, value: ev.value }; };
+        ek.addEventListener('input', remember); ev.addEventListener('input', remember);
+        ok.addEventListener('click', () => {
+          if (ek.value.trim() && ev.value.trim()) submit(ek.value.trim(), ev.value.trim(), x.id);
+          else { clear(msg, h('p', { class: 'notice notice--error', role: 'alert' }, 'Preencha o nome e a resposta, ou cancele.')); (ek.value.trim() ? ev : ek).focus(); }
+        });
+        no.addEventListener('click', () => { st.customEdit = null; clear(msg); view(); r.querySelector('button')?.focus(); });
+        const keys = (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); ok.click(); }
+          if (e.key === 'Escape') { e.preventDefault(); no.click(); }
+        };
+        ek.addEventListener('keydown', keys); ev.addEventListener('keydown', keys);
         clear(r, h('span', { class: 'extra__k' }, ek), h('span', { class: 'extra__v' }, ev), h('span', { class: 'extra__actions' }, ok, no));
-        ek.focus();
+        if (focus) ek.focus();
       };
       view();
+      if (st.customEdit?.id === x.id) editMode(false);
       return r;
     };
 
@@ -494,12 +547,12 @@ export async function render(main) {
     const list = st.sensitive || [];
     const used = new Set(list.map((x) => x.kind));
     const free = SENSITIVE_KINDS.filter(([k]) => !used.has(k));
-    card.append(h('p', { class: 'small muted' }, 'Trancados. Você destranca um a um, e no formulário cada um é aprovado separadamente.'));
+    card.append(h('p', { class: 'small muted' }, 'Trancados. Você destranca um a um, e no formulário cada um é aprovado separadamente. Para editar, destranque antes.'));
     for (const x of list) {
-      const edit = Button({ variant: 'ghost', size: 'sm', icon: 'edit', 'aria-label': `Editar ${kindLabel(x.kind)}` }, 'Editar');
+      const edit = Button({ variant: 'ghost', size: 'sm', icon: 'edit', 'aria-label': `Editar ${kindLabel(x.kind)}`, disabled: true }, 'Editar');
       edit.addEventListener('click', () => sensitiveModal(x, free));
       card.append(h('div', { class: 'sens-row' }, h('span', { class: 'sens-row__label' }, kindLabel(x.kind)),
-        h('span', { class: 'row' }, SensitiveValue({ value: x.value, masked: mask(x.value) }), edit)));
+        h('span', { class: 'row' }, SensitiveValue({ value: x.value, masked: LOCKED, onToggle: (open) => { edit.disabled = !open; } }), edit)));
     }
     if (!list.length) card.append(h('p', { class: 'muted small' }, 'Nenhum dado sensível guardado. Só cadastre se quiser.'));
     if (free.length) {
@@ -522,14 +575,14 @@ export async function render(main) {
     cancel.addEventListener('click', () => m.close());
     del?.addEventListener('click', async () => {
       if (!(await confirmDialog({ title: 'Apagar este dado?', message: `${kindLabel(item.kind)} será apagado de vez.`, confirmText: 'Apagar', danger: true }))) return;
-      try { await api(`/sensitive-data/${item.id}`, { method: 'DELETE' }); m.close(); await loadSensitive(); paintMainCol('#sens-title'); toast('Dado sensível apagado.'); } catch (err) { if (!err.handled) toast(err.message, 'err'); }
+      try { await api(`/sensitive-data/${item.id}`, { method: 'DELETE' }); m.close(); await loadSensitive(); paintMainCol('#sens-title'); toast('Dado sensível apagado.'); } catch (err) { if (!err.handled) showErrors(form, err); }
     });
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       clearErrors(form);
       const data = readForm(form);
       if (!data.value) return showErrors(form, { value: ['Escreva o valor ou cancele.'] });
-      save.disabled = true;
+      setSaving(save, cancel, true);
       try {
         if (isNew) await api('/sensitive-data', { method: 'POST', body: { kind: data.kind, value: data.value } });
         else await api(`/sensitive-data/${item.id}`, { method: 'PUT', body: { kind: item.kind, value: data.value } });
@@ -537,7 +590,7 @@ export async function render(main) {
         await loadSensitive();
         paintMainCol('#sens-title');
         toast('Guardado trancado.', 'ok');
-      } catch (err) { if (!err.handled) showErrors(form, err); } finally { save.disabled = false; }
+      } catch (err) { if (!err.handled) showErrors(form, err); } finally { setSaving(save, cancel, false); }
     });
   }
 

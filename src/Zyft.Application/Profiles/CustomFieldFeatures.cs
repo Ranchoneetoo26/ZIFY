@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using FluentValidation;
 using MediatR;
+using Zyft.Application.Common;
 using Zyft.Application.Common.Exceptions;
 using Zyft.Application.Common.Interfaces;
 using Zyft.Domain.Audit;
@@ -25,9 +26,9 @@ public sealed class CustomFieldInputValidator<T> : AbstractValidator<T> where T 
 {
     public CustomFieldInputValidator()
     {
-        RuleFor(x => x.Label).NotEmpty().WithMessage("Informe o nome do campo.")
+        RuleFor(x => x.Label).Visible().WithMessage("Informe o nome do campo.")
             .MaximumLength(CustomField.MaxLabel).WithMessage($"O nome do campo deve ter no máximo {CustomField.MaxLabel} caracteres.");
-        RuleFor(x => x.Value).NotEmpty().WithMessage("Informe o valor do campo.")
+        RuleFor(x => x.Value).Visible().WithMessage("Informe o valor do campo.")
             .MaximumLength(CustomField.MaxValue).WithMessage($"O valor do campo deve ter no máximo {CustomField.MaxValue} caracteres.");
     }
 }

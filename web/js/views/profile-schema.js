@@ -48,7 +48,7 @@ export const BASIC_FIELDS = [
   { name: 'workModel', label: 'Modelo de trabalho', type: 'select', options: WORK_MODELS, optional: true },
   { name: 'locationPreference', label: 'Preferência de localidade', optional: true, attrs: { maxlength: 200 } },
   { name: 'availability', label: 'Disponibilidade para início', optional: true, hint: 'Ex.: Imediata, 30 dias', attrs: { maxlength: 200 } },
-  { name: 'salaryExpectation', label: 'Pretensão salarial (R$)', type: 'number', optional: true, attrs: { min: 0, max: 999999999.99, step: '0.01', inputmode: 'decimal' } },
+  { name: 'salaryExpectation', label: 'Pretensão salarial (R$)', money: true, optional: true, hint: 'Ex.: 4.500,00', attrs: { inputmode: 'decimal', maxlength: 17 } },
   { name: 'salaryType', label: 'Tipo de pretensão', type: 'select', options: SALARY_TYPES, optional: true },
   { name: 'contractTypes', label: 'Tipos de contrato aceitos', optional: true, hint: 'Ex.: CLT, PJ, Estágio', attrs: { maxlength: 200 } },
   { name: 'availableToTravel', label: 'Disponível para viagens', type: 'select', options: YES_NO, optional: true, bool: true },
@@ -60,7 +60,7 @@ export const BASIC_FIELDS = [
 const range = (d) => {
   const a = d.startDate ? toMonthBr(d.startDate) : '';
   const b = d.isCurrent ? 'atual' : d.endDate ? toMonthBr(d.endDate) : '';
-  return a || b ? `${a || '?'} – ${b || '?'}` : '';
+  return [a, b].filter(Boolean).join(' – ');
 };
 const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 export const toMonthBr = (d) => { const m = String(d).match(/^(\d{4})-(\d{2})/); return m ? `${MONTHS[Number(m[2]) - 1]}/${m[1]}` : String(d); };
@@ -118,13 +118,12 @@ export const SECTIONS = [
       { name: 'name', label: 'Nome', required: true, attrs: { maxlength: 200 } },
       { name: 'type', label: 'Tipo', type: 'select', options: COURSE_TYPES, default: 'Course' },
       { name: 'institution', label: 'Instituição ou emissor', optional: true, attrs: { maxlength: 200 } },
-      { name: 'hours', label: 'Carga horária (horas)', type: 'number', optional: true, attrs: { min: 1, max: 10000, inputmode: 'numeric' } },
+      { name: 'hours', label: 'Carga horária (horas)', integer: true, optional: true, attrs: { inputmode: 'numeric', maxlength: 5 } },
       { name: 'completedAt', label: 'Concluído em', type: 'month', optional: true },
     ],
     summary: (x) => ({ title: x.name || 'Curso', meta: join(labelOf(COURSE_TYPES, x.type || 'Course'), x.institution, x.hours ? `${x.hours} h` : '', x.completedAt ? toMonthBr(x.completedAt) : '') }),
     validate: (d) => ({
       name: v.required(d.name, 'Informe o nome do curso.'),
-      hours: d.hours !== null && (!Number.isFinite(d.hours) || d.hours <= 0) ? 'Informe um número de horas maior que zero.' : d.hours > 10000 ? 'Carga horária muito alta.' : null,
       completedAt: v.notFuture(d.completedAt, 'A conclusão não pode estar no futuro.'),
     }),
   },
@@ -164,8 +163,16 @@ export function toInput(f, val) {
   if (f.type === 'date') return val ? String(val).slice(0, 10) : '';
   if (f.type === 'checkbox') return Boolean(val);
   if (f.bool) return val === true ? 'true' : val === false ? 'false' : '';
+  if (f.money) return val === null || val === undefined ? '' : String(val).replace('.', ',');
   if (f.type === 'select') return enumName(f.options, val);
   return val ?? '';
+}
+
+/** Erros dos campos numéricos, lidos do texto digitado: chame antes de toApi, que converte in-place. */
+export function numberErrors(fields, data) {
+  return Object.fromEntries(fields
+    .filter((f) => f.money || f.integer)
+    .map((f) => [f.name, (f.money ? v.parseMoney : v.parseHours)(data[f.name]).error]));
 }
 
 /** Valores lidos do formulário → tipos esperados pela API (in-place). */
@@ -173,7 +180,8 @@ export function toApi(fields, data) {
   for (const f of fields) {
     const val = data[f.name];
     if (f.bool) data[f.name] = val === 'true' ? true : val === 'false' ? false : null;
-    else if (f.type === 'number') data[f.name] = val === null || val === undefined || val === '' ? null : Number(val);
+    else if (f.money) data[f.name] = v.parseMoney(val).value;
+    else if (f.integer) data[f.name] = v.parseHours(val).value;
     else if (f.type === 'month') data[f.name] = v.normalizeDate(val);
     else if (f.type === 'select' && val === '') data[f.name] = null;
   }

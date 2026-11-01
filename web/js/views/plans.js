@@ -1,7 +1,7 @@
 // Planos (contrato v2): GET /billing; assinar Plus (simulado), cancelar, comprar pacote avulso,
 // mensal/anual, medidor de uso e tabela comparativa só com os limites do contrato. Sem anúncios.
 import { api } from '../api.js';
-import { h, clear, toast, announce, confirmDialog, fmtDate } from '../dom.js';
+import { h, clear, toast, announce, confirmDialog, fmtDate, errorBox, loading, busy } from '../dom.js';
 import { Button, Icon, PageHead, Card, UsageMeter } from '../ui.js';
 import { getBilling, invalidateBilling } from '../store.js';
 import { DEMO_NOTE, money, resetNote, isPlus, buyPack, RESOURCES, trialAvailable, trialDays } from '../billing.js';
@@ -41,17 +41,59 @@ const TABLE = [
 ];
 
 export async function render(main, { refreshShell } = {}) {
-  let b = await getBilling(true).catch(() => null);
-  let period = b?.period === 'yearly' ? 'yearly' : 'monthly';
+  let b = null;
+  let period = 'monthly';
   const wrap = h('div', { class: 'content content--md' });
   main.append(wrap);
 
+  const focusTitle = () => {
+    const title = wrap.querySelector('h1');
+    title?.setAttribute('tabindex', '-1');
+    title?.focus({ preventScroll: true });
+  };
+
+  // Sem GET /billing a tela não sabe o plano: mostra o erro e não afirma plano, teste usado nem uso.
+  const unavailable = (message) => {
+    clear(wrap, PageHead({ title: 'Planos' }), errorBox({ message }, async () => {
+      await load();
+      refreshShell?.({ billing: true });
+      focusTitle();
+    }));
+  };
+
+  const load = async () => {
+    clear(wrap, PageHead({ title: 'Planos' }), loading());
+    try {
+      b = await getBilling(true);
+    } catch (e) {
+      if (e.status === 401) throw e;
+      unavailable(`Não conseguimos carregar o seu plano agora. ${e.message}`);
+      return;
+    }
+    period = b?.period === 'yearly' ? 'yearly' : 'monthly';
+    paint();
+  };
+
   const reload = async (msg) => {
     invalidateBilling();
-    b = await getBilling(true).catch(() => b);
     refreshShell?.({ billing: true });
+    try {
+      b = await getBilling(true);
+    } catch (e) {
+      if (e.status === 401) throw e;
+      unavailable('A alteração foi feita, mas não conseguimos atualizar a tela. Tente de novo para ver o seu plano.');
+      return;
+    }
     paint();
+    focusTitle();
     if (msg) announce(msg);
+  };
+
+  /** A API recusou porque outra aba já mudou o plano: avisa e mostra o estado real. */
+  const failed = async (e) => {
+    if (e.handled) return;
+    toast(e.message, 'err');
+    if (e.code === 'billing.already_subscribed' || e.code === 'billing.not_subscribed') await reload().catch(() => {});
   };
 
   const check = (t) => h('li', {}, Icon('check'), h('span', {}, t));
@@ -86,24 +128,24 @@ export async function render(main, { refreshShell } = {}) {
       const inTrial = b?.trialEndsAt && new Date(b.trialEndsAt) > new Date();
       const cancel = Button({ variant: 'quiet' }, 'Cancelar assinatura');
       cancel.addEventListener('click', async () => {
-        const ok = await confirmDialog({ title: 'Cancelar o Plus?', message: 'Você volta para o plano gratuito. Nada do seu perfil, das respostas ou das candidaturas se perde.', confirmText: 'Cancelar assinatura' });
+        const ok = await confirmDialog({ title: 'Cancelar o Plus?', message: 'Você volta para o plano gratuito. Nada do seu perfil, das respostas ou das candidaturas se perde.', confirmText: 'Cancelar assinatura', cancelText: 'Manter o Plus' });
         if (!ok) return;
-        cancel.disabled = true;
-        try { await api('/billing/cancel', { method: 'POST', body: {} }); toast('Assinatura cancelada. Você está no plano gratuito.'); await reload('Plano gratuito.'); } catch (e) { cancel.disabled = false; if (!e.handled) toast(e.message, 'err'); }
+        await busy(cancel, async () => {
+          try { await api('/billing/cancel', { method: 'POST', body: {} }); toast('Assinatura cancelada. Você está no plano gratuito.'); await reload('Plano gratuito.'); } catch (e) { await failed(e); }
+        });
       });
       plusFoot.append(
         h('span', { class: 'plan__fine' }, [inTrial ? `Teste grátis até ${fmtDate(b.trialEndsAt)}` : null, b?.renewsAt ? `Renova em ${fmtDate(b.renewsAt)}` : null, b?.period === 'yearly' ? 'Plano anual' : b?.period === 'monthly' ? 'Plano mensal' : null].filter(Boolean).join(' · ')),
         cancel);
     } else {
       const sub = Button({ variant: 'primary' }, trial ? `Testar ${days} dias grátis` : 'Assinar o Plus');
-      sub.addEventListener('click', async () => {
-        sub.disabled = true;
+      sub.addEventListener('click', () => busy(sub, async () => {
         try {
           const r = await api('/billing/subscribe', { method: 'POST', body: { period } });
           toast(r?.trialEndsAt ? `Plus ativado. Teste grátis até ${fmtDate(r.trialEndsAt)}.` : 'Plus ativado.', 'ok');
           await reload('Você está no Zyft Plus.');
-        } catch (e) { sub.disabled = false; if (!e.handled) toast(e.message, 'err'); }
-      });
+        } catch (e) { await failed(e); }
+      }));
       plusFoot.append(sub, h('span', { class: 'plan__fine' }, [
         trial ? null : `O teste grátis de ${days} dias já foi usado nesta conta; a assinatura começa hoje.`,
         'Cancele quando quiser, sem multa. Se cancelar, volta para o gratuito e nada do seu perfil se perde.',
@@ -123,8 +165,9 @@ export async function render(main, { refreshShell } = {}) {
     buy.addEventListener('click', async () => {
       const ok = await confirmDialog({ title: `Comprar pacote por ${money(prices.pack)}?`, message: h('div', { class: 'stack' }, h('p', {}, '+15 candidaturas assistidas e +10 sugestões de texto com IA, válidos por 60 dias. Pagamento único, sem assinatura.'), h('p', { class: 'demo-note' }, Icon('shield', { size: 14 }), DEMO_NOTE)), confirmText: 'Comprar pacote' });
       if (!ok) return;
-      buy.disabled = true;
-      try { await buyPack(); await reload('Pacote ativado.'); } catch (e) { buy.disabled = false; if (!e.handled) toast(e.message, 'err'); }
+      await busy(buy, async () => {
+        try { await buyPack(); await reload('Pacote ativado.'); } catch (e) { await failed(e); }
+      });
     });
     const packCard = h('article', { class: 'plan', 'aria-labelledby': 'plan-pack' },
       h('h2', { class: 'plan__name', id: 'plan-pack' }, 'Pacote avulso'),
@@ -141,14 +184,14 @@ export async function render(main, { refreshShell } = {}) {
       return UsageMeter({ used: u.used ?? 0, limit: u.limit ?? null, bonus: u.bonus || 0, label: RESOURCES[k].label });
     }) : [];
     const rw = b?.rewarded;
-    const usageCard = Card({ title: 'Seu uso neste mês', titleId: 'usage-title' },
-      b ? [
+    const usageCard = Card({ title: 'Seu uso', titleId: 'usage-title' },
+      [
         h('div', { class: 'usage-grid' }, meters,
           b.answersLimit != null ? h('p', { class: 'small muted' }, `Banco de respostas: até ${b.answersLimit} respostas.`) : null,
           b.devicesLimit != null ? h('p', { class: 'small muted' }, `Navegadores conectados: até ${b.devicesLimit}.`) : null),
         !plus && rw ? h('p', { class: 'small muted' }, `Ofertas patrocinadas vistas neste mês: ${rw.claimedThisMonth ?? 0} de ${rw.maxPerMonth ?? 3} (+${rw.creditsPerClaim ?? 3} candidaturas cada). Ganhe pela extensão, junto do contador.`) : null,
-        h('p', { class: 'small muted' }, plus ? 'No Plus não há limite mensal.' : resetNote()),
-      ] : h('p', { class: 'notice notice--care', role: 'status' }, Icon('alert', { size: 14 }), 'Não foi possível carregar o seu uso agora. Os planos abaixo continuam valendo; tente de novo em instantes.'));
+        h('p', { class: 'small muted' }, plus ? 'No Plus não há limite mensal.' : resetNote('Os limites mensais recomeçam')),
+      ]);
 
     // Tabela
     const table = Card({ title: 'Compare', titleId: 'compare-title', className: 'card--flush' },
@@ -170,5 +213,5 @@ export async function render(main, { refreshShell } = {}) {
           h('h2', { id: 'ff-title', style: { fontSize: '15px', lineHeight: '22px', fontWeight: '700' } }, 'Sempre de graça, em qualquer plano'),
           h('p', { class: 'small muted', style: { fontSize: '14px', lineHeight: '21px' } }, 'Revisar cada campo antes de preencher, dados sensíveis trancados, nunca pedir senha dos portais, consentimentos, baixar e apagar seus dados. Privacidade não é recurso pago.'))));
   }
-  paint();
+  await load();
 }

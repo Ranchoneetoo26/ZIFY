@@ -39,6 +39,9 @@ a.zy-btn:hover { color: inherit; }
 a.zy-btn--primary:hover { color: var(--on-zyft); }
 a.zy-btn--secondary:hover { color: var(--on-petrol); }
 .zy-btn--lg { height: 48px; padding: 0 var(--space-5); font-size: 16px; }
+.zy-btn[aria-busy="true"] { cursor: progress; opacity: .75; }
+.zy-btn[aria-busy="true"]::before { content: ""; flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; }
+.zy-switch[aria-busy="true"] { cursor: progress; opacity: .6; }
 select.zy-tf__input { appearance: auto; }
 .zy-tf--check .check { display: flex; gap: var(--space-2); align-items: center; font-size: 15px; cursor: pointer; }
 .zy-tf--check input, input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--petrol); flex: none; }
@@ -51,6 +54,8 @@ select.zy-tf__input { appearance: auto; }
 .zy-nav__item { min-height: 40px; height: auto; }
 
 /* ---------- Shell ---------- */
+/* Palco da rota (app.js): só isola a tela; não entra no layout. */
+.route-stage { display: contents; }
 .app { display: flex; flex-wrap: wrap; min-height: 100vh; }
 .sidebar { flex: 0 1 240px; background: var(--surface-sunken); display: flex; flex-direction: column; min-width: 220px; }
 .sidebar__top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: 20px 20px 0; }
@@ -139,8 +144,9 @@ select.zy-tf__input { appearance: auto; }
 .empty { padding: var(--space-5); color: var(--ink-muted); text-align: center; }
 
 /* Toast, carregando */
-#toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); opacity: 0; pointer-events: none; z-index: 200; max-width: min(560px, calc(100vw - 32px)); background: var(--petrol); color: var(--on-petrol); padding: 12px 16px; border-radius: var(--radius-md); box-shadow: var(--shadow-pop); font-size: 14px; font-weight: 600; transition: opacity .15s, transform .15s; }
-#toast.show { opacity: 1; transform: translateX(-50%); }
+/* left + right + margin auto: a largura vem da tela, não de metade dela. */
+#toast { position: fixed; left: 16px; right: 16px; bottom: 24px; width: fit-content; max-width: min(560px, calc(100vw - 32px)); margin-inline: auto; transform: translateY(20px); opacity: 0; pointer-events: none; z-index: 200; background: var(--petrol); color: var(--on-petrol); padding: 12px 16px; border-radius: var(--radius-md); box-shadow: var(--shadow-pop); font-size: 14px; font-weight: 600; transition: opacity .15s, transform .15s; }
+#toast.show { opacity: 1; transform: none; }
 #toast.err { background: var(--blocked); color: #fff; }
 .loading { display: flex; gap: var(--space-3); align-items: center; padding: var(--space-6) 0; color: var(--ink-muted); }
 .spinner { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid var(--line); border-top-color: var(--petrol); animation: spin .8s linear infinite; }
@@ -181,10 +187,14 @@ dialog.modal::backdrop { background: rgba(10, 24, 28, .55); }
 .auth .check input { margin-top: 1px; }
 .auth__note { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 18px; color: var(--ink-muted); }
 .auth__note svg { margin-top: 2px; }
-@media (max-width: 640px) {
-  .auth__brand { padding: 32px 20px; gap: 24px; }
-  .auth__title { font-size: 40px; line-height: 42px; }
-  .auth__panel { padding: 32px 16px 48px; }
+/* Com as colunas empilhadas, o formulário precisa aparecer na primeira tela. */
+@media (max-width: 959px) {
+  .auth { flex-direction: column; flex-wrap: nowrap; }
+  .auth__brand { flex: none; padding: 16px 20px; gap: 4px; }
+  .auth__hero { gap: 0; max-width: none; }
+  .auth__title { font-size: 20px; line-height: 26px; letter-spacing: -.01em; }
+  .auth__lead, .auth__points, .auth__foot { display: none; }
+  .auth__panel { flex: 1 0 auto; padding: 24px 16px 48px; align-items: flex-start; }
 }
 
 /* ---------- Onboarding (passaporte) ---------- */
@@ -357,6 +367,7 @@ dialog.modal::backdrop { background: rgba(10, 24, 28, .55); }
 .ad__media { flex: 0 0 160px; align-self: stretch; min-height: 90px; background: var(--surface-sunken); display: grid; place-items: center; font-size: 28px; font-weight: 800; color: var(--ink-muted); overflow: hidden; }
 .ad__media img { width: 100%; height: 100%; object-fit: cover; }
 .ad--banner .ad__body { flex: 1 1 280px; padding: 12px 0; gap: 2px; }
+.ad .zy-btn { height: auto; min-height: 32px; max-width: 100%; white-space: normal; padding-block: 6px; }
 .ad__x { width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--ink-muted); cursor: pointer; }
 .ad__x:hover { background: var(--surface-sunken); color: var(--ink); }
 .ad__hidden { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-muted); padding: 10px 14px; border: 1px dashed var(--line-strong); border-radius: var(--radius-md); }
@@ -411,6 +422,9 @@ details.howto summary { font-weight: 700; cursor: pointer; }
 details.howto p { margin-top: 8px; }
 .pair-start { background: var(--surface-raised); border: 1.5px solid var(--petrol); border-radius: var(--radius-lg); box-shadow: var(--shadow-hard); padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-3); max-width: 420px; }
 .site { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.zy-pair { grid-template-columns: minmax(0, 1fr); }
+.zy-pair__code { min-width: 0; }
+.zy-pair__char { flex: 0 1 40px; min-width: 0; }
 .site__origin { flex: 1 1 200px; font-family: var(--font-mono); font-size: 13px; overflow-wrap: anywhere; }
 
 /* ---------- Candidaturas ---------- */

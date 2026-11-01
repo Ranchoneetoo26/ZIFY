@@ -15,7 +15,7 @@ public sealed record ResumeProposal
     public List<string> Warnings { get; init; } = new();
 }
 
-public sealed record ProposalProfile
+public sealed record ProposalProfile : Profiles.IProfileContact
 {
     public string? FullName { get; init; }
     public string? Email { get; init; }

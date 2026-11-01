@@ -22,7 +22,7 @@ public sealed class AddAuthorizedSiteValidator : AbstractValidator<AddAuthorized
 {
     public AddAuthorizedSiteValidator() =>
         RuleFor(x => x.Origin).NotEmpty().WithMessage("Informe o endereço do site.").MaximumLength(300)
-            .Must(o => Uri.TryCreate(o, UriKind.Absolute, out var u) && (u.Scheme == Uri.UriSchemeHttps || u.Scheme == Uri.UriSchemeHttp))
+            .Must(Common.Urls.IsHttp)
             .WithMessage("Informe um endereço http(s) válido, por exemplo https://vagas.exemplo.com.");
 }
 

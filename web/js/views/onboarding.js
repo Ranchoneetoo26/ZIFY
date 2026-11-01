@@ -1,13 +1,14 @@
 // Onboarding em passos ("passaporte"), contrato v2. Uma pergunta por tela; toda pergunta pode
 // ficar para depois. As respostas vão para os endpoints do perfil; /onboarding guarda só o progresso.
 // Sem anúncios nesta tela.
-import { api, asList } from '../api.js';
+import { api, asList, registerFieldLabels } from '../api.js';
 import { h, clear, announce, toast, showErrors, clearErrors, go, nextId, enhanceInput, characterCounter } from '../dom.js';
 import { Button, LinkButton, Icon, Logo, Chip, ConsentRow, initials } from '../ui.js';
 import { loadAreas, areaOrOther, findArea, OTHER } from '../catalog.js';
-import { getProfile, saveBasics, getOnboarding, saveOnboarding, splitList, joinList, toUrl } from '../store.js';
-import { EDUCATION_LEVELS, EDUCATION_STATUS, COURSE_TYPES, PROFICIENCY, enumName } from './profile-schema.js';
+import { getProfile, saveBasics, getOnboarding, saveOnboarding, splitList, joinList, toUrl, basicsOf } from '../store.js';
+import { EDUCATION_LEVELS, EDUCATION_STATUS, COURSE_TYPES, PROFICIENCY, SECTIONS, enumName } from './profile-schema.js';
 import { normalizeDate } from '../validate.js';
+import * as check from '../validate.js';
 
 const CHAPTERS = ['', 'Quem é você', 'Sua área', 'O que você busca', 'Sua bagagem', 'Sua apresentação', 'Combinados'];
 const LEVELS = ['Básico', 'Intermediário', 'Avançado', 'Fluente', 'Nativo'];
@@ -42,6 +43,12 @@ const X = (key, label, ph, opts = {}) => ({ t: 'area', key, label, ph, span: tru
 const opts = (list) => list.filter(([v]) => v !== '');
 // Limite do campo adicionado à mão: o mesmo da coluna da API que recebe a lista.
 const CUSTOM_MAX = { roles: 500, sectors: 500, contracts: 200, tools: 1000, skills: 100 };
+// A coluna guarda a lista inteira: o limite vale para a soma dos itens. Item com vírgula viraria dois ao recarregar.
+const LIST_FIELD = { roles: 'desiredRoles', sectors: 'areas', contracts: 'contractTypes', tools: 'tools' };
+registerFieldLabels({ tools: 'Ferramentas', idiomas: 'Idiomas' });
+const DEFAULT_LANGS = ['Português', 'Inglês', 'Espanhol'];
+const lower = (x) => String(x).toLowerCase();
+const sameText = (a, b) => lower(a) === lower(b);
 
 function buildSteps(A) {
   const list = [
@@ -83,13 +90,43 @@ function buildSteps(A) {
   return list;
 }
 
-const parseMoney = (s) => {
-  let t = String(s ?? '').replace(/[^\d.,]/g, '');
-  if (t === '') return null; // vazio, só "R$" ou texto sem dígitos: não informado, nunca R$ 0,00
-  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
-  const n = Number(t);
-  return Number.isFinite(n) ? n : NaN;
+const filled = (...xs) => xs.some((x) => x !== null && x !== undefined && String(x).trim() !== '');
+const HAS_DATA = {
+  nome: (p) => filled(p.fullName), nascimento: (p) => filled(p.birthDate), contato: (p) => filled(p.phone, p.email),
+  endereco: (p) => filled(p.city, p.state, p.zipCode), area: (p) => filled(p.workArea), cargos: (p) => filled(p.desiredRoles), setores: (p) => filled(p.areas),
+  registro: (p) => filled(p.professionalRegistration), nivel: (p) => filled(p.seniority), local: (p) => filled(p.locationPreference),
+  contrato: (p) => filled(p.contractTypes), disponibilidade: (p) => filled(p.availability), salario: (p) => filled(p.salaryExpectation),
+  experiencia: (p) => Boolean(p.experiences?.length), diaadia: (p) => (p.experiences || []).some((e) => filled(e.activities, e.results)),
+  ferramentas: (p) => (p.experiences || []).some((e) => filled(e.tools)) || Boolean(p.skills?.length), formacao: (p) => Boolean(p.educations?.length),
+  cursos: (p) => Boolean(p.courses?.length), competencias: (p) => Boolean(p.skills?.length), idiomas: (p) => Boolean(p.languages?.length),
+  titulo: (p) => filled(p.headline), resumo: (p) => filled(p.summary),
 };
+
+/**
+ * O passo tem dado de verdade no perfil? "Tanto faz", "Às vezes" e "Talvez" gravam null e são respostas
+ * válidas: nesses passos, ter sido respondido conta como dado (a API não tem valor para essas opções).
+ */
+export function stepHasData(id, p, { customs = [], linkLabel = null, answered = [] } = {}) {
+  if (id === 'modelo') return filled(p.workModel) || answered.includes(id);
+  if (id === 'mobilidade') return filled(p.availableToTravel, p.availableToRelocate, p.hasDriverLicense) || answered.includes(id);
+  if (id === 'links') return filled(p.linkedinUrl, p.githubUrl, p.portfolioUrl) || customs.some((c) => c.label === linkLabel && filled(c.value));
+  return Boolean(HAS_DATA[id]?.(p));
+}
+
+/** Setas movem a escolha no radiogroup, como nos grupos de rádio nativos. */
+export function radioKeys(group) {
+  group.addEventListener('keydown', (e) => {
+    const items = [...group.querySelectorAll('[role="radio"]')];
+    const i = items.indexOf(document.activeElement);
+    const d = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 0;
+    if (i < 0 || !d) return;
+    e.preventDefault();
+    const target = items[(i + d + items.length) % items.length];
+    target.click();
+    if (target.isConnected) target.focus(); // quem repinta o grupo devolve o foco ao botão novo
+  });
+}
+
 const boolTo = (b, yes, no) => (b === true ? yes : b === false ? no : '');
 const month = (d) => (d ? String(d).slice(0, 7) : '');
 
@@ -107,13 +144,27 @@ export async function render(main, { step: startAt, me }) {
     skipped: new Set(ob.skipped || []),
     completedAt: ob.completedAt,
     a: {}, m: { roles: [], sectors: [], contracts: [], tools: [], skills: [] }, custom: {}, langs: [],
-    consents: {}, draft: '', expId: null, eduId: null, courseId: null, current: true,
-    savedExtra: { experiencia: [], formacao: [], cursos: [] },
+    consents: {}, draft: '', expId: null, eduId: null, courseId: null, current: true, lastSaved: {}, shownSkills: [],
   };
   for (const c of CONSENTS) {
     const found = consentsRaw.find((x) => String(x.purpose).toLowerCase() === c.key.toLowerCase());
     st.consents[c.key] = Boolean(found?.granted);
   }
+
+  const loadExperience = (exp) => {
+    st.expId = exp.id;
+    Object.assign(st.a, { company: exp.company, role: exp.role, startDate: month(exp.startDate), endDate: month(exp.endDate), activities: exp.activities || '', results: exp.results || '' });
+    st.current = Boolean(exp.isCurrent);
+    st.m.tools = splitList(exp.tools);
+  };
+  const loadEducation = (edu) => {
+    st.eduId = edu.id;
+    Object.assign(st.a, { institution: edu.institution, course: edu.course, eduLevel: enumName(EDUCATION_LEVELS, edu.level), eduStatus: enumName(EDUCATION_STATUS, edu.status), eduStart: month(edu.startDate), eduEnd: month(edu.endDate) });
+  };
+  const loadCourse = (course) => {
+    st.courseId = course.id;
+    Object.assign(st.a, { courseName: course.name, courseType: enumName(COURSE_TYPES, course.type), issuer: course.institution || '', hours: course.hours ? String(course.hours) : '' });
+  };
 
   // ---------- Pré-preenche com o que já está no perfil ----------
   const prefill = () => {
@@ -125,7 +176,8 @@ export async function render(main, { step: startAt, me }) {
       level: p.seniority || '', mode: MODEL_BACK[p.workModel] || (st.answered.has('modelo') ? 'Tanto faz' : ''),
       locationPreference: p.locationPreference || '', avail: p.availability || '',
       salaryExpectation: p.salaryExpectation != null ? String(p.salaryExpectation).replace('.', ',') : '', salaryType: p.salaryType || 'CLT (bruto)',
-      travel: boolTo(p.availableToTravel, 'Sim', 'Não'), move: boolTo(p.availableToRelocate, 'Sim', 'Não'),
+      travel: boolTo(p.availableToTravel, 'Sim', 'Não') || (st.answered.has('mobilidade') ? 'Às vezes' : ''),
+      move: boolTo(p.availableToRelocate, 'Sim', 'Não') || (st.answered.has('mobilidade') ? 'Talvez' : ''),
       cnh: p.hasDriverLicense === false ? 'Não tenho' : (p.driverLicenseCategory || ''),
       headline: p.headline || '', summary: p.summary || '',
     });
@@ -137,19 +189,11 @@ export async function render(main, { step: startAt, me }) {
     st.m.sectors = splitList(p.areas);
     st.m.contracts = splitList(p.contractTypes);
     st.m.skills = (p.skills || []).map((s) => s.name);
-    const exp = (p.experiences || [])[0];
-    if (exp) {
-      st.expId = exp.id;
-      Object.assign(a, { company: exp.company, role: exp.role, startDate: month(exp.startDate), endDate: month(exp.endDate), activities: exp.activities || '', results: exp.results || '' });
-      st.current = Boolean(exp.isCurrent);
-      st.m.tools = splitList(exp.tools);
-    }
-    const edu = (p.educations || [])[0];
-    if (edu) { st.eduId = edu.id; Object.assign(a, { institution: edu.institution, course: edu.course, level: a.level, eduLevel: enumName(EDUCATION_LEVELS, edu.level), eduStatus: enumName(EDUCATION_STATUS, edu.status), eduStart: month(edu.startDate), eduEnd: month(edu.endDate) }); }
-    const course = (p.courses || [])[0];
-    if (course) { st.courseId = course.id; Object.assign(a, { courseName: course.name, courseType: enumName(COURSE_TYPES, course.type), issuer: course.institution || '', hours: course.hours ? String(course.hours) : '' }); }
+    if (p.experiences?.[0]) loadExperience(p.experiences[0]);
+    if (p.educations?.[0]) loadEducation(p.educations[0]);
+    if (p.courses?.[0]) loadCourse(p.courses[0]);
     const langs = (p.languages || []).map((l) => ({ id: l.id, name: l.name, level: LEVELS[['Basic', 'Intermediate', 'Advanced', 'Fluent', 'Native'].indexOf(enumName(PROFICIENCY, l.proficiency))] || '' }));
-    for (const def of ['Português', 'Inglês', 'Espanhol']) if (!langs.some((l) => l.name.toLowerCase() === def.toLowerCase())) langs.push({ name: def, level: '' });
+    for (const def of DEFAULT_LANGS) if (!langs.some((l) => l.name.toLowerCase() === def.toLowerCase())) langs.push({ name: def, level: '' });
     st.langs = langs;
     const A = curArea();
     if (A.linkLabel === 'GitHub') a.link2 = p.githubUrl || '';
@@ -164,9 +208,16 @@ export async function render(main, { step: startAt, me }) {
 
   let steps = buildSteps(curArea());
   const idxOf = (id) => Math.max(0, steps.findIndex((s) => s.id === id));
-  let idx = startAt ? idxOf(startAt) : ob.lastStep ? idxOf(ob.lastStep) : 0;
-  if (ob.completedAt && !startAt) idx = steps.length - 1;
-  if (startAt && !steps.some((s) => s.id === startAt)) idx = 0;
+  let idx = ob.completedAt ? steps.length - 1 : ob.lastStep ? idxOf(ob.lastStep) : 0;
+  if (startAt) {
+    // "fim" só existe depois de concluir; passo desconhecido volta ao início. A URL acompanha.
+    const known = steps.some((s) => s.id === startAt) && (startAt !== 'fim' || ob.completedAt);
+    if (known) idx = idxOf(startAt);
+    else {
+      if (startAt !== 'fim') idx = 0;
+      try { history.replaceState(null, '', `#/boas-vindas/${steps[idx].id}`); } catch { /* ok */ }
+    }
+  }
 
   const questions = () => steps.filter((s) => s.ch && s.kind !== 'consent');
   const fieldKey = (f, s) => (s.id === 'formacao' && f.key === 'level' ? 'eduLevel' : s.id === 'formacao' && f.key === 'status' ? 'eduStatus' : f.key);
@@ -176,6 +227,11 @@ export async function render(main, { step: startAt, me }) {
   const body = h('section', { class: 'ob__main', 'aria-live': 'off' });
   const aside = h('aside', { class: 'passport', 'aria-label': 'Seu passaporte' });
   main.append(h('div', { class: 'ob' }, top, h('div', { class: 'ob__body' }, body, aside)));
+
+  const ctx = () => ({ customs, linkLabel: curArea().linkLabel, answered: [...st.answered] });
+  const hasSaved = (s) => stepHasData(s.id, p, ctx());
+  // Formulário vazio em passo repetível: nada a gravar, vale o que já foi guardado (A3).
+  const isBlank = (s) => Boolean(s.addMore) && s.fields.every((f) => f.t === 'select' || !String(st.a[fieldKey(f, s)] || '').trim());
 
   const isAnswered = (s) => {
     const a = st.a;
@@ -241,57 +297,74 @@ export async function render(main, { step: startAt, me }) {
     else { const r = await api('/profile/custom-fields', { method: 'POST', body: { label, value } }); if (r?.id) customs.push(r); }
   };
 
-  const SAVE = {
-    nome: () => basics({ fullName: st.a.fullName?.trim() || null }),
-    nascimento: () => basics({ birthDate: st.a.birthDate || null }),
-    contato: () => basics({ phone: st.a.phone?.trim() || null, email: st.a.email?.trim() || null }),
-    endereco: () => basics({ city: st.a.city?.trim() || null, state: st.a.state?.trim() || null, country: st.a.country?.trim() || null, zipCode: st.a.zipCode?.trim() || null }),
-    area: () => basics({ workArea: st.a.area === OTHER ? (st.a.otherArea?.trim() || null) : st.a.area }),
-    cargos: () => basics({ desiredRoles: joinList(st.m.roles) }),
-    setores: () => basics({ areas: joinList(st.m.sectors) }),
-    registro: () => basics({ professionalRegistration: st.a.professionalRegistration?.trim() || null }),
-    links: async () => {
-      const A = curArea();
+  const removeCustom = async (label) => {
+    const i = customs.findIndex((c) => c.label === label);
+    if (i < 0) return;
+    await api(`/profile/custom-fields/${customs[i].id}`, { method: 'DELETE' });
+    customs.splice(i, 1);
+  };
+
+  // Passos gravados só em PUT /profile: cabem numa requisição única, a que sai ao fechar a aba.
+  const PATCH = {
+    nome: () => ({ fullName: st.a.fullName?.trim() || null }),
+    nascimento: () => ({ birthDate: st.a.birthDate || null }),
+    contato: () => ({ phone: st.a.phone?.trim() || null, email: st.a.email?.trim() || null }),
+    endereco: () => ({ city: st.a.city?.trim() || null, state: st.a.state?.trim() || null, country: st.a.country?.trim() || null, zipCode: st.a.zipCode?.trim() || null }),
+    area: () => ({ workArea: st.a.area === OTHER ? (st.a.otherArea?.trim() || null) : st.a.area }),
+    cargos: () => ({ desiredRoles: joinList(st.m.roles) }),
+    setores: () => ({ areas: joinList(st.m.sectors) }),
+    registro: () => ({ professionalRegistration: st.a.professionalRegistration?.trim() || null }),
+    links: () => {
       const patch = { linkedinUrl: toUrl(st.a.linkedinUrl), portfolioUrl: toUrl(st.a.portfolioUrl) };
-      if (A.linkLabel === 'GitHub') patch.githubUrl = toUrl(st.a.link2);
-      await basics(patch);
-      if (A.linkLabel && A.linkLabel !== 'GitHub' && st.a.link2?.trim()) await upsertCustom(A.linkLabel, toUrl(st.a.link2));
+      if (curArea().linkLabel === 'GitHub') patch.githubUrl = toUrl(st.a.link2);
+      return patch;
     },
-    nivel: () => basics({ seniority: st.a.level || null }),
-    modelo: () => basics({ workModel: MODEL[st.a.mode] || null }),
-    local: () => basics({ locationPreference: st.a.locationPreference?.trim() || null }),
-    contrato: () => basics({ contractTypes: joinList(st.m.contracts) }),
-    disponibilidade: () => basics({ availability: st.a.avail || null }),
-    salario: () => {
-      const n = parseMoney(st.a.salaryExpectation);
-      if (Number.isNaN(n)) throw Object.assign(new Error('Informe só o valor, por exemplo 4.500,00.'), { errors: { salaryExpectation: ['Informe só o valor, por exemplo 4.500,00.'] } });
-      return basics({ salaryExpectation: n, salaryType: st.a.salaryType || null });
-    },
+    nivel: () => ({ seniority: st.a.level || null }),
+    modelo: () => ({ workModel: MODEL[st.a.mode] || null }),
+    local: () => ({ locationPreference: st.a.locationPreference?.trim() || null }),
+    contrato: () => ({ contractTypes: joinList(st.m.contracts) }),
+    disponibilidade: () => ({ availability: st.a.avail || null }),
+    salario: () => ({ salaryExpectation: check.parseMoney(st.a.salaryExpectation).value, salaryType: st.a.salaryType || null }),
     mobilidade: () => {
       const a = st.a;
-      const patch = {
-        availableToTravel: a.travel ? a.travel !== 'Não' : p.availableToTravel ?? null,
-        availableToRelocate: a.move === 'Sim' ? true : a.move === 'Não' ? false : (a.move === 'Talvez' ? null : p.availableToRelocate ?? null),
-      };
+      // "Às vezes" e "Talvez" não são sim nem não: ficam null, e a extensão pede a resposta à pessoa no formulário.
+      const answer = (val, saved) => (val === 'Sim' ? true : val === 'Não' ? false : val ? null : saved ?? null);
+      const patch = { availableToTravel: answer(a.travel, p.availableToTravel), availableToRelocate: answer(a.move, p.availableToRelocate) };
       if (a.cnh) { patch.hasDriverLicense = a.cnh !== 'Não tenho'; patch.driverLicenseCategory = a.cnh === 'Não tenho' ? null : a.cnh; }
-      return basics(patch);
+      return patch;
+    },
+    titulo: () => ({ headline: st.a.headline?.trim() || null }),
+    resumo: () => ({ summary: st.a.summary?.trim() || null }),
+  };
+
+  const SAVE = {
+    ...Object.fromEntries(Object.entries(PATCH).map(([id, patch]) => [id, () => basics(patch())])),
+    links: async () => {
+      await basics(PATCH.links());
+      const { linkLabel } = curArea();
+      if (!linkLabel || linkLabel === 'GitHub') return;
+      if (st.a.link2?.trim()) await upsertCustom(linkLabel, toUrl(st.a.link2));
+      else await removeCustom(linkLabel);
     },
     experiencia: saveExperience,
     diaadia: () => patchExperience({ activities: st.a.activities?.trim() || null, results: st.a.results?.trim() || null }),
     ferramentas: async () => {
       if (await patchExperience({ tools: joinList(st.m.tools) })) return;
-      const have = new Set((p.skills || []).map((s) => s.name.toLowerCase()));
-      for (const t of st.m.tools) if (!have.has(t.toLowerCase())) await api('/profile/skills', { method: 'POST', body: { name: t, level: null } });
+      const have = new Set((p.skills || []).map((s) => lower(s.name)));
+      for (const t of st.m.tools) if (!have.has(lower(t))) await api('/profile/skills', { method: 'POST', body: { name: t, level: null } });
       await refreshLists();
+      st.m.skills = [...st.m.skills, ...st.m.tools.filter((t) => !st.m.skills.some((s) => sameText(s, t)))];
     },
     formacao: saveEducation,
     cursos: saveCourse,
     competencias: async () => {
-      const existing = p.skills || [];
-      const sel = new Set(st.m.skills.map((s) => s.toLowerCase()));
-      const have = new Set(existing.map((s) => s.name.toLowerCase()));
-      for (const s of st.m.skills) if (!have.has(s.toLowerCase())) await api('/profile/skills', { method: 'POST', body: { name: s, level: null } });
-      for (const s of existing) if (!sel.has(s.name.toLowerCase())) await api(`/profile/skills/${s.id}`, { method: 'DELETE' });
+      await refreshLists();
+      const sel = new Set(st.m.skills.map(lower));
+      const have = new Set((p.skills || []).map((s) => lower(s.name)));
+      for (const s of st.m.skills) if (!have.has(lower(s))) await api('/profile/skills', { method: 'POST', body: { name: s, level: null } });
+      // Só sai o que a pessoa viu marcado aqui e desmarcou. O resto do perfil (ferramentas, outra sessão) fica.
+      const unmarked = new Set(st.shownSkills.map(lower).filter((s) => !sel.has(s)));
+      for (const s of p.skills || []) if (unmarked.has(lower(s.name))) await api(`/profile/skills/${s.id}`, { method: 'DELETE' });
       await refreshLists();
     },
     idiomas: async () => {
@@ -305,15 +378,124 @@ export async function render(main, { step: startAt, me }) {
       }
       await refreshLists();
     },
-    titulo: () => basics({ headline: st.a.headline?.trim() || null }),
-    resumo: () => basics({ summary: st.a.summary?.trim() || null }),
   };
 
-  const persist = async (lastStep, completed = false) => {
-    try {
-      await saveOnboarding({ answered: [...st.answered], skipped: [...st.skipped], lastStep, completedAt: st.completedAt }, completed);
-      if (completed) st.completedAt ||= new Date().toISOString();
-    } catch { /* progresso é conveniência: não trava a pessoa */ }
+  // ---------- Validação de cada passo (as mesmas regras do Perfil Mestre) ----------
+  // Valor que já estava salvo não barra a pessoa: só valida o que ela mudou.
+  const changed = (key, saved) => String(st.a[key] ?? '').trim() !== String(saved ?? '').trim();
+  const listFits = (key, list) => {
+    const limit = key === 'tools' && !st.expId ? null : CUSTOM_MAX[key];
+    return !LIST_FIELD[key] || !limit || (joinList(list) || '').length <= limit;
+  };
+  const listTooLong = (key) => `Sua seleção passou do limite de ${CUSTOM_MAX[key]} caracteres. Tire ou encurte algum item para continuar.`;
+
+  const stepErrors = (s) => {
+    const a = st.a;
+    if (s.addMore && isBlank(s)) return {};
+    const section = (key) => SECTIONS.find((x) => x.key === key).validate;
+    switch (s.id) {
+      case 'nome': return check.collect({ fullName: check.required(a.fullName, 'Informe seu nome completo.') });
+      case 'nascimento': return check.collect({ birthDate: check.notFuture(a.birthDate, 'A data de nascimento não pode estar no futuro.') });
+      case 'contato': return check.collect({
+        phone: changed('phone', p.phone) ? check.phone(a.phone) : null,
+        email: a.email?.trim() && changed('email', p.email) ? check.email(a.email.trim()) : null,
+      });
+      case 'endereco': return check.collect({
+        state: changed('state', p.state) ? check.uf(a.state?.trim(), a.country) : null,
+        zipCode: changed('zipCode', p.zipCode) ? check.cep(a.zipCode?.trim(), a.country) : null,
+      });
+      case 'links': return check.collect(Object.fromEntries(s.fields.map((f) => [f.key, changed(f.key, p[f.key]) ? check.webUrl(toUrl(a[f.key]), f.max) : null])));
+      case 'salario': return check.collect({ salaryExpectation: check.parseMoney(a.salaryExpectation).error });
+      case 'experiencia': return check.collect(section('experiences')({ company: a.company, role: a.role, startDate: normalizeDate(a.startDate), endDate: st.current ? null : normalizeDate(a.endDate), isCurrent: st.current }));
+      case 'formacao': {
+        const e = section('educations')({ institution: a.institution, course: a.course, level: a.eduLevel, status: a.eduStatus, startDate: normalizeDate(a.eduStart), endDate: normalizeDate(a.eduEnd) });
+        return check.collect({ institution: e.institution, course: e.course, eduLevel: e.level, eduStatus: e.status, eduStart: e.startDate, eduEnd: e.endDate });
+      }
+      case 'cursos': return check.collect({ courseName: check.required(a.courseName, 'Informe o nome do curso.'), hours: check.parseHours(a.hours).error });
+      case 'idiomas': {
+        const open = st.langs.find((l) => !l.level && !l.id && !DEFAULT_LANGS.includes(l.name));
+        return check.collect({ idiomas: open ? `Escolha o nível de ${open.name} ou remova o idioma.` : null });
+      }
+      default:
+        return s.kind === 'multi' && !listFits(s.key, st.m[s.key]) ? check.collect({ [LIST_FIELD[s.key]]: listTooLong(s.key) }) : {};
+    }
+  };
+
+  // Formulário vazio depois de "Adicionar outra": os passos seguintes voltam a falar do último item guardado.
+  const reloadSaved = (s) => {
+    const pick = (list, id) => list?.find((x) => x.id === (id ?? st.lastSaved[s.id])) || list?.[0];
+    if (s.id === 'experiencia') { const e = pick(p.experiences, st.expId); if (e) loadExperience(e); }
+    if (s.id === 'formacao') { const e = pick(p.educations, st.eduId); if (e) loadEducation(e); }
+    if (s.id === 'cursos') { const c = pick(p.courses, st.courseId); if (c) loadCourse(c); }
+  };
+  const saveStep = async (s) => {
+    if (s.addMore && isBlank(s)) { reloadSaved(s); return; }
+    await SAVE[s.id]?.();
+  };
+  const markStep = (s) => {
+    if (isAnswered(s) || hasSaved(s)) { st.answered.add(s.id); st.skipped.delete(s.id); } else { st.answered.delete(s.id); st.skipped.add(s.id); }
+  };
+
+  /** Grava o progresso. Quem chama decide o que fazer com a falha: avançar como se tivesse salvo, nunca. */
+  const persist = async (lastStep, completed = false, opts) => {
+    await saveOnboarding({ answered: [...st.answered], skipped: [...st.skipped], lastStep, completedAt: st.completedAt }, completed, opts);
+    if (completed) st.completedAt ||= new Date().toISOString();
+  };
+
+  // ---------- Rascunho do passo aberto ----------
+  // Dados pessoais não vão para localStorage (ver api.js): o rascunho fica em sessionStorage, que sobrevive ao F5
+  // na mesma aba, e ao fechar a aba o passo vai para a API (onPageHide).
+  const DRAFT_KEY = `zyft.onboarding.draft.${me?.id || 'anon'}`;
+  const takeState = () => JSON.stringify({ a: st.a, m: st.m, custom: st.custom, langs: st.langs, current: st.current });
+  let entry = takeState();
+  const enterStep = () => { entry = takeState(); st.shownSkills = [...st.m.skills]; };
+  const isDirty = () => takeState() !== entry;
+  const clearDraft = () => { try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* sem armazenamento */ } };
+  const writeDraft = () => {
+    const cur = steps[idx];
+    if (!cur.ch || !isDirty()) { clearDraft(); return; }
+    const was = JSON.parse(entry);
+    const diff = (now, old) => Object.fromEntries(Object.entries(now).filter(([k, val]) => JSON.stringify(val) !== JSON.stringify(old[k])));
+    const draft = { step: cur.id, a: diff(st.a, was.a), m: diff(st.m, was.m), custom: diff(st.custom, was.custom), langs: st.langs, current: st.current, expId: st.expId, eduId: st.eduId, courseId: st.courseId };
+    try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch { /* sem armazenamento */ }
+  };
+  const restoreDraft = () => {
+    let d = null;
+    try { d = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null'); } catch { return; }
+    if (d?.step !== steps[idx].id) return;
+    Object.assign(st.a, d.a);
+    Object.assign(st.m, d.m);
+    Object.assign(st.custom, d.custom);
+    Object.assign(st, { langs: d.langs, current: d.current, expId: d.expId, eduId: d.eduId, courseId: d.courseId });
+  };
+
+  const onPageHide = () => {
+    if (!body.isConnected) { window.removeEventListener('pagehide', onPageHide); return; }
+    writeDraft();
+    const cur = steps[idx];
+    if (busy || !PATCH[cur.id] || !isDirty() || !isAnswered(cur) || check.hasErrors(stepErrors(cur))) return;
+    api('/profile', { method: 'PUT', body: { ...basicsOf(p), ...PATCH[cur.id]() }, keepalive: true }).catch(() => {});
+    markStep(cur);
+    persist(cur.id, false, { keepalive: true }).catch(() => {});
+  };
+  window.addEventListener('pagehide', onPageHide);
+
+  // Uma ação por vez: clique duplo, Enter repetido e Voltar durante o envio não saltam passos.
+  let busy = false;
+  const locked = async (fn) => {
+    if (busy) return;
+    busy = true;
+    const primary = cta;
+    const label = primary?.textContent;
+    const others = () => body.querySelectorAll('.ob__actions button, button[data-lock]');
+    others().forEach((b) => { b.disabled = true; });
+    if (primary) primary.textContent = 'Salvando…';
+    try { await fn(); } finally {
+      busy = false;
+      if (primary?.isConnected) primary.textContent = label;
+      others().forEach((b) => { b.disabled = false; });
+      syncCta();
+    }
   };
 
   // ---------- Renderização ----------
@@ -325,16 +507,57 @@ export async function render(main, { step: startAt, me }) {
     const qs = questions();
     const qNum = qs.indexOf(cur) + 1;
     clear(top,
-      h('a', { href: '#/perfil', 'aria-label': 'Zyft, ir para o Perfil Mestre' }, Logo()),
+      h('a', { href: '#/perfil', 'aria-label': 'Zyft, ir para o Perfil Mestre', onclick: cur.kind === 'done' ? null : exit }, Logo()),
       cur.q ? h('div', { class: 'ob__progress' },
-        h('div', { class: 'ob__progress-meta' }, h('span', {}, cur.ch ? `Capítulo ${cur.ch} · ${CHAPTERS[cur.ch]}` : ''), h('span', {}, `Pergunta ${qNum || qs.length} de ${qs.length}`)),
+        h('div', { class: 'ob__progress-meta' }, h('span', {}, cur.ch ? `Capítulo ${cur.ch} · ${CHAPTERS[cur.ch]}` : ''), h('span', {}, qNum ? `Pergunta ${qNum} de ${qs.length}` : 'Última etapa')),
         h('div', { class: 'ob__segs', 'aria-hidden': 'true' }, [1, 2, 3, 4, 5, 6].map((c) => {
           const inCh = steps.filter((s) => s.ch === c);
           const seen = inCh.filter((s) => steps.indexOf(s) < idx).length;
           return h('span', { class: `ob__seg ${c === cur.ch ? 'is-current' : ''}` }, h('span', { style: { width: `${Math.round((seen / Math.max(1, inCh.length)) * 100)}%` } }));
         }))) : null,
-      h('a', { href: '#/perfil', class: 'ob__exit', onclick: () => { persist(steps[idx].id); } }, 'Sair e continuar depois'));
+      cur.kind === 'done' ? null : h('a', { href: '#/perfil', class: 'ob__exit', onclick: exit }, 'Sair e continuar depois'));
   };
+
+  // Sair guarda o passo aberto. Se não der, a pessoa fica sabendo; um segundo clique sai mesmo assim.
+  let exitArmed = false;
+  const exitFailed = (msg) => { exitArmed = true; toast(msg, 'err'); };
+  function exit(e) {
+    e.preventDefault();
+    locked(async () => {
+      const cur = steps[idx];
+      if (exitArmed) { writeDraft(); go('#/perfil'); return; }
+      if (cur.ch && cur.kind !== 'consent' && isDirty()) {
+        if (!isAnswered(cur) && !hasSaved(cur)) {
+          writeDraft();
+          toast('Esta resposta está incompleta: ela fica guardada só nesta aba até você terminar.');
+          go('#/perfil');
+          return;
+        }
+        const errors = stepErrors(cur);
+        if (check.hasErrors(errors)) {
+          showErrors(formEl, errors);
+          exitFailed('Esta resposta não foi salva. Corrija o campo ou clique em Sair de novo: o rascunho fica só nesta aba.');
+          return;
+        }
+        try {
+          await saveStep(cur);
+          markStep(cur);
+        } catch (err) {
+          writeDraft();
+          if (!err.handled) showErrors(formEl, err);
+          exitFailed('Não conseguimos salvar esta resposta. Tente de novo ou clique em Sair de novo: o rascunho fica só nesta aba.');
+          return;
+        }
+        enterStep();
+      }
+      try { await persist(cur.id); } catch {
+        exitFailed('Não conseguimos registrar seu progresso. Verifique sua conexão ou clique em Sair de novo para sair assim mesmo.');
+        return;
+      }
+      clearDraft();
+      go('#/perfil');
+    });
+  }
 
   const paintAside = () => {
     const qs = questions();
@@ -363,13 +586,20 @@ export async function render(main, { step: startAt, me }) {
           h('div', { style: { width: `${Math.round((answered / qs.length) * 100)}%` } }))));
   };
 
-  const syncCta = () => { if (cta) cta.disabled = !isAnswered(steps[idx]); };
+  // Com dado salvo, o botão continua ativo mesmo com o campo vazio: é assim que se apaga uma resposta.
+  function syncCta() {
+    if (!cta) return;
+    cta.disabled = !isAnswered(steps[idx]) && !hasSaved(steps[idx]);
+    writeDraft();
+  }
 
   const goTo = (n, { focus = true } = {}) => {
     idx = Math.max(0, Math.min(steps.length - 1, n));
     st.draft = '';
+    exitArmed = false;
     const id = steps[idx].id;
     try { history.replaceState(null, '', `#/boas-vindas/${id}`); } catch { /* ok */ }
+    enterStep();
     paint();
     if (focus) {
       const h1 = body.querySelector('h1');
@@ -379,36 +609,57 @@ export async function render(main, { step: startAt, me }) {
     }
   };
 
-  const next = async () => {
+  const next = () => locked(async () => {
     const cur = steps[idx];
-    clearErrors(formEl || body);
+    const form = formEl;
+    clearErrors(form || body);
     if (cur.ch && cur.kind !== 'consent') {
-      cta.disabled = true;
+      const errors = stepErrors(cur);
+      if (check.hasErrors(errors)) { showErrors(form, errors); return; }
       try {
-        await SAVE[cur.id]?.();
+        await saveStep(cur);
       } catch (err) {
-        cta.disabled = false;
-        if (err.handled) return;
-        showErrors(formEl, err);
+        if (!err.handled) showErrors(form, err);
         return;
       }
-      st.answered.add(cur.id);
-      st.skipped.delete(cur.id);
+      markStep(cur);
     }
     if (cur.id === 'area') steps = buildSteps(curArea());
     const nextIdx = steps.findIndex((s) => s.id === cur.id) + 1;
     const completing = steps[nextIdx]?.kind === 'done';
-    await persist(steps[nextIdx]?.id || cur.id, completing);
+    try {
+      await persist(steps[nextIdx]?.id || cur.id, completing);
+    } catch {
+      enterStep(); // a resposta já está no perfil: tentar de novo só refaz o progresso
+      showErrors(form, null, 'Sua resposta foi salva, mas não conseguimos registrar o progresso. Verifique sua conexão e tente de novo.');
+      return;
+    }
+    clearDraft();
     goTo(nextIdx);
-  };
+  });
 
-  const skip = async () => {
-    const cur = steps[idx];
-    if (cur.ch) { st.skipped.add(cur.id); st.answered.delete(cur.id); }
-    const completing = steps[idx + 1]?.kind === 'done';
-    await persist(steps[idx + 1]?.id || cur.id, completing);
-    goTo(idx + 1);
-  };
+  // Pular descarta o que foi digitado e não salvo (nada de rascunho no passaporte ou nas sugestões). Se o
+  // passo já tem dado salvo, ele continua respondido: a pendência falaria de algo que existe.
+  const skip = () => locked(async () => {
+    const at = idx;
+    const cur = steps[at];
+    const before = { draft: takeState(), answered: [...st.answered], skipped: [...st.skipped] };
+    Object.assign(st, JSON.parse(entry));
+    if (cur.ch) {
+      // Pré-preenchido não conta (e-mail da conta, país): só o que está salvo no perfil tira da pendência.
+      if (hasSaved(cur)) { st.answered.add(cur.id); st.skipped.delete(cur.id); } else { st.skipped.add(cur.id); st.answered.delete(cur.id); }
+    }
+    const completing = steps[at + 1]?.kind === 'done';
+    try {
+      await persist(steps[at + 1]?.id || cur.id, completing);
+    } catch {
+      Object.assign(st, JSON.parse(before.draft), { answered: new Set(before.answered), skipped: new Set(before.skipped) });
+      showErrors(formEl, null, 'Não conseguimos registrar seu progresso. Verifique sua conexão e tente de novo.');
+      return;
+    }
+    clearDraft();
+    goTo(at + 1);
+  });
 
   const inputFor = (s, f) => {
     const key = fieldKey(f, s);
@@ -440,7 +691,13 @@ export async function render(main, { step: startAt, me }) {
     const input = h('input', { id, class: 'zy-tf__input', placeholder: ph, value: st.draft, maxlength: max });
     const add = Button({ variant: 'secondary', disabled: !st.draft.trim() }, 'Adicionar');
     input.addEventListener('input', () => { st.draft = input.value; add.disabled = !input.value.trim(); });
-    const doAdd = () => { const val = input.value.trim(); if (!val) return; st.draft = ''; onAdd(val); };
+    const doAdd = () => {
+      const val = input.value.trim();
+      if (!val) return;
+      const typed = st.draft;
+      st.draft = '';
+      if (onAdd(val) === false) st.draft = typed;
+    };
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doAdd(); } });
     add.addEventListener('click', doAdd);
     return h('div', { class: 'row-end', style: { maxWidth: '760px' } },
@@ -499,8 +756,12 @@ export async function render(main, { step: startAt, me }) {
     formEl = h('form', { novalidate: true, class: 'stack-lg', 'aria-label': s.q, onsubmit: (e) => { e.preventDefault(); if (!cta.disabled) next(); } });
 
     if (s.kind === 'text') {
-      if (s.addMore && st.savedExtra[s.id].length) {
-        formEl.append(h('div', { class: 'ob__saved' }, st.savedExtra[s.id].map((t) => h('div', { class: 'ob__saved-item' }, h('span', {}, t), h('span', { class: 'zy-stamp zy-stamp--sm' }, h('span', { class: 'zy-stamp__tick', 'aria-hidden': 'true' }, Icon('check', { size: 10 })), h('span', {}, 'Guardado'))))));
+      const saved = !s.addMore ? []
+        : s.id === 'experiencia' ? (p.experiences || []).filter((e) => e.id !== st.expId).map((e) => `${e.role} · ${e.company}`)
+          : s.id === 'formacao' ? (p.educations || []).filter((e) => e.id !== st.eduId).map((e) => `${e.course} · ${e.institution}`)
+            : (p.courses || []).filter((c) => c.id !== st.courseId).map((c) => c.name);
+      if (saved.length) {
+        formEl.append(h('div', { class: 'ob__saved' }, saved.map((t) => h('div', { class: 'ob__saved-item' }, h('span', {}, t), h('span', { class: 'zy-stamp zy-stamp--sm' }, h('span', { class: 'zy-stamp__tick', 'aria-hidden': 'true' }, Icon('check', { size: 10 })), h('span', {}, 'Guardado'))))));
       }
       if (s.id === 'diaadia' && !st.expId) {
         formEl.append(h('p', { class: 'notice notice--care' }, Icon('alert', { size: 14 }), 'Para guardar este texto, cadastre uma experiência na pergunta anterior. Se preferir, deixe para depois.'));
@@ -516,26 +777,27 @@ export async function render(main, { step: startAt, me }) {
         formEl.append(h('label', { class: 'check row', for: 'ob-current' }, cb, 'Trabalho aqui atualmente'));
       }
       if (s.addMore) {
-        const more = Button({ variant: 'quiet', size: 'sm', icon: 'plus' }, s.addMore);
-        more.addEventListener('click', async () => {
+        const more = Button({ variant: 'quiet', size: 'sm', icon: 'plus', dataset: { lock: '1' } }, s.addMore);
+        more.addEventListener('click', () => locked(async () => {
           if (!isAnswered(s)) { toast('Preencha esta primeiro. A próxima você cadastra em seguida.'); return; }
-          more.disabled = true;
+          const errors = stepErrors(s);
+          if (check.hasErrors(errors)) { showErrors(formEl, errors); return; }
           try {
             await SAVE[s.id]();
-            const label = s.id === 'experiencia' ? `${st.a.role} · ${st.a.company}` : s.id === 'formacao' ? `${st.a.course} · ${st.a.institution}` : st.a.courseName;
-            st.savedExtra[s.id].push(label);
-            st.answered.add(s.id); st.skipped.delete(s.id);
-            if (s.id === 'experiencia') { st.expId = null; Object.assign(st.a, { company: '', role: '', startDate: '', endDate: '' }); st.current = false; }
-            if (s.id === 'formacao') { st.eduId = null; Object.assign(st.a, { institution: '', course: '', eduStart: '', eduEnd: '' }); }
-            if (s.id === 'cursos') { st.courseId = null; Object.assign(st.a, { courseName: '', issuer: '', hours: '' }); }
-            toast('Guardado no seu perfil. Preencha o próximo ou continue.', 'ok');
-            paint();
-            refocus('input');
           } catch (err) {
-            more.disabled = false;
             if (!err.handled) showErrors(formEl, err);
+            return;
           }
-        });
+          st.answered.add(s.id); st.skipped.delete(s.id);
+          // O item novo começa do zero: nada do anterior passa para ele.
+          if (s.id === 'experiencia') { st.lastSaved[s.id] = st.expId; st.expId = null; Object.assign(st.a, { company: '', role: '', startDate: '', endDate: '', activities: '', results: '' }); st.m.tools = []; st.current = false; }
+          if (s.id === 'formacao') { st.lastSaved[s.id] = st.eduId; st.eduId = null; Object.assign(st.a, { institution: '', course: '', eduStart: '', eduEnd: '' }); }
+          if (s.id === 'cursos') { st.lastSaved[s.id] = st.courseId; st.courseId = null; Object.assign(st.a, { courseName: '', issuer: '', hours: '' }); }
+          toast('Guardado no seu perfil. Preencha o próximo ou continue.', 'ok');
+          enterStep();
+          paint();
+          refocus('input');
+        }));
         formEl.append(h('div', { class: 'row' }, more, h('span', { class: 'small muted' }, 'Os outros você também pode cadastrar depois no Perfil Mestre.')));
       }
     }
@@ -555,15 +817,7 @@ export async function render(main, { step: startAt, me }) {
         });
         group.append(btn);
       });
-      group.addEventListener('keydown', (e) => {
-        const items = [...group.querySelectorAll('[role="radio"]')];
-        const i = items.indexOf(document.activeElement);
-        if (i < 0) return;
-        const d = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 0;
-        if (!d) return;
-        e.preventDefault();
-        items[(i + d + items.length) % items.length].click();
-      });
+      radioKeys(group);
       formEl.append(group);
       if (s.key === 'area' && st.a.area === OTHER) {
         const id = nextId('ob-other');
@@ -576,13 +830,13 @@ export async function render(main, { step: startAt, me }) {
     if (s.kind === 'multi') {
       const sel = st.m[s.key] || [];
       const customs = st.custom[s.key] || [];
-      const all = [...new Set([...(s.options || []), ...sel, ...customs])];
-      const areaLabel = st.a.area === OTHER ? (st.a.otherArea || 'a sua área') : st.a.area;
+      const all = [...(s.options || []), ...sel, ...customs].filter((o, i, list) => list.findIndex((x) => sameText(x, o)) === i);
+      const areaLabel = st.a.area === OTHER ? (st.a.otherArea || 'a sua área') : (st.a.area || 'a sua área');
       if (!s.noSuggestTitle && (s.options || []).length) formEl.append(h('div', { class: 'suggest__label' }, `Sugestões para ${areaLabel}`));
       formEl.append(h('div', { class: 'chips', role: 'group', 'aria-label': s.q }, all.map((o) => {
-        const on = sel.includes(o);
+        const on = sel.some((x) => sameText(x, o));
         const b = Chip({ label: o, pressed: on, size: 'lg', mine: !(s.options || []).includes(o), onClick: () => {
-          st.m[s.key] = on ? sel.filter((x) => x !== o) : [...sel, o];
+          st.m[s.key] = on ? sel.filter((x) => !sameText(x, o)) : [...sel, o];
           paint();
           refocus(`.chip[data-v="${CSS.escape(o)}"]`);
         } });
@@ -590,26 +844,37 @@ export async function render(main, { step: startAt, me }) {
         return b;
       })));
       formEl.append(customAdder(s, (val) => {
-        st.custom[s.key] = [...customs, val];
-        if (!sel.some((x) => x.toLowerCase() === val.toLowerCase())) st.m[s.key] = [...sel, val];
+        // Listas guardadas como "a, b": cada parte vira um chip, para a tela mostrar o que volta ao recarregar.
+        const parts = (LIST_FIELD[s.key] ? splitList(val) : [val]).map((x) => (s.options || []).find((o) => sameText(o, x)) || x);
+        const nextSel = [...sel];
+        for (const x of parts) if (!nextSel.some((y) => sameText(y, x))) nextSel.push(x);
+        if (!listFits(s.key, nextSel)) { showErrors(formEl, null, listTooLong(s.key)); return false; }
+        st.custom[s.key] = [...customs, ...parts];
+        st.m[s.key] = nextSel;
         paint();
         refocus('.row-end input');
-        announce(`${val} adicionado.`);
-            // Sem experiência cadastrada, as ferramentas viram competências (limite de 100).
+        announce(`${parts.join(', ')} adicionado.`);
+        return true;
+        // Sem experiência cadastrada, as ferramentas viram competências (limite de 100).
       }, s.customLabel, s.customPh, s.key === 'tools' && !st.expId ? CUSTOM_MAX.skills : CUSTOM_MAX[s.key]));
     }
 
     if (s.kind === 'rows') {
       const rows = s.langs
-        ? st.langs.map((l, i) => ({ label: l.name, value: l.level, pills: LEVELS, pick: (v) => { st.langs[i].level = v; } }))
+        ? st.langs.map((l, i) => ({ label: l.name, value: l.level, pills: LEVELS, pick: (v) => { st.langs[i].level = v; }, remove: !l.id && !DEFAULT_LANGS.includes(l.name) ? () => { st.langs.splice(i, 1); paint(); refocus('.row-end input'); } : null }))
         : s.rows.map(([key, label, pills]) => ({ label, value: st.a[key], pills, pick: (v) => { st.a[key] = v; } }));
-      formEl.append(h('div', { class: 'ob__rows' }, rows.map((r, ri) => h('div', { class: 'ob__row' },
-        h('span', { class: 'ob__row-label', id: `ob-row-${ri}` }, r.label),
-        h('div', { class: 'row', role: 'radiogroup', 'aria-labelledby': `ob-row-${ri}` }, r.pills.map((pv) => {
-          const b = h('button', { type: 'button', role: 'radio', class: 'pill', 'aria-checked': String(r.value === pv), dataset: { k: `${ri}-${pv}` } }, pv);
+      formEl.append(h('div', { class: 'ob__rows' }, rows.map((r, ri) => {
+        const group = h('div', { class: 'row', role: 'radiogroup', 'aria-labelledby': `ob-row-${ri}` }, r.pills.map((pv, pi) => {
+          const b = h('button', { type: 'button', role: 'radio', class: 'pill', 'aria-checked': String(r.value === pv), tabindex: r.value === pv || (!r.value && pi === 0) ? '0' : '-1', dataset: { k: `${ri}-${pv}` } }, pv);
           b.addEventListener('click', () => { r.pick(pv); paint(); refocus(`.pill[data-k="${CSS.escape(`${ri}-${pv}`)}"]`); });
           return b;
-        }))))));
+        }));
+        radioKeys(group);
+        return h('div', { class: 'ob__row' },
+          h('span', { class: 'ob__row-label', id: `ob-row-${ri}` }, r.label),
+          group,
+          r.remove ? Button({ variant: 'ghost', size: 'sm', 'aria-label': `Remover ${r.label}`, onClick: r.remove }, 'Remover') : null);
+      })));
       if (s.langs) {
         formEl.append(customAdder(s, (val) => {
           if (!st.langs.some((l) => l.name.toLowerCase() === val.toLowerCase())) st.langs.push({ name: val, level: '' });
@@ -629,7 +894,7 @@ export async function render(main, { step: startAt, me }) {
             st.consents[c.key] = nextVal;
             sw.setChecked(nextVal);
             announce(`${c.title}: ${nextVal ? 'ligado' : 'desligado'}.`);
-          } catch (err) { if (!err.handled) toast(err.message, 'err'); } finally { sw.disabled = false; }
+          } catch (err) { if (!err.handled) toast(err.message, 'err'); } finally { sw.disabled = false; sw.focus?.(); }
         },
       }))));
     }
@@ -643,7 +908,7 @@ export async function render(main, { step: startAt, me }) {
     syncCta();
   }
 
-  // Se a pessoa entrou direto num passo pulado, o capítulo da área muda os passos: recalcula.
-  if (startAt) idx = idxOf(startAt);
+  enterStep();
+  restoreDraft();
   paint();
 }

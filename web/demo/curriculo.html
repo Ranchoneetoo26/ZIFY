@@ -60,13 +60,21 @@
 </form></main>
 <script>
 const maskPhone = (value) => {
-  const d = value.replace(/\D/g, '').slice(0, 11);
+  const typed = value.trimStart();
+  if (/^\+\d{0,2}$/.test(typed)) return typed; // ainda digitando o código do país
+  const all = typed.replace(/\D/g, '');
+  const d = (typed.startsWith('+55') ? all.slice(2) : all).slice(0, 11);
   if (!d) return '';
   if (d.length <= 2) return `(${d}`;
   const split = d.length > 10 ? 7 : 6;
   return d.length <= split ? `(${d.slice(0, 2)}) ${d.slice(2)}` : `(${d.slice(0, 2)}) ${d.slice(2, split)}-${d.slice(split)}`;
 };
-document.querySelector('[name="cand_cel"]').addEventListener('input', (e) => { e.target.value = maskPhone(e.target.value); });
+const cel = document.querySelector('[name="cand_cel"]');
+// Solta o limite só durante a inserção: o maxlength cortaria "+55 44 99999-1111" antes da máscara.
+cel.addEventListener('beforeinput', (e) => { if (e.inputType?.startsWith('insert')) cel.maxLength = 40; });
+cel.addEventListener('input', () => { cel.maxLength = 15; cel.value = maskPhone(cel.value); });
+const nome = document.querySelector('[name="cand_nome"]');
+nome.addEventListener('input', () => { nome.setCustomValidity(nome.value && !nome.value.trim() ? 'Informe seu nome.' : ''); });
 document.querySelectorAll('input:not([type="file"]):not([type="checkbox"]), textarea').forEach((control) => {
   const max = control.maxLength > 0 ? control.maxLength : null;
   if (!max) return;

@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using FluentValidation;
 using MediatR;
+using Zyft.Application.Common;
 using Zyft.Application.Common.Exceptions;
 using Zyft.Application.Common.Interfaces;
 using Zyft.Domain.Answers;
@@ -22,8 +23,8 @@ public sealed class AnswerInputValidator<T> : AbstractValidator<T> where T : Ans
 {
     public AnswerInputValidator()
     {
-        RuleFor(x => x.Question).NotEmpty().WithMessage("Informe a pergunta.").MaximumLength(500);
-        RuleFor(x => x.Text).NotEmpty().WithMessage("Informe a resposta.").MaximumLength(5000);
+        RuleFor(x => x.Question).Visible().WithMessage("Informe a pergunta.").MaximumLength(500);
+        RuleFor(x => x.Text).Visible().WithMessage("Informe a resposta.").MaximumLength(5000);
     }
 }
 
@@ -74,7 +75,13 @@ public sealed class AnswerHandlers(IRepository<ApprovedAnswer> answers, ICurrent
     public async Task<AnswerDto> Handle(UpdateAnswerCommand cmd, CancellationToken ct)
     {
         var a = await Load(cmd.Id, ct);
-        a.Update(cmd.Question, cmd.Text, clock.UtcNow);
+        var uid = current.UserId;
+        var question = cmd.Question.Trim();
+        // Mudar a pergunta para a de outra resposta deixaria dois registros para o mesmo upsert (POST /answers).
+        if (question != a.Question && await answers.AnyAsync(x => x.UserId == uid && x.Id != a.Id && x.Question == question, ct))
+            throw new ConflictException("Você já tem uma resposta para esta pergunta. Edite a existente ou exclua uma delas.", "answer.duplicated");
+
+        a.Update(question, cmd.Text, clock.UtcNow);
         await uow.SaveChangesAsync(ct);
         return AnswerDto.From(a);
     }

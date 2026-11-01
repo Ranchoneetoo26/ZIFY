@@ -3,16 +3,51 @@
 import { api, asList } from '../api.js';
 import { h, clear, field, toast, announce, loading, errorBox, confirmDialog, go, nextId, showErrors, clearErrors, modal, fmtTime } from '../dom.js';
 import { Button, Icon, PageHead, ReviewItem, StatusBadge, LinkButton } from '../ui.js';
-import { getBilling } from '../store.js';
+import { getBilling, toUrl } from '../store.js';
 import { usageMeterFor, isPlus } from '../billing.js';
 import * as v from '../validate.js';
-import { BASIC_FIELDS, SECTIONS, toInput, toApi, labelOf, enumName } from './profile-schema.js';
+import { BASIC_FIELDS, SECTIONS, toInput, toApi, labelOf, enumName, numberErrors } from './profile-schema.js';
 
 export async function render(main) {
   const wrap = h('div', { class: 'content' });
   main.append(wrap);
-  await uploadStep(wrap);
+  await openImport(wrap);
 }
+
+/** Com importação pendente, retoma a revisão (não gasta outra importação). Sem ela, abre o envio. */
+async function openImport(wrap) {
+  clear(wrap, PageHead({ title: 'Importar currículo' }), loading('Procurando importação em andamento.'));
+  let pending;
+  try {
+    pending = await api('/resume-imports/pending');
+  } catch (err) {
+    if (!err.handled) clear(wrap, PageHead({ title: 'Importar currículo' }), errorBox(err, () => openImport(wrap)));
+    return;
+  }
+  if (pending?.proposal) await reviewStep(wrap, pending, { resumed: true });
+  else await uploadStep(wrap);
+}
+
+// Decisões de revisão ainda não salvas sobrevivem ao F5 nesta aba (a sessão também é da aba).
+const draftKey = (id) => `zyft.importReview.${id}`;
+function readDraft(id) {
+  try { return JSON.parse(sessionStorage.getItem(draftKey(id))) || {}; } catch { return {}; }
+}
+function writeDraft(id, draft) {
+  try { sessionStorage.setItem(draftKey(id), JSON.stringify(draft)); } catch { /* armazenamento bloqueado: vale só até recarregar */ }
+}
+function clearDraft(id) {
+  try { sessionStorage.removeItem(draftKey(id)); } catch { /* idem */ }
+}
+
+// O menu aponta para a rota em que a pessoa já está: sem isto, o clique na revisão parece não fazer nada.
+let reviewing = null;
+document.addEventListener('click', (e) => {
+  if (!reviewing?.isConnected || !e.target.closest?.('a[href="#/importar"]')) return;
+  e.preventDefault();
+  window.scrollTo({ top: 0 });
+  toast('Sua revisão continua aqui. Para enviar outro arquivo, use "Trocar arquivo".');
+}, true);
 
 const str = (x) => (Array.isArray(x) ? x.join(', ') : x === true ? 'Sim' : x === false ? 'Não' : x ?? '');
 const show = (f, x) => (f.type === 'select' && !f.bool ? labelOf(f.options, x) : f.type === 'month' ? toInput(f, x).split('-').reverse().join('/') : str(x));
@@ -24,9 +59,12 @@ const parseProposal = (p) => (typeof p === 'string' ? JSON.parse(p) : p || {});
  * O Zyft não inventa esses valores: a pessoa escolhe antes de aceitar.
  */
 function missingOf(d) {
-  if (d.kind !== 'item') return [];
+  if (d.kind !== 'item') {
+    const problem = basicError(d.field, d.value);
+    return problem ? [{ ...d.field, problem }] : [];
+  }
   const val = d.value || {};
-  const errs = v.collect(d.section.validate(val));
+  const errs = { ...v.collect(numberErrors(d.section.fields, val)), ...limitErrors(d.section.fields, val), ...v.collect(d.section.validate(val)) };
   for (const f of d.section.fields) {
     if (f.type !== 'select' || !f.required) continue;
     const k = enumName(f.options, val[f.name]);
@@ -36,24 +74,48 @@ function missingOf(d) {
     const key = String(name).replace(/^\w/, (c) => c.toLowerCase());
     if (d.section.fields.some((f) => f.name === key) && (val[key] === null || val[key] === undefined || val[key] === '')) errs[key] = errs[key] || ['Campo obrigatório.'];
   }
-  return d.section.fields.filter((f) => errs[f.name]);
+  return d.section.fields.filter((f) => errs[f.name]).map((f) => ({ ...f, problem: errs[f.name][0] }));
+}
+
+/** Limites de tamanho dos campos (os mesmos da API). Campo com máscara tem limite próprio de digitação, não do dado. */
+function limitErrors(fields, val) {
+  const errs = {};
+  for (const f of fields) {
+    const msg = f.mask || f.type === 'select' ? null : v.maxLen(val[f.name], f.attrs?.maxlength);
+    if (msg) errs[f.name] = [msg];
+  }
+  return errs;
+}
+
+/** Mesmas regras do Perfil Mestre para um dado básico. */
+function basicError(f, value) {
+  if (str(value) === '') return f.required ? `${f.label} é obrigatório.` : null;
+  if (f.type === 'url') return v.webUrl(value);
+  if (f.type === 'email') return v.email(value);
+  if (f.name === 'phone') return v.phone(value);
+  return limitErrors([f], { [f.name]: value })[f.name]?.[0] || null;
 }
 
 /** Texto acolhedor para o que falta: "a situação", "o nível e a situação"… */
 function missingText(d, fields) {
-  const names = fields.map((f) => f.label.toLowerCase());
+  const blank = (f) => str(d.value?.[f.name]) === '';
+  const wrong = fields.filter((f) => !blank(f)).map((f) => `${f.label}: ${f.problem}`).join(' ');
+  const empty = fields.filter(blank);
+  if (!empty.length) return `Confira este item. ${wrong}`;
+  const names = empty.map((f) => f.label.toLowerCase());
   const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}` : names[0];
   if (d.section.key === 'educations' && fields.length === 1 && fields[0].name === 'status') {
     return 'O currículo não diz se você ainda está cursando, já concluiu ou trancou. Escolha a situação abaixo para poder aprovar; o Zyft não adivinha por você.';
   }
-  return `Falta ${list} neste item. Preencha abaixo para poder aprovar; o Zyft não completa por você o que o currículo não diz.`;
+  return `Falta ${list} neste item. Preencha abaixo para poder aprovar; o Zyft não completa por você o que o currículo não diz.${wrong ? ` ${wrong}` : ''}`;
 }
 
 const kb = (n) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
 // ---------- 1. Envio ----------
 async function uploadStep(wrap) {
-  const billing = await getBilling().catch(() => null);
+  reviewing = null;
+  const billing = await getBilling(true).catch(() => null); // força: o medidor não pode ficar atrás de uma importação recente
   const inputId = nextId('resume');
   const errId = `${inputId}-err`;
   const input = h('input', { type: 'file', id: inputId, name: 'file', accept: '.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'aria-describedby': `${inputId}-hint ${errId}` });
@@ -83,7 +145,10 @@ async function uploadStep(wrap) {
   zone.addEventListener('drop', (e) => {
     e.preventDefault();
     zone.classList.remove('is-over');
-    if (e.dataTransfer.files[0]) { input.files = e.dataTransfer.files; pick(input.files[0]); }
+    if (e.dataTransfer.files[0]) {
+      input.files = e.dataTransfer.files;
+      if (pick(input.files[0]) && e.dataTransfer.files.length > 1) toast(`Envie um arquivo por vez. Vamos usar ${input.files[0].name}.`);
+    }
   });
 
   form.addEventListener('submit', async (e) => {
@@ -93,8 +158,11 @@ async function uploadStep(wrap) {
     const fd = new FormData();
     fd.append('file', file);
     const started = Date.now();
-    clear(wrap, PageHead({ title: 'Lendo o seu currículo' }), loading('Lendo o arquivo e montando a proposta. Pode levar até um minuto.'));
+    clear(wrap, PageHead({ title: 'Lendo o seu currículo' }), loading('Lendo o arquivo e montando a proposta. Pode levar até um minuto. Se você for para outra tela, a revisão estará aqui quando voltar.'));
     announce('Lendo o currículo. Aguarde.');
+    // Recarregar cancela o envio, e a importação pode já ter contado no limite do mês.
+    const warnLeave = (ev) => ev.preventDefault();
+    window.addEventListener('beforeunload', warnLeave);
     try {
       let imp = await api('/resume-imports', { method: 'POST', body: fd });
       imp = await waitReady(imp);
@@ -102,6 +170,8 @@ async function uploadStep(wrap) {
     } catch (error) {
       if (error.handled) { uploadStep(clear(wrap)); return; }
       clear(wrap, PageHead({ title: 'Importar currículo' }), errorBox(friendly(error), () => uploadStep(clear(wrap))));
+    } finally {
+      window.removeEventListener('beforeunload', warnLeave);
     }
   });
 
@@ -135,29 +205,60 @@ async function waitReady(imp) {
 async function reviewStep(wrap, imp, meta = {}) {
   const proposal = parseProposal(imp.proposal);
   const basicsProp = proposal.profile || proposal.basics || {};
-  const current = await api('/profile').catch(() => ({}));
+  let current;
+  try {
+    current = await api('/profile');
+  } catch (err) {
+    // Sem o perfil não há como comparar: seguir esconderia os conflitos e sobrescreveria dados sem aviso.
+    if (err.handled) return;
+    const blocked = Object.assign(new Error('Não conseguimos carregar o seu Perfil Mestre para comparar com o currículo. A importação continua guardada.'), { title: 'A revisão não pode continuar agora.' });
+    clear(wrap, PageHead({ title: 'Revise o que lemos' }), errorBox(blocked, () => reviewStep(wrap, imp, meta)));
+    return;
+  }
   const fileName = imp.fileName || 'curriculo';
   const source = `Importado de ${fileName}`;
 
   // decisões: { id, kind, field|section, value, state: pending|approved|edited|discarded, conflict, current }
   const decisions = [];
+  const clone = (x) => (x && typeof x === 'object' ? JSON.parse(JSON.stringify(x)) : x);
+  const add = (d) => decisions.push({ ...d, id: nextId('d'), original: clone(d.value), state: 'pending' });
   for (const f of BASIC_FIELDS) {
-    const pv = basicsProp[f.name];
+    let pv = basicsProp[f.name];
     if (pv === undefined || pv === null || str(pv) === '') continue;
-    const cv = current?.[f.name];
+    if (f.type === 'url') pv = toUrl(pv); // o parser devolve "linkedin.com/in/x"
+    const cv = current[f.name];
     if (str(cv) === str(pv)) continue; // igual ao perfil: nada a revisar
-    decisions.push({ id: nextId('d'), kind: 'basic', field: f, value: pv, current: cv, conflict: str(cv) !== '', state: 'pending' });
+    add({ key: `basic:${f.name}`, kind: 'basic', field: f, value: pv, current: cv, conflict: str(cv) !== '' });
   }
+  const fullKey = ({ title, meta: mt }) => `${title} | ${mt}`.toLowerCase();
   const existing = {};
-  for (const s of SECTIONS) existing[s.key] = new Set(asList(current?.[s.key]).map((x) => s.summary(x).title.toLowerCase()));
   for (const s of SECTIONS) {
-    for (const raw of asList(proposal[s.key])) {
+    const summaries = asList(current[s.key]).map((x) => s.summary(x));
+    existing[s.key] = { titles: new Set(summaries.map((x) => x.title.toLowerCase())), full: new Set(summaries.map(fullKey)) };
+  }
+  let alreadyThere = 0;
+  for (const s of SECTIONS) {
+    asList(proposal[s.key]).forEach((raw, i) => {
       const it = typeof raw === 'string' ? { name: raw } : { ...raw };
       delete it.id;
-      const dup = existing[s.key].has(s.summary(it).title.toLowerCase());
-      decisions.push({ id: nextId('d'), kind: 'item', section: s, value: it, conflict: dup, state: 'pending' });
-    }
+      const sum = s.summary(it);
+      const dup = existing[s.key].titles.has(sum.title.toLowerCase());
+      // Item idêntico não muda nada no perfil: nem entra na revisão. Experiência e idioma podem diferir na data ou no nível.
+      const twin = s.key === 'experiences' || s.key === 'languages' ? existing[s.key].full.has(fullKey(sum)) : dup;
+      if (twin) alreadyThere++;
+      else add({ key: `item:${s.key}:${i}`, kind: 'item', section: s, value: it, conflict: dup });
+    });
   }
+
+  const draft = readDraft(imp.id);
+  for (const d of decisions) {
+    const saved = draft[d.key];
+    if (saved) Object.assign(d, { state: saved.state, value: saved.value, at: saved.at });
+  }
+  const saveDraft = () => writeDraft(imp.id, Object.fromEntries(decisions
+    .filter((d) => d.state !== 'pending' || JSON.stringify(d.value) !== JSON.stringify(d.original))
+    .map((d) => [d.key, { state: d.state, value: d.value, at: d.at }])));
+  const resumedWork = meta.resumed && Object.keys(draft).length > 0;
 
   const ctaSlot = h('div');
   const countEl = h('span', { class: 'small muted', role: 'status' });
@@ -169,14 +270,16 @@ async function reviewStep(wrap, imp, meta = {}) {
     const left = remaining();
     const done = decisions.length - left;
     countEl.textContent = `${done} de ${decisions.length} itens revisados`;
-    const cta = Button({ variant: 'primary', disabled: left > 0 || !decisions.length }, left > 0 ? `Faltam ${left} para revisar` : 'Salvar no Perfil Mestre');
+    const cta = Button({ variant: 'primary', disabled: left > 0 || !decisions.length }, left > 0 ? `${left === 1 ? 'Falta 1' : `Faltam ${left}`} para revisar` : 'Salvar no Perfil Mestre');
     cta.addEventListener('click', apply);
     clear(ctaSlot, cta);
   };
 
   const setState = (d, state, focusId) => {
     d.state = state;
-    if (state !== 'pending') d.at = now();
+    d.apiErrors = null;
+    if (state === 'pending') d.value = clone(d.original); // desfazer volta ao que veio do currículo
+    else d.at = now();
     paint(focusId || d.id);
     announce(state === 'discarded' ? 'Item descartado.' : state === 'pending' ? 'Decisão desfeita.' : 'Item carimbado.');
   };
@@ -188,7 +291,15 @@ async function reviewStep(wrap, imp, meta = {}) {
       fields.map((f) => field({ ...f, wide: f.wide || f.type === 'checkbox' || d.kind === 'basic', value: toInput(f, val[f.name]) })));
     const cur = form.elements.isCurrent;
     const end = form.elements.endDate;
-    if (cur && end) { const sync = () => { end.disabled = cur.checked; if (cur.checked) end.value = ''; }; cur.addEventListener('change', sync); sync(); }
+    if (cur && end) {
+      let lastEnd = end.value; // desmarcar devolve a data que estava ali
+      const sync = () => {
+        if (cur.checked) { lastEnd = end.value || lastEnd; end.value = ''; } else end.value = end.value || lastEnd;
+        end.disabled = cur.checked;
+      };
+      cur.addEventListener('change', sync);
+      sync();
+    }
     const save = Button({ variant: 'primary', type: 'submit', form: form.id, icon: 'check' }, 'Corrigir e carimbar');
     const cancel = Button({ variant: 'quiet' }, 'Cancelar');
     const m = modal({ title: 'Editar antes de aceitar', body: form, actions: [save, cancel], wide: d.kind === 'item' });
@@ -198,16 +309,26 @@ async function reviewStep(wrap, imp, meta = {}) {
       clearErrors(form);
       const raw = {};
       for (const el of form.elements) if (el.name) raw[el.name] = el.type === 'checkbox' ? el.checked : (el.value.trim() || null);
+      const numeric = v.collect(numberErrors(fields, raw)); // lê o texto digitado: precisa vir antes de toApi
       toApi(fields, raw);
       if (raw.isCurrent) raw.endDate = null;
       if (d.kind === 'item') {
-        const errs = v.collect(d.section.validate(raw));
-        if (v.hasErrors(errs)) return showErrors(form, errs);
+        const errs = { ...numeric, ...limitErrors(fields, raw), ...v.collect(d.section.validate(raw)) };
+        if (v.hasErrors(errs)) { showErrors(form, errs); return; }
         d.value = { ...d.value, ...raw };
       } else {
         const f = d.field;
-        const e1 = f.type === 'url' ? v.url(raw[f.name]) : f.type === 'email' && raw[f.name] ? v.email(raw[f.name]) : null;
-        if (e1) return showErrors(form, { [f.name]: [e1] });
+        if (f.type === 'url') raw[f.name] = toUrl(raw[f.name]);
+        const e1 = basicError(f, raw[f.name]);
+        if (e1) { showErrors(form, { [f.name]: [e1] }); return; }
+        if (str(raw[f.name]) === '') {
+          // Campo opcional esvaziado não é correção: nada muda no perfil, e o card diz isso.
+          d.value = clone(d.original);
+          m.close();
+          setState(d, 'discarded');
+          toast(`${f.label} ficou vazio, então nada muda no seu perfil.`);
+          return;
+        }
         d.value = raw[f.name];
       }
       m.close();
@@ -225,8 +346,11 @@ async function reviewStep(wrap, imp, meta = {}) {
       if (d.conflict) src = `${source} · já existe um item parecido no seu perfil`;
     }
     const missing = d.state === 'pending' ? missingOf(d) : [];
-    let extra = null;
-    if (missing.length) {
+    const apiErrors = d.apiErrors ? h('p', { class: 'zy-tf__error', role: 'alert' }, d.apiErrors.join(' ')) : null;
+    let extra = apiErrors;
+    if (d.kind === 'basic' && missing.length) {
+      extra = h('div', { class: 'notice notice--care review-missing' }, h('p', {}, Icon('alert', { size: 14 }), ' ', `${missing[0].problem} Use Editar para corrigir.`), apiErrors);
+    } else if (missing.length) {
       // Item incompleto: os campos que faltam aparecem destacados aqui mesmo; "Aprovar" só libera depois.
       const box = h('div', { class: 'notice notice--care review-missing', role: 'group', 'aria-label': `O que falta em ${label}` },
         h('p', {}, Icon('alert', { size: 14 }), ' ', missingText(d, missing)),
@@ -237,8 +361,10 @@ async function reviewStep(wrap, imp, meta = {}) {
           ctl.setAttribute('aria-invalid', 'true');
           const sync = () => {
             const raw = { [f.name]: ctl.value.trim() || null };
-            toApi([f], raw);
+            if (!numberErrors([f], raw)[f.name]) toApi([f], raw); // número inválido fica como digitado, com o erro à vista
             d.value = { ...d.value, [f.name]: raw[f.name] };
+            d.apiErrors = null;
+            saveDraft();
             const left = missingOf(d);
             const btn = document.querySelector(`#${CSS.escape(d.id)} .zy-review__actions .zy-btn--primary`);
             if (btn) btn.disabled = left.length > 0;
@@ -249,11 +375,11 @@ async function reviewStep(wrap, imp, meta = {}) {
           ctl.addEventListener('change', sync);
           ctl.addEventListener('input', sync);
           return el;
-        })));
+        })), apiErrors);
       extra = box;
     }
     const el = ReviewItem({
-      label, value, source: src, state: d.state, approvedAt: d.at, extra, approveDisabled: missing.length > 0,
+      label, value, source: src, state: d.state, approvedAt: d.at, extra, approveDisabled: missing.length > 0 || Boolean(d.apiErrors),
       onApprove: () => (missingOf(d).length ? editModal(d) : setState(d, 'approved')), onEdit: () => editModal(d), onDiscard: () => setState(d, 'discarded'), onUndo: () => setState(d, 'pending'),
     });
     el.id = d.id;
@@ -266,6 +392,7 @@ async function reviewStep(wrap, imp, meta = {}) {
     const f = d.field;
     const decided = d.state !== 'pending';
     const useCv = d.state === 'approved' || d.state === 'edited';
+    const problem = decided ? null : missingOf(d)[0]?.problem;
     const card = h('section', { class: 'conflict', id: d.id, tabindex: '-1', 'aria-labelledby': `${d.id}-t` },
       h('div', { class: 'conflict__head' },
         h('h3', { id: `${d.id}-t`, class: 'card__title' }, f.label),
@@ -273,9 +400,10 @@ async function reviewStep(wrap, imp, meta = {}) {
       h('div', { class: 'conflict__cols' },
         h('div', { class: `conflict__col ${decided && useCv ? 'is-chosen' : ''}` }, h('span', { class: 'kv__k' }, d.state === 'edited' ? 'Sua correção' : 'No currículo'), h('b', {}, show(f, d.value)), h('span', { class: 'caption' }, source)),
         h('div', { class: `conflict__col ${d.state === 'discarded' ? 'is-chosen' : ''}` }, h('span', { class: 'kv__k' }, 'No seu perfil hoje'), h('b', {}, show(f, d.current)), h('span', { class: 'caption' }, 'Carimbado por você'))),
+      problem || d.apiErrors ? h('p', { class: 'zy-tf__error', role: 'alert' }, [problem, ...(d.apiErrors || [])].filter(Boolean).join(' ')) : null,
       h('div', { class: 'conflict__actions' },
         decided ? Button({ variant: 'ghost', size: 'sm', onClick: () => setState(d, 'pending') }, 'Desfazer escolha') : [
-          Button({ variant: 'quiet', size: 'sm', onClick: () => setState(d, 'approved') }, 'Usar o do currículo'),
+          Button({ variant: 'quiet', size: 'sm', disabled: Boolean(problem || d.apiErrors), onClick: () => setState(d, 'approved') }, 'Usar o do currículo'),
           Button({ variant: 'quiet', size: 'sm', onClick: () => setState(d, 'discarded') }, 'Manter o do perfil'),
           Button({ variant: 'ghost', size: 'sm', icon: 'edit', onClick: () => editModal(d) }, 'Editar antes de aceitar'),
         ]));
@@ -283,6 +411,7 @@ async function reviewStep(wrap, imp, meta = {}) {
   };
 
   function paint(focusId) {
+    saveDraft();
     paintHead();
     const conflicts = decisions.filter((d) => d.kind === 'basic' && d.conflict);
     const basics = decisions.filter((d) => d.kind === 'basic' && !d.conflict);
@@ -313,62 +442,112 @@ async function reviewStep(wrap, imp, meta = {}) {
     for (const d of decisions) {
       if (d.conflict || d.state !== 'pending') continue;
       if (missingOf(d).length) { incomplete++; continue; } // falta algo: a pessoa completa antes
-      d.state = 'approved'; d.at = now(); k++;
+      d.state = 'approved'; d.at = now(); d.apiErrors = null; k++;
     }
     paint();
     announce(`${k} itens carimbados.${incomplete ? ` ${incomplete} ${incomplete === 1 ? 'item precisa' : 'itens precisam'} de um dado seu antes de aprovar.` : ''} Os que conflitam continuam com você.`);
   });
 
-  const discardImport = async (thenUpload) => {
+  const discardImport = async () => {
     try {
       await api(`/resume-imports/${encodeURIComponent(imp.id)}/discard`, { method: 'POST', body: {} });
       toast('Importação descartada. Nada mudou no seu perfil.');
-    } catch (err) { if (!err.handled) toast(err.message, 'err'); }
-    if (thenUpload) uploadStep(clear(wrap));
+    } catch (err) {
+      // Sem conseguir descartar, a revisão continua na tela: a importação segue pendente no servidor.
+      if (err.code !== 'import.not_pending') { if (!err.handled) toast(err.message, 'err'); return; }
+    }
+    clearDraft(imp.id);
+    uploadStep(clear(wrap));
   };
   const swap = Button({ variant: 'quiet', size: 'sm', icon: 'refresh' }, 'Trocar arquivo');
-  swap.addEventListener('click', () => discardImport(true));
+  swap.addEventListener('click', async () => {
+    if (await confirmDialog({ title: 'Trocar de arquivo?', message: 'A revisão atual será descartada e nada dela entra no seu Perfil Mestre. Esta importação continua contando no limite do mês.', confirmText: 'Trocar arquivo', danger: true })) discardImport();
+  });
   const discard = Button({ variant: 'ghost', size: 'sm' }, 'Descartar importação');
   discard.addEventListener('click', async () => {
-    if (await confirmDialog({ title: 'Descartar importação?', message: 'A proposta será apagada e nada entra no seu Perfil Mestre.', confirmText: 'Descartar', danger: true })) discardImport(true);
+    if (await confirmDialog({ title: 'Descartar importação?', message: 'A proposta será apagada e nada entra no seu Perfil Mestre.', confirmText: 'Descartar', danger: true })) discardImport();
   });
+
+  /** Enquanto salva, nada mais na tela responde: um clique em "Trocar arquivo" derrubaria o salvamento. */
+  const setBusy = (on) => {
+    for (const b of [swap, discard, acceptSafe]) b.disabled = on;
+    listSlot.inert = on;
+    const btn = ctaSlot.querySelector('button');
+    if (on) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); btn.textContent = 'Salvando…'; announce('Salvando no Perfil Mestre.'); }
+  };
+
+  /** Cada chave de erro da API ("experiences[0].company", "profile.fullName") volta ao item de onde saiu. */
+  const showItemErrors = (err, sources) => {
+    const hit = [];
+    for (const [key, msgs] of Object.entries(err.errors || {})) {
+      const d = sources[key.match(/^\w+\[\d+\]|^profile\.\w+/)?.[0]];
+      if (!d) continue;
+      d.apiErrors = [...(d.apiErrors || []), ...msgs];
+      d.state = 'pending';
+      if (!hit.includes(d)) hit.push(d);
+    }
+    if (!hit.length) return false;
+    paint(hit[0].id);
+    document.getElementById(hit[0].id)?.scrollIntoView({ block: 'center' });
+    toast(hit.length === 1 ? 'Um item precisa de ajuste. Ele está marcado na lista.' : `${hit.length} itens precisam de ajuste. Eles estão marcados na lista.`, 'err');
+    return true;
+  };
 
   async function apply() {
     const body = { profile: {}, experiences: [], educations: [], courses: [], skills: [], languages: [] };
+    const sources = {};
     let applied = 0;
     for (const d of decisions) {
       if (d.state !== 'approved' && d.state !== 'edited') continue;
       applied++;
-      if (d.kind === 'basic') body.profile[d.field.name] = d.value;
-      else { const { missingFields, ...item } = d.value; void missingFields; body[d.section.key].push(item); }
+      d.apiErrors = null;
+      if (d.kind === 'basic') {
+        body.profile[d.field.name] = d.value;
+        sources[`profile.${d.field.name}`] = d;
+      } else {
+        const { missingFields, ...item } = d.value;
+        void missingFields;
+        sources[`${d.section.key}[${body[d.section.key].length}]`] = d;
+        body[d.section.key].push(item);
+      }
     }
     if (!applied) {
-      if (await confirmDialog({ title: 'Nada para salvar', message: 'Você descartou todos os itens. Quer descartar esta importação?', confirmText: 'Descartar importação' })) discardImport(true);
+      if (await confirmDialog({ title: 'Nada para salvar', message: 'Você descartou todos os itens. Quer descartar esta importação?', confirmText: 'Descartar importação' })) discardImport();
       return;
     }
-    const btn = ctaSlot.querySelector('button');
-    btn.disabled = true;
+    setBusy(true);
     try {
       const r = await api(`/resume-imports/${encodeURIComponent(imp.id)}/apply`, { method: 'POST', body });
+      clearDraft(imp.id);
       doneStep(wrap, applied, decisions.length - applied, r);
     } catch (err) {
-      btn.disabled = false;
-      if (!err.handled) toast(err.message, 'err');
+      setBusy(false);
+      if (err.code === 'import.not_pending') {
+        clearDraft(imp.id);
+        toast(err.message, 'err');
+        openImport(wrap);
+        return;
+      }
+      paint();
+      if (!err.handled && !showItemErrors(err, sources)) toast(err.message, 'err');
     }
   }
 
   const warnings = asList(proposal.warnings);
+  reviewing = wrap;
   clear(wrap,
     PageHead({
       crumb: h('p', { class: 'crumb' }, h('a', { href: '#/perfil' }, 'Perfil Mestre'), ' / Importar currículo'),
       title: 'Revise o que lemos', lead: 'Nada entra no seu Perfil Mestre sem a sua aprovação. Confira cada item e corrija o que estiver errado.', actions: ctaSlot,
     }),
+    meta.resumed ? h('p', { class: 'notice notice--warm', role: 'status' }, `Retomamos a revisão de ${fileName}${resumedWork ? ', com as suas decisões' : ''}. Isso não gastou outra importação.`) : null,
     h('section', { class: 'upload', 'aria-label': 'Arquivo importado' },
       h('div', { class: 'upload__info' }, Icon('upload'),
         h('div', {}, h('b', {}, [fileName, meta.size ? kb(meta.size) : null].filter(Boolean).join(' · ')),
           h('span', { class: 'small muted' }, `${meta.seconds ? `Lido em ${meta.seconds} segundos · ` : ''}PDF ou DOCX, até 10 MB${imp.aiUsed ? ' · organizado com ajuda da IA, confira com atenção' : ''}`))),
       h('div', { class: 'row' }, swap, discard)),
     warnings.length ? h('div', { class: 'notice notice--care' }, Icon('alert', { size: 14 }), h('p', {}, warnings.join(' '))) : null,
+    alreadyThere ? h('p', { class: 'small muted' }, `${alreadyThere} ${alreadyThere === 1 ? 'item igual ao que já está' : 'itens iguais aos que já estão'} no seu perfil ${alreadyThere === 1 ? 'ficou' : 'ficaram'} fora da revisão.`) : null,
     h('div', { class: 'row', style: { justifyContent: 'space-between' } }, countEl, acceptSafe),
     listSlot,
     h('p', { class: 'small muted' }, 'Se o PDF for escaneado (imagem), o Zyft não consegue ler o texto: envie a versão exportada do editor ou preencha à mão.'));
@@ -377,8 +556,14 @@ async function reviewStep(wrap, imp, meta = {}) {
 
 // ---------- 3. Resultado ----------
 function doneStep(wrap, applied, discarded, r) {
+  reviewing = null;
+  const skipped = r?.skipped || 0; // a API confirma o que de fato não entrou por já estar no perfil
+  const saved = applied - skipped;
+  const parts = [`${saved} ${saved === 1 ? 'item carimbado' : 'itens carimbados'}`];
+  if (skipped) parts.push(`${skipped} já ${skipped === 1 ? 'estava' : 'estavam'} no perfil`);
+  parts.push(`${discarded} ${discarded === 1 ? 'descartado' : 'descartados'}`);
   clear(wrap,
-    PageHead({ title: 'Perfil Mestre atualizado', lead: `${applied} ${applied === 1 ? 'item carimbado' : 'itens carimbados'} e ${discarded} ${discarded === 1 ? 'descartado' : 'descartados'}.` }),
+    PageHead({ title: 'Perfil Mestre atualizado', lead: `${parts.slice(0, -1).join(', ')} e ${parts.at(-1)}.` }),
     r?.missing?.length ? h('p', { class: 'notice notice--warm' }, Icon('alert', { size: 14 }), `Ainda faltam ${r.missing.length} informações que os formulários costumam pedir. Elas aparecem no topo do Perfil Mestre.`) : null,
     h('div', { class: 'row' },
       LinkButton('#/perfil', { variant: 'primary' }, 'Ver meu Perfil Mestre'),

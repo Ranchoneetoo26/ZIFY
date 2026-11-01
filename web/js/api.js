@@ -3,6 +3,8 @@
 // - Injeta "Authorization: Bearer <access token>".
 // - Ao receber 401, tenta renovar UMA vez com o refresh token (rotação) e repete a chamada.
 // - Erros viram ApiError com os campos de ProblemDetails (title, detail, errors por campo).
+// - Só 401/403 na renovação encerram a sessão: erro passageiro vira mensagem e o refresh token fica.
+// - Toda chamada tem tempo limite, com mensagem própria.
 //
 // Armazenamento: o access token (15 min) fica só em memória. O refresh token fica em
 // sessionStorage (some ao fechar a aba). Nada vai para localStorage.
@@ -12,7 +14,18 @@ const RT_KEY = 'zyft.refreshToken';
 
 let accessToken = null;
 let refreshing = null;
+let leaving = false; // saída pedida pela pessoa: um 401 no caminho não é "sessão expirada"
+let sessionNotice = '';
+let returnRoute = '';
 const listeners = new Set();
+
+const TIMEOUT_MS = 20_000;
+const UPLOAD_TIMEOUT_MS = 120_000; // a leitura do currículo responde depois do envio do arquivo
+const TIMED_OUT = { timedOut: true, ok: false, status: 0 };
+
+const SESSION_EXPIRED = 'Sua sessão expirou. Entre de novo para continuar de onde parou.';
+const SESSION_REUSED = 'Por segurança, encerramos esta sessão porque ela foi usada em outra aba. Entre de novo para continuar.';
+const SESSION_GONE = 'Esta conta não existe mais. A sessão foi encerrada.';
 
 export class ApiError extends Error {
   constructor(status, problem = {}) {
@@ -92,7 +105,7 @@ function defaultMessage(status) {
   if (status === 401) return 'Sua sessão expirou. Entre de novo.';
   if (status === 403) return 'Você não tem permissão para esta ação.';
   if (status === 404) return 'Não encontramos o que você procurou.';
-  if (status === 402) return 'Você chegou ao limite do seu plano neste mês.';
+  if (status === 402) return 'Você chegou ao limite do seu plano.';
   if (status === 409) return 'Esta ação entra em conflito com dados existentes.';
   if (status === 413) return 'O arquivo é grande demais.';
   if (status === 429) return 'Muitas tentativas em pouco tempo. Aguarde um minuto e tente de novo.';
@@ -112,13 +125,32 @@ function normalizeErrors(errors) {
   return out;
 }
 
-export function setTokens({ accessToken: at, refreshToken: rt } = {}) {
+/** `reason` diz por que a sessão acabou sem a pessoa pedir: 'expired' ou 'gone' (conta excluída). */
+export function setTokens({ accessToken: at, refreshToken: rt } = {}, reason) {
   accessToken = at || null;
   try {
     if (rt) sessionStorage.setItem(RT_KEY, rt);
     else sessionStorage.removeItem(RT_KEY);
   } catch { /* armazenamento bloqueado: a sessão vale só até recarregar */ }
-  listeners.forEach((fn) => fn(isLoggedIn()));
+  listeners.forEach((fn) => fn(isLoggedIn(), reason));
+}
+
+function endSession(notice, reason = 'expired') {
+  if (!isLoggedIn()) return;
+  if (!leaving) sessionNotice = notice;
+  setTokens({}, reason);
+}
+
+/** Aviso para #/entrar depois de a sessão acabar sozinha. */
+export const getSessionNotice = () => sessionNotice;
+/** Guarda a rota para voltar depois de entrar. */
+export const rememberRoute = (hash) => { returnRoute = hash || ''; };
+/** Entrou: devolve a rota guardada e limpa o aviso. */
+export function takeReturnRoute() {
+  const hash = returnRoute;
+  returnRoute = '';
+  sessionNotice = '';
+  return hash;
 }
 
 function getRefreshToken() {
@@ -128,29 +160,38 @@ function getRefreshToken() {
 export const isLoggedIn = () => Boolean(accessToken || getRefreshToken());
 export const onAuthChange = (fn) => listeners.add(fn);
 
-async function rawFetch(path, { method = 'GET', body, headers = {}, auth = true } = {}) {
+async function rawFetch(path, { method = 'GET', body, headers = {}, auth = true, timeout, keepalive } = {}) {
   const isForm = body instanceof FormData;
   const h = { Accept: 'application/json, application/problem+json', ...headers };
   if (body !== undefined && !isForm) h['Content-Type'] = 'application/json';
   if (auth && accessToken) h.Authorization = `Bearer ${accessToken}`;
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), timeout ?? (isForm ? UPLOAD_TIMEOUT_MS : TIMEOUT_MS));
   try {
     return await fetch(API_BASE + path, {
       method,
       headers: h,
       body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
+      signal: abort.signal,
+      keepalive, // envio ao fechar a aba (rascunho do onboarding)
     });
   } catch {
-    return null; // erro de rede
+    return abort.signal.aborted ? TIMED_OUT : null; // null: erro de rede
+  } finally {
+    clearTimeout(timer);
   }
 }
 
 async function parse(res) {
   if (!res) throw new ApiError(0);
+  if (res.timedOut) throw new ApiError(0, { detail: 'O servidor demorou demais para responder. Verifique sua conexão e tente de novo.', code: 'timeout' });
   if (res.status === 204) return null;
   const ct = res.headers.get('content-type') || '';
   const data = ct.includes('json') ? await res.json().catch(() => null) : await res.text().catch(() => null);
   if (!res.ok) {
     const err = new ApiError(res.status, data && typeof data === 'object' ? data : {});
+    // O token de acesso sobrevive à exclusão da conta em outra aba: a API responde 404 para a própria conta.
+    if (res.status === 404 && err.detail === 'Conta não encontrada.') endSession(SESSION_GONE, 'gone');
     if (res.status === 402 && limitHandler) {
       err.handled = true;
       try { limitHandler(err); } catch { /* o diálogo nunca derruba a tela */ }
@@ -161,21 +202,34 @@ async function parse(res) {
 }
 
 // Renovação: uma chamada por vez, compartilhada por quem receber 401 ao mesmo tempo.
+// Resolve null se renovou, ou o ApiError que a chamada original deve lançar.
 export function refresh() {
   const rt = getRefreshToken();
-  if (!rt) return Promise.resolve(false);
+  if (!rt) return Promise.resolve(new ApiError(401));
   if (!refreshing) {
     refreshing = (async () => {
       const res = await rawFetch('/auth/refresh', { method: 'POST', body: { refreshToken: rt }, auth: false });
       if (res && res.ok) {
-        setTokens(await res.json());
-        return true;
+        const tokens = await res.json().catch(() => null);
+        if (!tokens?.accessToken) return new ApiError(502);
+        setTokens(tokens);
+        return null;
       }
-      if (res && (res.status === 400 || res.status === 401)) setTokens({}); // refresh inválido ou reutilizado
-      return false;
+      if (res && (res.status === 401 || res.status === 403)) { // refresh inválido ou reutilizado
+        const problem = await res.json().catch(() => ({}));
+        endSession(/reutilizado/i.test(problem?.detail || '') ? SESSION_REUSED : SESSION_EXPIRED);
+        return new ApiError(401);
+      }
+      // Passageiro (5xx, rede, tempo limite): o refresh token continua valendo para a próxima tentativa.
+      return parse(res).then(() => new ApiError(0), (err) => err);
     })().finally(() => { refreshing = null; });
   }
   return refreshing;
+}
+
+async function renew() {
+  const failure = await refresh();
+  if (failure) throw failure;
 }
 
 /**
@@ -183,12 +237,16 @@ export function refresh() {
  * Lança ApiError em caso de erro.
  */
 export async function api(path, opts = {}) {
-  if (opts.auth !== false && !accessToken && getRefreshToken()) await refresh();
+  const authed = opts.auth !== false;
+  if (authed && !accessToken && getRefreshToken()) await renew();
   let res = await rawFetch(path, opts);
-  if (res && res.status === 401 && opts.auth !== false && getRefreshToken()) {
-    if (await refresh()) res = await rawFetch(path, opts);
+  if (res && res.status === 401 && authed) {
+    if (getRefreshToken()) {
+      await renew();
+      res = await rawFetch(path, opts);
+    }
+    if (res && res.status === 401) endSession(SESSION_EXPIRED);
   }
-  if (res && res.status === 401 && opts.auth !== false) setTokens({});
   return parse(res);
 }
 
@@ -229,6 +287,10 @@ export async function register(name, email, password) {
 
 export async function logout() {
   const rt = getRefreshToken();
-  try { if (rt) await api('/auth/logout', { method: 'POST', body: { refreshToken: rt } }); } catch { /* sai mesmo assim */ }
+  leaving = true;
+  // Sair nunca espera a rede: sem resposta em alguns segundos, encerra aqui mesmo.
+  if (rt) await Promise.race([api('/auth/logout', { method: 'POST', body: { refreshToken: rt } }).catch(() => {}), new Promise((done) => { setTimeout(done, 6000); })]);
+  leaving = false;
+  takeReturnRoute();
   setTokens({});
 }

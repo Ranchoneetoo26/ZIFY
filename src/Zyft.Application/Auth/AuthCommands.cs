@@ -20,8 +20,8 @@ public sealed class RegisterValidator : AbstractValidator<RegisterCommand>
 {
     public RegisterValidator()
     {
-        RuleFor(x => x.Name).NotEmpty().WithMessage("Informe o nome.").MaximumLength(120).WithMessage("O nome deve ter no máximo 120 caracteres.");
-        RuleFor(x => x.Email).NotEmpty().WithMessage("Informe o e-mail.").EmailAddress().WithMessage("Informe um e-mail válido.").MaximumLength(254);
+        RuleFor(x => x.Name).Visible().WithMessage("Informe o nome.").MaximumLength(120).WithMessage("O nome deve ter no máximo 120 caracteres.");
+        RuleFor(x => x.Email).NotEmpty().WithMessage("Informe o e-mail.").ValidEmail().WithMessage("Informe um e-mail válido.").MaximumLength(254);
         RuleFor(x => x.Password).StrongPassword();
     }
 }

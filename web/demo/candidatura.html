@@ -31,8 +31,14 @@
 </form></main>
 <script>
 const phone = document.getElementById('ph');
+// Solta o limite só durante a inserção: o maxlength cortaria "+55 44 99999-1111" antes da máscara.
+phone.addEventListener('beforeinput', (e) => { if (e.inputType?.startsWith('insert')) phone.maxLength = 40; });
 phone.addEventListener('input', () => {
-  const d = phone.value.replace(/\D/g, '').slice(0, 11);
+  phone.maxLength = 15;
+  const typed = phone.value.trimStart();
+  if (/^\+\d{0,2}$/.test(typed)) return; // ainda digitando o código do país
+  const all = typed.replace(/\D/g, '');
+  const d = (typed.startsWith('+55') ? all.slice(2) : all).slice(0, 11);
   if (!d) phone.value = '';
   else if (d.length <= 2) phone.value = `(${d}`;
   else { const split = d.length > 10 ? 7 : 6; phone.value = d.length <= split ? `(${d.slice(0, 2)}) ${d.slice(2)}` : `(${d.slice(0, 2)}) ${d.slice(2, split)}-${d.slice(split)}`; }
@@ -41,6 +47,7 @@ phone.addEventListener('input', () => {
 <script>
 document.getElementById('apply').addEventListener('submit', (e) => {
   e.preventDefault();
+  document.getElementById('done').hidden = true;
   if (document.getElementById('captcha').value.toUpperCase() !== 'X7K2Q') return alert('Código de segurança incorreto.');
   if (!document.getElementById('terms').checked) return alert('Aceite os termos para continuar.');
   document.getElementById('done').hidden = false; window.scrollTo(0, 0);

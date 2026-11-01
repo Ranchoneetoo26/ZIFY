@@ -1,6 +1,6 @@
 // Conta e privacidade: dados da conta, consentimentos (RF-07), exportar e excluir (RF-08). Sem anúncios.
 import { api, download, setTokens } from '../api.js';
-import { h, toast, confirmDialog, fmtDate, go, nextId } from '../dom.js';
+import { h, toast, confirmDialog, fmtDate, go, nextId, busy } from '../dom.js';
 import { Button, PageHead, ConsentRow } from '../ui.js';
 import { consentRows } from './consents.js';
 
@@ -8,19 +8,19 @@ export async function render(main) {
   const [me, rows] = await Promise.all([api('/me'), consentRows()]);
 
   const exportBtn = Button({ variant: 'secondary', icon: 'copy' }, 'Baixar meus dados (JSON)');
-  exportBtn.addEventListener('click', async () => {
-    exportBtn.disabled = true;
+  exportBtn.addEventListener('click', () => busy(exportBtn, async () => {
     try {
       await download('/me/export', `zyft-meus-dados-${new Date().toISOString().slice(0, 10)}.json`);
       toast('Arquivo gerado', 'ok');
-    } catch (err) { if (!err.handled) toast(err.message, 'err'); } finally { exportBtn.disabled = false; }
-  });
+    } catch (err) { if (!err.handled) toast(err.message, 'err'); }
+  }));
 
   const confirmId = nextId('del');
   const confirmInput = h('input', { id: confirmId, class: 'zy-tf__input', placeholder: 'EXCLUIR', autocomplete: 'off', 'aria-describedby': `${confirmId}-hint` });
   const delBtn = Button({ variant: 'danger', disabled: true }, 'Excluir conta');
   confirmInput.addEventListener('input', () => { delBtn.disabled = confirmInput.value.trim() !== 'EXCLUIR'; });
-  delBtn.addEventListener('click', async () => {
+  confirmInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !delBtn.disabled) { e.preventDefault(); delBtn.click(); } }); // sem preventDefault, o Enter ativaria o primeiro botão do diálogo
+  delBtn.addEventListener('click', () => busy(delBtn, async () => {
     const ok = await confirmDialog({ title: 'Excluir sua conta agora?', message: 'Esta é a última confirmação. Seus dados serão apagados e não dá para desfazer.', confirmText: 'Excluir definitivamente', danger: true });
     if (!ok) return;
     try {
@@ -29,7 +29,7 @@ export async function render(main) {
       go('#/entrar');
       toast('Conta excluída. Seus dados foram apagados.');
     } catch (err) { if (!err.handled) toast(err.message, 'err'); }
-  });
+  }));
 
   const info = (k, v) => h('div', { class: 'kv' }, h('span', { class: 'kv__k' }, k), h('span', { class: 'kv__v', style: { fontSize: '15px' } }, v || '—'));
   main.append(h('div', { class: 'content', style: { maxWidth: '820px' } },

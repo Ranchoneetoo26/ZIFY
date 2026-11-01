@@ -69,6 +69,17 @@ public sealed class Profile : Entity
         Email = Guard.Optional(email),
     };
 
+    /// <summary>Dados básicos atuais. Quem atualiza só parte deles parte daqui (<c>with</c>) para não apagar o resto.</summary>
+    public ProfileBasicData ToBasicData() => new()
+    {
+        FullName = FullName, Email = Email, Phone = Phone, BirthDate = BirthDate, City = City, State = State, Country = Country, ZipCode = ZipCode,
+        LinkedinUrl = LinkedinUrl, GithubUrl = GithubUrl, PortfolioUrl = PortfolioUrl, Headline = Headline, Summary = Summary,
+        DesiredRoles = DesiredRoles, Areas = Areas, Seniority = Seniority, WorkModel = WorkModel, LocationPreference = LocationPreference,
+        Availability = Availability, SalaryExpectation = SalaryExpectation, AvailableToTravel = AvailableToTravel, AvailableToRelocate = AvailableToRelocate,
+        ContractTypes = ContractTypes, HasDriverLicense = HasDriverLicense, DriverLicenseCategory = DriverLicenseCategory,
+        WorkArea = WorkArea, ProfessionalRegistration = ProfessionalRegistration, SalaryType = SalaryType,
+    };
+
     public void UpdateBasics(ProfileBasicData d)
     {
         if (d.SalaryExpectation is < 0)

@@ -38,7 +38,8 @@ export const joinList = (xs) => (xs && xs.length ? [...new Set(xs.map((x) => x.t
 export function toUrl(v) {
   const s = String(v || '').trim();
   if (!s) return null;
-  return /^https?:\/\//i.test(s) ? s : `https://${s.replace(/^\/+/, '')}`;
+  // Outro protocolo (ftp://) fica como está: quem valida recusa, em vez de virar https://ftp://…
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : `https://${s.replace(/^\/+/, '')}`;
 }
 
 // ---------- Onboarding (GET/PUT /onboarding) ----------
@@ -60,14 +61,14 @@ export async function getOnboarding() {
   }
 }
 
-export async function saveOnboarding(state, completed = false) {
+export async function saveOnboarding(state, completed = false, opts = {}) {
   // A API só aceita ids de pergunta; telas de abertura/fim viram null/"combinados".
   const last = state.lastStep === 'fim' ? 'combinados' : STEP_IDS.includes(state.lastStep) ? state.lastStep : null;
   const clean = (xs) => [...new Set(xs)].filter((x) => STEP_IDS.includes(x));
   const body = { answered: clean(state.answered), skipped: clean(state.skipped), lastStep: last, completed: Boolean(completed || state.completedAt) };
   try { sessionStorage.setItem(OB_KEY, JSON.stringify({ ...body, lastStep: state.lastStep, completedAt: completed ? new Date().toISOString() : state.completedAt })); } catch { /* sem armazenamento */ }
   if (!obAvailable) return body;
-  try { return await api('/onboarding', { method: 'PUT', body }); } catch (e) {
+  try { return await api('/onboarding', { method: 'PUT', body, ...opts }); } catch (e) {
     if (e.status === 404 || e.status === 405) { obAvailable = false; return body; }
     throw e;
   }
@@ -83,18 +84,27 @@ export async function markAnswered(stepId) {
   return ob;
 }
 
+/**
+ * Tira de "para depois" o que já tem dado (`answered`) ou deixou de existir para a área (`dropped`).
+ * Só grava se algo mudou. Falha aqui não é grave: a pendência já é calculada pelo dado real.
+ */
+export async function settleSkipped(ob, answered, dropped = []) {
+  if (!answered.length && !dropped.length) return ob;
+  const gone = new Set([...answered, ...dropped]);
+  const next = { ...ob, answered: [...new Set([...ob.answered, ...answered])], skipped: ob.skipped.filter((s) => !gone.has(s)) };
+  await saveOnboarding(next).catch(() => {});
+  return next;
+}
+
 // ---------- Plano e uso (GET /billing) ----------
 let billingCache = null;
 let billingAt = 0;
 export async function getBilling(force = false) {
   if (!force && billingCache && Date.now() - billingAt < 30_000) return billingCache;
-  try {
-    billingCache = await api('/billing');
-    billingAt = Date.now();
-  } catch (e) {
-    if (e.status === 401) throw e;
-    billingCache = null;
-  }
+  billingCache = null;
+  // Sem cache de erro e sem engolir a falha: quem chama decide o que mostrar, e nunca afirma plano sem dado.
+  billingCache = await api('/billing');
+  billingAt = Date.now();
   return billingCache;
 }
 export const invalidateBilling = () => { billingCache = null; };

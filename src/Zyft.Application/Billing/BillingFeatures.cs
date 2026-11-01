@@ -110,7 +110,7 @@ public sealed record SubscribeCommand(string? Period) : IRequest<BillingDto>;
 public sealed class SubscribeValidator : AbstractValidator<SubscribeCommand>
 {
     public SubscribeValidator() =>
-        RuleFor(x => x.Period).Must(p => p is "monthly" or "yearly").WithMessage("Informe period: monthly ou yearly.");
+        RuleFor(x => x.Period).Must(p => p is "monthly" or "yearly").WithMessage("Informe o período: monthly ou yearly.");
 }
 
 public sealed class SubscribeHandler(BillingState state, IRepository<AuditEvent> audit, ICurrentUser current, IUnitOfWork uow, IClock clock)

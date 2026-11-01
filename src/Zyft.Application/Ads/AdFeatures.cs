@@ -38,7 +38,7 @@ public sealed class GetAdValidator : AbstractValidator<GetAdQuery>
 {
     public GetAdValidator()
     {
-        RuleFor(x => x.Placement).NotEmpty().WithMessage("Informe placement.").MaximumLength(60);
+        RuleFor(x => x.Placement).NotEmpty().WithMessage("Informe a posição do anúncio.").MaximumLength(60);
         RuleFor(x => x.Topic).MaximumLength(500);
     }
 }
@@ -111,7 +111,7 @@ public sealed record HideAdCommand : IRequest<Unit>
 public sealed class HideAdValidator : AbstractValidator<HideAdCommand>
 {
     public HideAdValidator() =>
-        RuleFor(x => x.Scope).Must(s => s is null or "ad" or "topic").WithMessage("scope deve ser \"ad\" ou \"topic\".");
+        RuleFor(x => x.Scope).Must(s => s is null or "ad" or "topic").WithMessage("A opção deve ser \"ad\" ou \"topic\".");
 }
 
 public sealed class HideAdHandler(IRepository<AdHide> hides, IRepository<AuditEvent> audit, ICurrentUser current, IUnitOfWork uow, IClock clock)

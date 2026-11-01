@@ -4,6 +4,18 @@ Mudanças relevantes do projeto. O formato segue o [Keep a Changelog](https://ke
 
 ## [Não lançado]
 
+### Corrigido (QA completo de telas e fluxos, 01/11/2026)
+- Perda de dados: importar currículo apagava área de atuação, registro profissional e tipo de pretensão; concluir **Competências** no onboarding apagava as ferramentas salvas; desligar o consentimento de dados sensíveis apagava tudo sem confirmar; limpar anotações da candidatura dizia que salvou e não limpava.
+- Valores errados: `parseMoney` e `parseHours` únicas em `web/js/validate.js`. `4.500` agora é 4500, negativo, notação científica e texto dão erro no campo, e campo numérico inválido não vira nulo. "Adicionar outra" no onboarding não copia dados da experiência anterior.
+- Sessão e navegação: telas não se misturam mais com rede lenta nem depois de sair (`.route-stage` em `web/js/app.js`); erro passageiro no refresh mantém a sessão; sessão expirada avisa e volta à rota anterior; `fetch` com tempo limite; modal fecha ao trocar de rota e pergunta antes de descartar edição. Sair limpa os rascunhos da aba.
+- Planos: falha em `GET /billing` mostra erro e nunca afirma plano ou teste usado sem dado. Importação retoma a revisão pendente (`GET /resume-imports/pending`) e não gasta cota com F5. **Registro de ações** tem "Carregar mais".
+- Validação: sites autorizados usam a mesma regra de origem da API; mensagens de validação do backend sempre em português; e-mail malformado e texto só com caracteres invisíveis são recusados. No `PUT /profile`, o formato estrito de e-mail, telefone e URL só vale para o que mudou, para dado antigo não travar o salvamento.
+- Máscaras: Backspace e Delete atravessam o separador, o cursor fica no lugar e colar não corrompe telefone nem UF. Dado sensível trancado não revela letras e editar exige destrancar. Pendências do perfil olham o dado real.
+- Interface: toast visível sobre o modal e legível em 320 px, formulário de login na primeira dobra do celular, estados de carregando, foco preservado, setas em grupos de opção, e páginas `web/legal/` (rascunho) com link no cadastro.
+
+### Alterado no contrato da API
+- `POST /resume-imports/{id}/apply` devolve `added` e `skipped`. `PUT /answers/{id}` responde 409 `answer.duplicated` para pergunta de outra resposta. Pretensão negativa passa de 422 para 400.
+
 ### Corrigido (QA de caos, 01/11/2026)
 - Perda de dados nas máscaras: `enhanceInput` (`web/js/dom.js`) reescrevia o valor ao carregar, e abrir **Sobre você** e salvar sem tocar gravava `+55 44 99999-1111` como `(55) 44999-9911`, `Paraná` como `PA`, `1234-567 PT` como `12345-67` e `ACC` como `AC`. Agora o valor recebido nunca muda: se ele não bate com o formato da máscara, o campo fica sem máscara e com o limite da API, no perfil, no onboarding e na revisão da importação.
 - Telefone: valor começando com `+` é internacional, não é formatado e vai até 40 caracteres. Texto colado chega inteiro à máscara, sem o corte do `maxlength`. O teclado do celular passa a ser `tel`, que tem a tecla `+`.

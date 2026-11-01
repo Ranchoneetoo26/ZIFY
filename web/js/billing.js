@@ -1,7 +1,7 @@
 // Planos e limites (contrato v2). O diálogo do 402 plan.limit_reached vale para qualquer chamada.
 // Pagamento é simulado: a interface diz isso de forma discreta.
 import { api, onLimitReached } from './api.js';
-import { h, modal, toast, announce, clear, fmtDate } from './dom.js';
+import { h, modal, toast, announce, clear, fmtDate, busy } from './dom.js';
 import { Button, LinkButton, Icon, UsageMeter } from './ui.js';
 import { getBilling, invalidateBilling } from './store.js';
 import { fetchAd } from './ads.js';
@@ -13,17 +13,18 @@ export const RESOURCES = {
   aiSuggestions: { label: 'Sugestões de texto com IA', unit: 'sugestões de texto com IA' },
   jobAnalyses: { label: 'Análises de vaga', unit: 'análises de vaga' },
   resumeImports: { label: 'Importações de currículo', unit: 'importações de currículo' },
-  answers: { label: 'Respostas no banco', unit: 'respostas no banco' },
-  devices: { label: 'Navegadores conectados', unit: 'navegadores conectados' },
+  // `total`: o limite conta o que existe hoje, não o uso do mês. Nunca recomeça sozinho.
+  answers: { label: 'Respostas no banco', unit: 'respostas no banco', total: true, free: 'Exclua uma resposta para liberar espaço ou conheça o Plus.' },
+  devices: { label: 'Navegadores conectados', unit: 'navegadores conectados', total: true, free: 'Desconecte um navegador para liberar espaço ou conheça o Plus.' },
 };
 
 export const money = (n) => Number(n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 /** "Recomeça em 1º de novembro." */
-export function resetNote() {
+export function resetNote(lead = 'Recomeça') {
   const d = new Date();
   const next = new Date(d.getFullYear(), d.getMonth() + 1, 1);
-  return `Recomeça em 1º de ${next.toLocaleDateString('pt-BR', { month: 'long' })}.`;
+  return `${lead} em 1º de ${next.toLocaleDateString('pt-BR', { month: 'long' })}.`;
 }
 
 export const isPlus = (b) => b?.plan === 'plus';
@@ -36,7 +37,7 @@ export const trialDays = (b) => b?.trialDays || 7;
 export function usageMeterFor(b, key, label) {
   const u = b?.usage?.[key];
   if (!u) return null;
-  return UsageMeter({ used: u.used ?? 0, limit: u.limit ?? null, bonus: u.bonus || 0, label: label || RESOURCES[key]?.label, note: u.limit == null ? null : resetNote() });
+  return UsageMeter({ used: u.used ?? 0, limit: u.limit ?? null, bonus: u.bonus || 0, label: label || RESOURCES[key]?.label, note: u.limit == null || RESOURCES[key]?.total ? null : resetNote() });
 }
 
 export async function buyPack() {
@@ -67,18 +68,22 @@ export async function showLimitDialog(err) {
   const canReward = resource === 'assistedApplications' && (!rw || (rw.claimedThisMonth ?? 0) < (rw.maxPerMonth ?? 3));
   const packHelps = ['assistedApplications', 'aiSuggestions'].includes(resource);
 
+  const heading = info.total ? 'Você chegou ao limite do seu plano' : 'Você chegou ao limite deste mês';
+  const period = info.total ? '' : ' neste mês';
+  const next = info.total ? info.free : resetNote();
+
   const offerSlot = h('div', { class: 'stack' });
   const options = h('div', { class: 'limit-options' });
   const body = h('div', { class: 'stack' },
     h('p', {}, used != null && limit != null
-      ? `Você usou ${used} de ${limit} ${info.unit} do plano gratuito neste mês. ${resetNote()}`
-      : `Você chegou ao limite de ${info.unit} do seu plano neste mês. ${resetNote()}`),
+      ? `Você usou ${used} de ${limit} ${info.unit} do plano gratuito${period}. ${next}`
+      : `Você chegou ao limite de ${info.unit} do seu plano${period}. ${next}`),
     h('p', { class: 'muted' }, 'Nada do seu perfil se perde. Se quiser continuar agora, escolha uma opção:'),
     options, offerSlot,
     h('p', { class: 'demo-note' }, Icon('shield', { size: 14 }), DEMO_NOTE));
 
   const later = Button({ variant: 'ghost' }, 'Agora não');
-  const m = modal({ title: 'Você chegou ao limite deste mês', body, actions: [later] });
+  const m = modal({ title: heading, body, actions: [later] });
   m.dlg.classList.add('modal--limit');
   later.addEventListener('click', () => m.close());
 
@@ -110,15 +115,14 @@ export async function showLimitDialog(err) {
   }
   if (packHelps) {
     const btn = Button({ variant: 'quiet', size: 'sm' }, `Comprar por ${money(b?.prices?.pack ?? 4.9)}`);
-    btn.addEventListener('click', async () => {
-      btn.disabled = true;
-      try { await buyPack(); m.close(); } catch (e) { btn.disabled = false; if (!e.handled) toast(e.message, 'err'); }
-    });
+    btn.addEventListener('click', () => busy(btn, async () => {
+      try { await buyPack(); m.close(); } catch (e) { if (!e.handled) toast(e.message, 'err'); }
+    }));
     options.append(option('Pacote avulso', '+15 candidaturas assistidas e +10 sugestões de IA, válido por 60 dias. Pagamento único.', btn));
   }
   options.append(option('Zyft Plus', `Sem limites e sem anúncios. ${money(b?.prices?.plusMonthly ?? 9.9)}/mês${trialAvailable(b) ? `, ${trialDays(b)} dias grátis` : ''}.`,
     LinkButton('#/planos', { variant: 'primary', size: 'sm', onclick: () => m.close() }, 'Conhecer o Plus')));
-  announce('Você chegou ao limite deste mês. Veja as opções.');
+  announce(`${heading}. Veja as opções.`);
 }
 
 onLimitReached((err) => { showLimitDialog(err); });
