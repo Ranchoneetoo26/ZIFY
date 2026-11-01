@@ -42,7 +42,7 @@ function loginForm() {
   const submit = Button({ variant: 'primary', type: 'submit' }, 'Entrar');
   const form = h('form', { novalidate: true, 'aria-labelledby': 'auth-title' },
     h('h1', { id: 'auth-title', class: 'auth__h2' }, 'Que bom ver você de novo'),
-    field({ name: 'email', label: 'E-mail', type: 'email', required: true, attrs: { autocomplete: 'email', inputmode: 'email' } }),
+    field({ name: 'email', label: 'E-mail', type: 'email', required: true, attrs: { autocomplete: 'email', inputmode: 'email', maxlength: 254 } }),
     field({ name: 'password', label: 'Senha', type: 'password', required: true, attrs: { autocomplete: 'current-password' } }),
     submit);
   form.addEventListener('submit', async (e) => {
@@ -71,7 +71,7 @@ function signupForm() {
   const form = h('form', { novalidate: true, 'aria-labelledby': 'auth-title' },
     h('h1', { id: 'auth-title', class: 'auth__h2' }, 'Crie sua conta'),
     field({ name: 'name', label: 'Nome', required: true, attrs: { autocomplete: 'name', maxlength: 120 } }),
-    field({ name: 'email', label: 'E-mail', type: 'email', required: true, placeholder: 'voce@email.com', attrs: { autocomplete: 'email', inputmode: 'email' } }),
+    field({ name: 'email', label: 'E-mail', type: 'email', required: true, placeholder: 'voce@email.com', attrs: { autocomplete: 'email', inputmode: 'email', maxlength: 254 } }),
     field({ name: 'password', label: 'Senha', type: 'password', required: true, hint: 'Pelo menos 8 caracteres, com letra e número.', attrs: { autocomplete: 'new-password' } }),
     h('div', {},
       h('label', { class: 'check', for: 'terms' }, terms, h('span', {}, 'Li e aceito os termos de uso e a política de privacidade do Zyft.')),

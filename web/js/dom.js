@@ -43,6 +43,62 @@ export function clear(el, ...children) {
 let uid = 0;
 export const nextId = (p = 'f') => `${p}-${++uid}`;
 
+const MASKS = {
+  phone: (value) => {
+    const digits = String(value).replace(/\D/g, '').slice(0, 11);
+    if (!digits) return '';
+    if (digits.length <= 2) return `(${digits}`;
+    const split = digits.length > 10 ? 7 : 6;
+    return digits.length <= split
+      ? `(${digits.slice(0, 2)}) ${digits.slice(2)}`
+      : `(${digits.slice(0, 2)}) ${digits.slice(2, split)}-${digits.slice(split)}`;
+  },
+  cep: (value) => {
+    const digits = String(value).replace(/\D/g, '').slice(0, 8);
+    return digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
+  },
+  uf: (value) => String(value).replace(/[^a-z]/gi, '').slice(0, 2).toUpperCase(),
+  cnh: (value) => String(value).replace(/[^a-e]/gi, '').slice(0, 2).toUpperCase(),
+};
+
+const maskFor = (name, explicit) => {
+  if (explicit) return explicit;
+  if (name === 'phone' || /phone|telefone|cel/i.test(name)) return 'phone';
+  if (name === 'zipCode' || /cep|postal/i.test(name)) return 'cep';
+  if (name === 'state' || /uf/i.test(name)) return 'uf';
+  if (name === 'driverLicenseCategory' || /cnh/i.test(name)) return 'cnh';
+  return null;
+};
+
+export function enhanceInput(control, { name, mask, maxLength } = {}) {
+  const resolved = maskFor(name, mask);
+  if (!resolved || !MASKS[resolved]) return control;
+  const limits = { phone: 15, cep: 9, uf: 2, cnh: 2 };
+  control.maxLength = maxLength || limits[resolved];
+  control.inputMode = resolved === 'phone' || resolved === 'cep' ? 'numeric' : 'text';
+  const format = () => {
+    const before = control.value;
+    const position = control.selectionStart;
+    control.value = MASKS[resolved](before);
+    if (document.activeElement === control && position !== null) {
+      const next = Math.max(0, Math.min(control.value.length, position + control.value.length - before.length));
+      control.setSelectionRange(next, next);
+    }
+  };
+  control.addEventListener('input', format);
+  format();
+  return control;
+}
+
+export function characterCounter(control, maxLength) {
+  if (!maxLength) return null;
+  const counter = h('span', { class: 'zy-tf__counter', 'aria-live': 'polite' });
+  const update = () => { counter.textContent = `${control.value.length} / ${maxLength}`; };
+  control.addEventListener('input', update);
+  update();
+  return counter;
+}
+
 /** Mensagem para leitores de tela (aria-live polite). */
 export function announce(msg) {
   const live = $('#live');
@@ -111,12 +167,15 @@ export function field(opts) {
   } else {
     control = h('input', { ...common, class: 'zy-tf__input', type: opts.type || 'text', value: opts.value ?? '' });
   }
+  const maxLength = Number(control.getAttribute('maxlength')) || null;
+  if (control.matches('input, textarea')) enhanceInput(control, { name: opts.name, mask: opts.mask, maxLength });
 
   return h('div', { class: `zy-tf ${opts.wide ? 'wide' : ''}` },
     h('label', { class: 'zy-tf__label', for: id }, opts.label,
       opts.optional ? h('span', { class: 'zy-tf__opt' }, ' (opcional)') : null),
     control,
     opts.hint ? h('p', { class: 'zy-tf__hint', id: hintId }, opts.hint) : null,
+    characterCounter(control, maxLength),
     h('p', { class: 'zy-tf__error', id: errId, hidden: true }));
 }
 

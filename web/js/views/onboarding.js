@@ -2,7 +2,7 @@
 // ficar para depois. As respostas vão para os endpoints do perfil; /onboarding guarda só o progresso.
 // Sem anúncios nesta tela.
 import { api, asList } from '../api.js';
-import { h, clear, announce, toast, showErrors, clearErrors, go, nextId } from '../dom.js';
+import { h, clear, announce, toast, showErrors, clearErrors, go, nextId, enhanceInput, characterCounter } from '../dom.js';
 import { Button, LinkButton, Icon, Logo, Chip, ConsentRow, initials } from '../ui.js';
 import { loadAreas, areaOrOther, findArea, OTHER } from '../catalog.js';
 import { getProfile, saveBasics, getOnboarding, saveOnboarding, splitList, joinList, toUrl } from '../store.js';
@@ -29,9 +29,16 @@ export const STEP_SHORT = {
   idiomas: 'Idiomas', titulo: 'Título profissional', resumo: 'Resumo', combinados: 'Combinados',
 };
 
-const T = (key, label, ph, opts = {}) => ({ t: 'input', key, label, ph: ph || '', ...opts });
+const T = (key, label, ph, opts = {}) => ({
+  t: 'input',
+  key,
+  label,
+  ph: ph || '',
+  max: opts.max ?? (opts.type === 'email' ? 254 : opts.type === 'url' ? 2048 : opts.type === 'date' || opts.type === 'month' ? null : 150),
+  ...opts,
+});
 const S = (key, label, options, opts = {}) => ({ t: 'select', key, label, options, ...opts });
-const X = (key, label, ph) => ({ t: 'area', key, label, ph, span: true });
+const X = (key, label, ph, opts = {}) => ({ t: 'area', key, label, ph, span: true, max: 4000, ...opts });
 const opts = (list) => list.filter(([v]) => v !== '');
 
 function buildSteps(A) {
@@ -40,8 +47,8 @@ function buildSteps(A) {
     { id: 'inicio', kind: 'start' },
     { id: 'nome', ch: 1, kind: 'text', q: 'Como você se chama?', hint: 'É assim que o seu nome vai aparecer nos formulários.', fields: [T('fullName', 'Nome completo', 'Nome e sobrenome', { span: true, auto: 'name' })] },
     { id: 'nascimento', ch: 1, kind: 'text', q: 'Quando você nasceu?', hint: 'Muitos formulários pedem. Fica só no seu perfil.', fields: [T('birthDate', 'Data de nascimento', '', { type: 'date', auto: 'bday' })] },
-    { id: 'contato', ch: 1, kind: 'text', q: 'Como as empresas falam com você?', hint: 'Use o telefone e o e-mail que você confere todo dia.', fields: [T('phone', 'Telefone com DDD', '(00) 00000-0000', { type: 'tel', auto: 'tel' }), T('email', 'E-mail de contato', 'voce@email.com', { type: 'email', auto: 'email' })] },
-    { id: 'endereco', ch: 1, kind: 'text', q: 'Onde você mora?', hint: 'Só cidade e CEP. Dados que você considera sensíveis ficam trancados em Dados sensíveis, no perfil.', fields: [T('city', 'Cidade', 'Ex.: Belo Horizonte', { auto: 'address-level2' }), T('state', 'Estado (UF)', 'Ex.: MG', { auto: 'address-level1' }), T('country', 'País', '', { auto: 'country-name' }), T('zipCode', 'CEP', '00000-000', { auto: 'postal-code', mode: 'numeric' })] },
+    { id: 'contato', ch: 1, kind: 'text', q: 'Como as empresas falam com você?', hint: 'Use o telefone e o e-mail que você confere todo dia.', fields: [T('phone', 'Telefone com DDD', '(00) 00000-0000', { type: 'tel', auto: 'tel', mask: 'phone', max: 15 }), T('email', 'E-mail de contato', 'voce@email.com', { type: 'email', auto: 'email', max: 254 })] },
+    { id: 'endereco', ch: 1, kind: 'text', q: 'Onde você mora?', hint: 'Só cidade e CEP. Dados que você considera sensíveis ficam trancados em Dados sensíveis, no perfil.', fields: [T('city', 'Cidade', 'Ex.: Belo Horizonte', { auto: 'address-level2', max: 100 }), T('state', 'Estado (UF)', 'Ex.: MG', { auto: 'address-level1', mask: 'uf', max: 2 }), T('country', 'País', '', { auto: 'country-name', max: 60 }), T('zipCode', 'CEP', '00000-000', { auto: 'postal-code', mode: 'numeric', mask: 'cep', max: 9 })] },
     { id: 'area', ch: 2, kind: 'single', key: 'area', q: 'Em que área você trabalha ou quer trabalhar?', hint: 'As próximas perguntas e sugestões se adaptam à sua área.' },
     { id: 'cargos', ch: 2, kind: 'multi', key: 'roles', q: 'Que vagas você está buscando?', hint: 'Escolha quantas quiser ou escreva o nome do cargo do seu jeito.', options: A.roles, customLabel: 'Outro cargo', customPh: 'Ex.: Cuidador(a) de idosos' },
     { id: 'setores', ch: 2, kind: 'multi', key: 'sectors', q: 'Em que tipo de empresa ou setor?', hint: 'Ajuda a extensão quando o formulário pergunta por área de interesse.', options: A.sectors, customLabel: 'Outro setor', customPh: 'Ex.: Hotelaria' },
@@ -57,7 +64,7 @@ function buildSteps(A) {
     { id: 'local', ch: 3, kind: 'text', q: 'Onde você aceita trabalhar?', hint: 'Cidades, regiões ou "qualquer lugar".', fields: [T('locationPreference', 'Localidades', 'Ex.: Belo Horizonte e região', { span: true })] },
     { id: 'contrato', ch: 3, kind: 'multi', key: 'contracts', q: 'Que tipo de contrato você aceita?', hint: 'Marque todos que servem.', options: ['CLT', 'PJ', 'Estágio', 'Jovem aprendiz', 'Temporário', 'Freelancer', 'Plantão / escala'], customLabel: 'Outro tipo', customPh: 'Ex.: Cooperado', noSuggestTitle: true },
     { id: 'disponibilidade', ch: 3, kind: 'single', key: 'avail', q: 'Quando você pode começar?', hint: '', options: [['Imediatamente', ''], ['Em 15 dias', ''], ['Em 30 dias', ''], ['A combinar', '']] },
-    { id: 'salario', ch: 3, kind: 'text', q: 'Quanto você quer ganhar?', hint: 'Fica só no seu perfil e só vai para um formulário se você aprovar. Pode deixar para depois.', fields: [T('salaryExpectation', 'Valor mensal', 'R$ 0,00', { mode: 'decimal' }), S('salaryType', 'Tipo', [['CLT (bruto)', 'CLT (bruto)'], ['PJ', 'PJ'], ['Por hora', 'Por hora'], ['Por plantão', 'Por plantão']])] },
+    { id: 'salario', ch: 3, kind: 'text', q: 'Quanto você quer ganhar?', hint: 'Fica só no seu perfil e só vai para um formulário se você aprovar. Pode deixar para depois.', fields: [T('salaryExpectation', 'Valor mensal', 'R$ 0,00', { mode: 'decimal', max: 12 }), S('salaryType', 'Tipo', [['CLT (bruto)', 'CLT (bruto)'], ['PJ', 'PJ'], ['Por hora', 'Por hora'], ['Por plantão', 'Por plantão']])] },
     { id: 'mobilidade', ch: 3, kind: 'rows', q: 'E sobre deslocamento?', hint: 'Três respostas rápidas.', rows: [['travel', 'Topa viajar a trabalho?', ['Sim', 'Às vezes', 'Não']], ['move', 'Mudaria de cidade?', ['Sim', 'Talvez', 'Não']], ['cnh', 'Tem CNH?', ['Não tenho', 'A', 'B', 'AB', 'C', 'D', 'E']]] },
     { id: 'experiencia', ch: 4, kind: 'text', exp: true, addMore: 'Adicionar outra experiência', q: 'Onde você trabalha ou trabalhou por último?', hint: 'Vale estágio, freela, trabalho voluntário ou negócio próprio.', fields: [T('company', 'Empresa ou lugar', 'Ex.: Hospital Santa Clara'), T('role', 'Cargo ou função', A.roles[0] ? `Ex.: ${A.roles[0]}` : ''), T('startDate', 'Início', 'aaaa-mm', { type: 'month' }), T('endDate', 'Fim', 'aaaa-mm', { type: 'month' })] },
     { id: 'diaadia', ch: 4, kind: 'text', q: 'O que você fazia lá, e o que deu certo?', hint: 'Números ajudam: pessoas atendidas, metas, prazos. Escreva como você falaria.', fields: [X('activities', 'No dia a dia', 'Ex.: Atendia 30 pacientes por plantão…'), X('results', 'Um resultado de que você se orgulha', 'Ex.: Reduzi o tempo de triagem…')] },
@@ -410,10 +417,11 @@ export async function render(main, { step: startAt, me }) {
       control.value = st.a[key] || f.options[0][0];
       st.a[key] = control.value;
     } else if (f.t === 'area') {
-      control = h('textarea', { id, name: key, rows: 4, class: 'zy-tf__input', placeholder: f.ph, 'aria-describedby': `${id}-err`, maxlength: 4000 });
+      control = h('textarea', { id, name: key, rows: 4, class: 'zy-tf__input', placeholder: f.ph, 'aria-describedby': `${id}-err`, maxlength: f.max || 4000 });
       control.value = st.a[key] || '';
     } else {
-      control = h('input', { id, name: key, type: f.type || 'text', class: 'zy-tf__input', placeholder: f.ph, value: st.a[key] || '', autocomplete: f.auto || null, inputmode: f.mode || null, 'aria-describedby': `${id}-err` });
+      control = h('input', { id, name: key, type: f.type || 'text', class: 'zy-tf__input', placeholder: f.ph, value: st.a[key] || '', autocomplete: f.auto || null, inputmode: f.mode || null, maxlength: f.max || null, 'aria-describedby': `${id}-err` });
+      enhanceInput(control, { name: key, mask: f.mask, maxLength: f.max });
       if (key === 'endDate') control.disabled = st.current;
     }
     control.addEventListener(f.t === 'select' ? 'change' : 'input', () => {
@@ -422,7 +430,7 @@ export async function render(main, { step: startAt, me }) {
       if (key === 'fullName') paintAside();
     });
     return h('div', { class: `zy-tf ${f.span ? 'span2' : ''}` },
-      h('label', { class: 'zy-tf__label', for: id }, f.label), control, h('p', { class: 'zy-tf__error', id: `${id}-err`, hidden: true }));
+      h('label', { class: 'zy-tf__label', for: id }, f.label), control, characterCounter(control, f.max), h('p', { class: 'zy-tf__error', id: `${id}-err`, hidden: true }));
   };
 
   const customAdder = (s, onAdd, label, ph) => {
