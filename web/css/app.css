@@ -2,7 +2,7 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; font-family: var(--font-sans); font-size: 15px; line-height: 22px; background: var(--surface); color: var(--ink); -webkit-font-smoothing: antialiased; }
+body { margin: 0; font-family: var(--font-sans); font-size: 15px; line-height: 22px; background: var(--surface); color: var(--ink); -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; }
 img, svg { max-width: 100%; }
 a { color: var(--link); text-underline-offset: 2px; }
 a:hover { color: var(--ink-muted); }
@@ -108,9 +108,9 @@ select.zy-tf__input { appearance: auto; }
 /* Chips e pílulas */
 .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .chip { font: inherit; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; border-radius: var(--radius-pill); border: 1.5px solid var(--line-strong); background: var(--surface-raised); color: var(--ink); cursor: pointer; }
-.chip--md { height: 32px; padding: 0 12px; font-size: 14px; }
-.chip--sm { height: 30px; padding: 0 10px; font-size: 13px; }
-.chip--lg { height: 44px; padding: 0 18px; font-size: 15px; border-width: 2px; }
+.chip--md { min-height: 32px; padding: 3px 12px; font-size: 14px; }
+.chip--sm { min-height: 30px; padding: 2px 10px; font-size: 13px; }
+.chip--lg { min-height: 44px; padding: 8px 18px; font-size: 15px; border-width: 2px; }
 .chip.is-on { background: var(--zyft-soft); border-color: var(--petrol); }
 .chip--lg.is-on { background: var(--zyft); color: var(--on-zyft); }
 .chip.is-dashed { border-style: dashed; }
@@ -127,7 +127,8 @@ select.zy-tf__input { appearance: auto; }
 .dl-grid dd.is-empty { color: var(--ink-muted); font-weight: 400; font-style: italic; }
 
 /* Tabelas */
-.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* position: relative segura a <caption class="sr-only"> (absoluta) dentro da rolagem; sem isso ela alarga a página. */
+.table-wrap { position: relative; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .table { width: 100%; border-collapse: collapse; font-size: 14px; line-height: 20px; min-width: 640px; }
 .table th { text-align: left; color: var(--ink-muted); font-size: 12px; font-weight: 600; padding: 10px 12px; }
 .table td { padding: 12px; border-top: 1px solid var(--line); vertical-align: middle; }
@@ -299,10 +300,10 @@ dialog.modal::backdrop { background: rgba(10, 24, 28, .55); }
 .timeline__meta { font-size: 14px; line-height: 20px; color: var(--ink-muted); }
 .timeline__text { font-size: 14px; line-height: 21px; white-space: pre-line; }
 
-.skill { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: var(--radius-pill); border: 1.5px solid var(--line-strong); font-size: 14px; font-weight: 600; background: var(--surface-raised); color: var(--ink); cursor: pointer; }
+.skill { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 3px 12px; border-radius: var(--radius-pill); border: 1.5px solid var(--line-strong); font-size: 14px; font-weight: 600; background: var(--surface-raised); color: var(--ink); cursor: pointer; }
 .skill:hover { border-color: var(--ink); }
 .skill.is-new { border-color: var(--petrol); background: var(--zyft-soft); }
-.dots { display: inline-flex; gap: 2px; }
+.dots { flex: none; display: inline-flex; gap: 2px; }
 .dots > span { width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
 .dots > span.on { background: var(--petrol); }
 .suggest { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
@@ -381,7 +382,8 @@ dialog.modal::backdrop { background: rgba(10, 24, 28, .55); }
 /* ---------- Importar ---------- */
 .upload { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; padding: 16px 20px; border: 1.5px dashed var(--line-strong); border-radius: var(--radius-lg); background: var(--surface-raised); }
 .upload.is-over { border-color: var(--petrol); background: var(--zyft-soft); }
-.upload__info { display: flex; gap: 12px; align-items: center; }
+.upload__info { display: flex; gap: 12px; align-items: center; min-width: 0; }
+.upload__info > .stack { min-width: 0; }
 .upload__info b { display: block; }
 .upload input[type="file"] { font: inherit; font-size: 14px; max-width: 100%; }
 .conflict { background: var(--surface-raised); border: 1px solid var(--needs); border-radius: var(--radius-lg); overflow: hidden; }
@@ -477,6 +479,9 @@ details.howto p { margin-top: 8px; }
 .compare td:last-child { font-weight: 600; }
 .free-forever { background: var(--surface-sunken); border-radius: var(--radius-lg); padding: 20px 24px; display: flex; gap: 12px; align-items: flex-start; }
 .free-forever svg { margin-top: 3px; }
+
+/* O corpo quebra palavra longa (acima); estes filhos de flex e grid não podem exigir a largura do conteúdo. */
+.page-head__text, .pending__text, .profile-aside, .detail-cols > aside, .ob__progress, .passport, .me-card__who > div, .timeline__top > div { min-width: 0; }
 
 /* Espaços que ficam vazios (sem pendentes, sem anúncio) não abrem buraco no layout */
 .content > div:empty, .profile-aside > div:empty { display: none; }

@@ -4,6 +4,16 @@ Mudanças relevantes do projeto. O formato segue o [Keep a Changelog](https://ke
 
 ## [Não lançado]
 
+### Corrigido (QA de caos, 01/11/2026)
+- Perda de dados nas máscaras: `enhanceInput` (`web/js/dom.js`) reescrevia o valor ao carregar, e abrir **Sobre você** e salvar sem tocar gravava `+55 44 99999-1111` como `(55) 44999-9911`, `Paraná` como `PA`, `1234-567 PT` como `12345-67` e `ACC` como `AC`. Agora o valor recebido nunca muda: se ele não bate com o formato da máscara, o campo fica sem máscara e com o limite da API, no perfil, no onboarding e na revisão da importação.
+- Telefone: valor começando com `+` é internacional, não é formatado e vai até 40 caracteres. Texto colado chega inteiro à máscara, sem o corte do `maxlength`. O teclado do celular passa a ser `tel`, que tem a tecla `+`.
+- CNH: a máscara aceita `ACC`.
+- Contador de caracteres: lê o limite real do campo depois de `enhanceInput`, sem mostrar `6 / 2`.
+- Limites de `maxlength` do perfil e do onboarding alinhados aos validadores e às colunas da API, campo a campo, por exemplo `fullName` 160, `city` 120, `headline` 200, `activities` 4000 e `tools` 1000 (antes cortavam texto colado) e `workArea` 80, `seniority` 60 e nome de idioma 60 (antes a API devolvia 400). URLs do perfil ficam em 300, o tamanho da coluna. Valor de dado sensível passa a 200 e texto do banco de respostas a 5000, como na API. Carga horária acima de 10.000 é recusada antes de chamar a API.
+- Layout: texto longo sem espaços não abre mais rolagem horizontal. `overflow-wrap: anywhere` no `body`, `min-width: 0` nos filhos de flex e grid que faltavam, chips e competências com altura mínima em vez de fixa. A 320 px, a tela **Importar currículo** cabe mesmo com dados normais (o campo de arquivo empurrava a página), e a legenda oculta das tabelas não alarga mais **Extensão**.
+- Portal de demonstração: `obj_sal`, `q_sal` e `curso_horas` voltam a ser texto, porque `type=number` descartava `R$ 3.500,00` e `40h` enquanto a extensão relatava sucesso. O contador de `curriculo.html` saiu de dentro do `<label>`, que a extensão lia como `Nome completo *0 / 150`.
+- Documentação: frontend web 2.6.
+
 ### Corrigido (bugs de QA do Trello, 01/11/2026)
 - Senha: a API aceita letra de qualquer alfabeto (`\p{L}`), com ou sem acento, e a web usa a mesma regra; antes, `ãéíõçãé1` passava na web e voltava 400. A web também recusa mais de 128 caracteres antes de chamar a API, com `maxlength` no cadastro e no login, para que uma senha colada seja cortada igual nos dois (RF-01).
 - Cadastro: o 409 de e-mail já cadastrado aparece no campo e-mail, não em banner geral.

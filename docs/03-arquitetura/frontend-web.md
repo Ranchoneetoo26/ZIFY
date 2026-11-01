@@ -6,7 +6,7 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Arquitetura do frontend web |
-| Versão | 2.5 |
+| Versão | 2.6 |
 | Status | Vigente para a v2 do MVP 1, conferido contra o código em `web/` em 21/10/2026. As telas de planos e anúncios dependem do [ADR-0020](adr/0020-monetizacao-com-anuncios-e-planos.md) (proposto). |
 | Dono | Arquitetura de software, com o dev frontend (que acumula UX) |
 | Documentos relacionados | [Design system](design-system.md), [API](api.md), [Extensão](extensao.md), [Fluxos](../01-produto/fluxos.md), [DRP](../01-produto/drp.md), [Monetização](../01-produto/monetizacao.md), [ADR-0017](adr/0017-backend-em-csharp-dotnet-clean-architecture.md), [ADR-0018](adr/0018-onboarding-em-passos-com-perguntas-adiaveis.md), [ADR-0019](adr/0019-area-profissional-dinamica-e-campos-personalizados.md) |
@@ -22,6 +22,7 @@
 | 2.3 | 21/10/2026 | Correções da gravação do tour: `select` sem opção vazia nunca abre em branco (Tipo de curso = Curso); erros 400 com nome legível do campo (`fieldLabel`, `describeErrors`, `registerFieldLabels` em `api.js`); item incompleto da importação pede o campo que falta antes de **Aprovar** (`missingFields`); Planos lê `trialAvailable` e só oferece "7 dias grátis" quando disponível. |
 | 2.4 | 22/10/2026 | Rede de anúncios Google AdSense **simulada** ([ADR-0021](adr/0021-rede-de-anuncios-google-adsense.md)): `ads.js` desenha o bloco `<ins class="adsbygoogle">` quando `format === "network"`; novo `web/js/adsense.js` com `adsenseUnit` e `loadAdSense` (não carrega nada em modo mock). CSP inalterada (§6.1). |
 | 2.5 | 01/11/2026 | Correções de QA: senha validada igual à API (de 8 a 128 caracteres, letra de qualquer alfabeto), com `maxlength` no cadastro e no login; 409 do cadastro no campo e-mail; 401 do login como aviso do formulário e 400 sem virar "senha incorreta"; nome completo obrigatório no modal **Sobre você**; aviso de dado sensível só com `profile.custom_field_sensitive`; pretensão sem dígitos no onboarding fica como não informada; a coluna lateral do Perfil deixa de ser `<aside>`, porque o anúncio, que também é `<aside>`, ficava com um landmark dentro de outro (axe `landmark-complementary-is-top-level`). |
+| 2.6 | 01/11/2026 | Correções do QA de caos: `enhanceInput` nunca altera o valor recebido; valor fora do formato da máscara deixa o campo sem máscara e com o limite da API; telefone com `+` é internacional (até 40); CNH aceita `ACC`; `characterCounter` lê o `maxlength` real; limites do perfil e do onboarding alinhados aos validadores e às colunas da API; `overflow-wrap: anywhere` no `body` e `min-width: 0` em filhos de flex e grid, sem rolagem horizontal com texto longo; demos com salário e carga horária em texto e contador fora do `<label>`. |
 
 ## 1. Escopo
 
@@ -52,6 +53,7 @@ A plataforma web é onde a pessoa **prepara** as candidaturas: conta, Perfil Mes
 | Dados do servidor | Cliente único `web/js/api.js` | Bearer, renovação com rotação, ProblemDetails convertido em `ApiError`, desvio do 402 para o diálogo de limite. |
 | Estado compartilhado | `web/js/store.js` | Perfil (o `PUT /profile` substitui tudo, então o front sempre envia o conjunto completo de campos básicos), progresso do onboarding e cache de 30 s do `GET /billing`. |
 | Validação | `web/js/validate.js` | Espelha regras simples do backend para evitar idas e voltas; o backend continua sendo a fonte da verdade. |
+| Máscaras e limites | `enhanceInput` e `characterCounter` em `web/js/dom.js` | A máscara só atua no que a pessoa digita ou cola; o valor recebido nunca muda. Valor salvo fora do formato deixa o campo sem máscara, com o limite da API. Cada `maxlength` espelha o validador ou a coluna da API. |
 | Estilo | `web/css/tokens.css`, `components.css` e `app.css` | Tokens do design system em custom properties (claro, escuro por `prefers-color-scheme` ou `[data-theme]`), componentes `zy-*` e layout das telas. Fontes Archivo e JetBrains Mono vindas do Google Fonts. |
 | Testes | Playwright + Chromium; axe manual | Ver §9 |
 

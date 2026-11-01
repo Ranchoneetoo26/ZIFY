@@ -34,46 +34,48 @@ const T = (key, label, ph, opts = {}) => ({
   key,
   label,
   ph: ph || '',
-  max: opts.max ?? (opts.type === 'email' ? 254 : opts.type === 'url' ? 2048 : opts.type === 'date' || opts.type === 'month' ? null : 150),
+  max: opts.max ?? (opts.type === 'email' ? 254 : opts.type === 'url' ? 300 : null),
   ...opts,
 });
 const S = (key, label, options, opts = {}) => ({ t: 'select', key, label, options, ...opts });
 const X = (key, label, ph, opts = {}) => ({ t: 'area', key, label, ph, span: true, max: 4000, ...opts });
 const opts = (list) => list.filter(([v]) => v !== '');
+// Limite do campo adicionado à mão: o mesmo da coluna da API que recebe a lista.
+const CUSTOM_MAX = { roles: 500, sectors: 500, contracts: 200, tools: 1000, skills: 100 };
 
 function buildSteps(A) {
   const list = [
     { id: 'intro', kind: 'intro' },
     { id: 'inicio', kind: 'start' },
-    { id: 'nome', ch: 1, kind: 'text', q: 'Como você se chama?', hint: 'É assim que o seu nome vai aparecer nos formulários.', fields: [T('fullName', 'Nome completo', 'Nome e sobrenome', { span: true, auto: 'name' })] },
+    { id: 'nome', ch: 1, kind: 'text', q: 'Como você se chama?', hint: 'É assim que o seu nome vai aparecer nos formulários.', fields: [T('fullName', 'Nome completo', 'Nome e sobrenome', { span: true, auto: 'name', max: 160 })] },
     { id: 'nascimento', ch: 1, kind: 'text', q: 'Quando você nasceu?', hint: 'Muitos formulários pedem. Fica só no seu perfil.', fields: [T('birthDate', 'Data de nascimento', '', { type: 'date', auto: 'bday' })] },
     { id: 'contato', ch: 1, kind: 'text', q: 'Como as empresas falam com você?', hint: 'Use o telefone e o e-mail que você confere todo dia.', fields: [T('phone', 'Telefone com DDD', '(00) 00000-0000', { type: 'tel', auto: 'tel', mask: 'phone', max: 15 }), T('email', 'E-mail de contato', 'voce@email.com', { type: 'email', auto: 'email', max: 254 })] },
-    { id: 'endereco', ch: 1, kind: 'text', q: 'Onde você mora?', hint: 'Só cidade e CEP. Dados que você considera sensíveis ficam trancados em Dados sensíveis, no perfil.', fields: [T('city', 'Cidade', 'Ex.: Belo Horizonte', { auto: 'address-level2', max: 100 }), T('state', 'Estado (UF)', 'Ex.: MG', { auto: 'address-level1', mask: 'uf', max: 2 }), T('country', 'País', '', { auto: 'country-name', max: 60 }), T('zipCode', 'CEP', '00000-000', { auto: 'postal-code', mode: 'numeric', mask: 'cep', max: 9 })] },
+    { id: 'endereco', ch: 1, kind: 'text', q: 'Onde você mora?', hint: 'Só cidade e CEP. Dados que você considera sensíveis ficam trancados em Dados sensíveis, no perfil.', fields: [T('city', 'Cidade', 'Ex.: Belo Horizonte', { auto: 'address-level2', max: 120 }), T('state', 'Estado (UF)', 'Ex.: MG', { auto: 'address-level1', mask: 'uf', max: 2 }), T('country', 'País', '', { auto: 'country-name', max: 80 }), T('zipCode', 'CEP', '00000-000', { auto: 'postal-code', mode: 'numeric', mask: 'cep', max: 9 })] },
     { id: 'area', ch: 2, kind: 'single', key: 'area', q: 'Em que área você trabalha ou quer trabalhar?', hint: 'As próximas perguntas e sugestões se adaptam à sua área.' },
     { id: 'cargos', ch: 2, kind: 'multi', key: 'roles', q: 'Que vagas você está buscando?', hint: 'Escolha quantas quiser ou escreva o nome do cargo do seu jeito.', options: A.roles, customLabel: 'Outro cargo', customPh: 'Ex.: Cuidador(a) de idosos' },
     { id: 'setores', ch: 2, kind: 'multi', key: 'sectors', q: 'Em que tipo de empresa ou setor?', hint: 'Ajuda a extensão quando o formulário pergunta por área de interesse.', options: A.sectors, customLabel: 'Outro setor', customPh: 'Ex.: Hotelaria' },
   ];
-  if (A.registration) list.push({ id: 'registro', ch: 2, kind: 'text', q: 'Você tem registro ou certificação obrigatória?', hint: 'Na sua área, os formulários costumam pedir.', fields: [T('professionalRegistration', A.registration.label, A.registration.placeholder, { span: true })] });
+  if (A.registration) list.push({ id: 'registro', ch: 2, kind: 'text', q: 'Você tem registro ou certificação obrigatória?', hint: 'Na sua área, os formulários costumam pedir.', fields: [T('professionalRegistration', A.registration.label, A.registration.placeholder, { span: true, max: 120 })] });
   const links = [T('linkedinUrl', 'LinkedIn', 'linkedin.com/in/…', { type: 'url' })];
-  if (A.linkLabel) links.push(T('link2', A.linkLabel, '', { type: 'url' }));
+  if (A.linkLabel) links.push(T('link2', A.linkLabel, '', { type: 'url', max: A.linkLabel === 'GitHub' ? 300 : 500 }));
   links.push(T('portfolioUrl', 'Portfólio ou site', 'Opcional', { span: true, type: 'url' }));
   list.push(
     { id: 'links', ch: 2, kind: 'text', q: 'Onde as empresas podem ver seu trabalho?', hint: 'Coloque só os que você mantém atualizados.', fields: links },
     { id: 'nivel', ch: 3, kind: 'single', key: 'level', q: 'Em que momento da carreira você está?', hint: 'Vale para qualquer área.', options: [['Primeiro emprego', 'Ainda sem experiência formal'], ['Estágio ou aprendiz', 'Estudando e trabalhando'], ['Júnior ou assistente', 'Até 2 anos'], ['Pleno ou analista', 'De 2 a 5 anos'], ['Sênior', 'Mais de 5 anos'], ['Liderança', 'Coordena pessoas ou equipes']] },
     { id: 'modelo', ch: 3, kind: 'single', key: 'mode', q: 'Como você prefere trabalhar?', hint: 'Escolha o que mais combina.', options: [['Presencial', 'No local todos os dias'], ['Híbrido', 'Alguns dias no local'], ['Remoto', 'De casa'], ['Tanto faz', 'Depende da vaga']] },
-    { id: 'local', ch: 3, kind: 'text', q: 'Onde você aceita trabalhar?', hint: 'Cidades, regiões ou "qualquer lugar".', fields: [T('locationPreference', 'Localidades', 'Ex.: Belo Horizonte e região', { span: true })] },
+    { id: 'local', ch: 3, kind: 'text', q: 'Onde você aceita trabalhar?', hint: 'Cidades, regiões ou "qualquer lugar".', fields: [T('locationPreference', 'Localidades', 'Ex.: Belo Horizonte e região', { span: true, max: 200 })] },
     { id: 'contrato', ch: 3, kind: 'multi', key: 'contracts', q: 'Que tipo de contrato você aceita?', hint: 'Marque todos que servem.', options: ['CLT', 'PJ', 'Estágio', 'Jovem aprendiz', 'Temporário', 'Freelancer', 'Plantão / escala'], customLabel: 'Outro tipo', customPh: 'Ex.: Cooperado', noSuggestTitle: true },
     { id: 'disponibilidade', ch: 3, kind: 'single', key: 'avail', q: 'Quando você pode começar?', hint: '', options: [['Imediatamente', ''], ['Em 15 dias', ''], ['Em 30 dias', ''], ['A combinar', '']] },
-    { id: 'salario', ch: 3, kind: 'text', q: 'Quanto você quer ganhar?', hint: 'Fica só no seu perfil e só vai para um formulário se você aprovar. Pode deixar para depois.', fields: [T('salaryExpectation', 'Valor mensal', 'R$ 0,00', { mode: 'decimal', max: 12 }), S('salaryType', 'Tipo', [['CLT (bruto)', 'CLT (bruto)'], ['PJ', 'PJ'], ['Por hora', 'Por hora'], ['Por plantão', 'Por plantão']])] },
+    { id: 'salario', ch: 3, kind: 'text', q: 'Quanto você quer ganhar?', hint: 'Fica só no seu perfil e só vai para um formulário se você aprovar. Pode deixar para depois.', fields: [T('salaryExpectation', 'Valor mensal', 'R$ 0,00', { mode: 'decimal', max: 17 }), S('salaryType', 'Tipo', [['CLT (bruto)', 'CLT (bruto)'], ['PJ', 'PJ'], ['Por hora', 'Por hora'], ['Por plantão', 'Por plantão']])] },
     { id: 'mobilidade', ch: 3, kind: 'rows', q: 'E sobre deslocamento?', hint: 'Três respostas rápidas.', rows: [['travel', 'Topa viajar a trabalho?', ['Sim', 'Às vezes', 'Não']], ['move', 'Mudaria de cidade?', ['Sim', 'Talvez', 'Não']], ['cnh', 'Tem CNH?', ['Não tenho', 'A', 'B', 'AB', 'C', 'D', 'E']]] },
-    { id: 'experiencia', ch: 4, kind: 'text', exp: true, addMore: 'Adicionar outra experiência', q: 'Onde você trabalha ou trabalhou por último?', hint: 'Vale estágio, freela, trabalho voluntário ou negócio próprio.', fields: [T('company', 'Empresa ou lugar', 'Ex.: Hospital Santa Clara'), T('role', 'Cargo ou função', A.roles[0] ? `Ex.: ${A.roles[0]}` : ''), T('startDate', 'Início', 'aaaa-mm', { type: 'month' }), T('endDate', 'Fim', 'aaaa-mm', { type: 'month' })] },
+    { id: 'experiencia', ch: 4, kind: 'text', exp: true, addMore: 'Adicionar outra experiência', q: 'Onde você trabalha ou trabalhou por último?', hint: 'Vale estágio, freela, trabalho voluntário ou negócio próprio.', fields: [T('company', 'Empresa ou lugar', 'Ex.: Hospital Santa Clara', { max: 200 }), T('role', 'Cargo ou função', A.roles[0] ? `Ex.: ${A.roles[0]}` : '', { max: 200 }), T('startDate', 'Início', 'aaaa-mm', { type: 'month' }), T('endDate', 'Fim', 'aaaa-mm', { type: 'month' })] },
     { id: 'diaadia', ch: 4, kind: 'text', q: 'O que você fazia lá, e o que deu certo?', hint: 'Números ajudam: pessoas atendidas, metas, prazos. Escreva como você falaria.', fields: [X('activities', 'No dia a dia', 'Ex.: Atendia 30 pacientes por plantão…'), X('results', 'Um resultado de que você se orgulha', 'Ex.: Reduzi o tempo de triagem…')] },
     { id: 'ferramentas', ch: 4, kind: 'multi', key: 'tools', q: 'Que ferramentas, sistemas ou equipamentos você usa?', hint: 'Pode ser software, máquina, instrumento ou método.', options: A.tools, customLabel: 'Outra ferramenta', customPh: 'Ex.: Glicosímetro, Empilhadeira elétrica' },
-    { id: 'formacao', ch: 4, kind: 'text', addMore: 'Adicionar outra formação', q: 'Qual a sua formação principal?', hint: 'A mais importante para as vagas que você busca.', fields: [T('institution', 'Instituição', 'Ex.: Senac, UFMG, escola'), T('course', 'Curso', 'Ex.: Técnico em Enfermagem'), S('level', 'Nível', opts(EDUCATION_LEVELS)), S('status', 'Situação', opts(EDUCATION_STATUS)), T('eduStart', 'Início', 'aaaa-mm', { type: 'month' }), T('eduEnd', 'Conclusão ou previsão', 'aaaa-mm', { type: 'month' })] },
-    { id: 'cursos', ch: 4, kind: 'text', addMore: 'Adicionar outro curso', q: 'Fez algum curso ou certificação que vale citar?', hint: 'Cursos livres contam.', fields: [T('courseName', 'Nome do curso', 'Ex.: Suporte Básico de Vida'), S('courseType', 'Tipo', COURSE_TYPES), T('issuer', 'Quem emitiu', ''), T('hours', 'Carga horária (horas)', 'Ex.: 16', { mode: 'numeric' })] },
+    { id: 'formacao', ch: 4, kind: 'text', addMore: 'Adicionar outra formação', q: 'Qual a sua formação principal?', hint: 'A mais importante para as vagas que você busca.', fields: [T('institution', 'Instituição', 'Ex.: Senac, UFMG, escola', { max: 200 }), T('course', 'Curso', 'Ex.: Técnico em Enfermagem', { max: 200 }), S('level', 'Nível', opts(EDUCATION_LEVELS)), S('status', 'Situação', opts(EDUCATION_STATUS)), T('eduStart', 'Início', 'aaaa-mm', { type: 'month' }), T('eduEnd', 'Conclusão ou previsão', 'aaaa-mm', { type: 'month' })] },
+    { id: 'cursos', ch: 4, kind: 'text', addMore: 'Adicionar outro curso', q: 'Fez algum curso ou certificação que vale citar?', hint: 'Cursos livres contam.', fields: [T('courseName', 'Nome do curso', 'Ex.: Suporte Básico de Vida', { max: 200 }), S('courseType', 'Tipo', COURSE_TYPES), T('issuer', 'Quem emitiu', '', { max: 200 }), T('hours', 'Carga horária (horas)', 'Ex.: 16', { mode: 'numeric', max: 5 })] },
     { id: 'competencias', ch: 4, kind: 'multi', key: 'skills', q: 'O que você sabe fazer bem?', hint: 'Toque nas sugestões ou cadastre as suas. O nível você ajusta depois no perfil.', options: A.skills, customLabel: 'Outra competência', customPh: 'Escreva do seu jeito' },
     { id: 'idiomas', ch: 4, kind: 'rows', langs: true, q: 'Que idiomas você fala?', hint: 'Marque o nível de cada um. Libras também conta.' },
-    { id: 'titulo', ch: 5, kind: 'text', q: 'Como você se apresenta em uma linha?', hint: 'Aparece no topo dos formulários que pedem "título" ou "cargo atual".', fields: [T('headline', 'Título', 'Ex.: Técnica de enfermagem com foco em UTI', { span: true })] },
+    { id: 'titulo', ch: 5, kind: 'text', q: 'Como você se apresenta em uma linha?', hint: 'Aparece no topo dos formulários que pedem "título" ou "cargo atual".', fields: [T('headline', 'Título', 'Ex.: Técnica de enfermagem com foco em UTI', { span: true, max: 200 })] },
     { id: 'resumo', ch: 5, kind: 'text', q: 'Resuma sua trajetória em poucas frases.', hint: 'Três ou quatro frases. Você pode pedir um rascunho à IA depois, no perfil.', fields: [X('summary', 'Resumo', '')] },
     { id: 'combinados', ch: 6, kind: 'consent', q: 'Por último: o que o Zyft pode fazer por você?', hint: 'Você muda isso quando quiser em Conta e privacidade.' },
     { id: 'fim', kind: 'done' },
@@ -421,7 +423,7 @@ export async function render(main, { step: startAt, me }) {
       control.value = st.a[key] || '';
     } else {
       control = h('input', { id, name: key, type: f.type || 'text', class: 'zy-tf__input', placeholder: f.ph, value: st.a[key] || '', autocomplete: f.auto || null, inputmode: f.mode || null, maxlength: f.max || null, 'aria-describedby': `${id}-err` });
-      enhanceInput(control, { name: key, mask: f.mask, maxLength: f.max });
+      enhanceInput(control, { name: key, mask: f.mask });
       if (key === 'endDate') control.disabled = st.current;
     }
     control.addEventListener(f.t === 'select' ? 'change' : 'input', () => {
@@ -430,12 +432,12 @@ export async function render(main, { step: startAt, me }) {
       if (key === 'fullName') paintAside();
     });
     return h('div', { class: `zy-tf ${f.span ? 'span2' : ''}` },
-      h('label', { class: 'zy-tf__label', for: id }, f.label), control, characterCounter(control, f.max), h('p', { class: 'zy-tf__error', id: `${id}-err`, hidden: true }));
+      h('label', { class: 'zy-tf__label', for: id }, f.label), control, characterCounter(control), h('p', { class: 'zy-tf__error', id: `${id}-err`, hidden: true }));
   };
 
-  const customAdder = (s, onAdd, label, ph) => {
+  const customAdder = (s, onAdd, label, ph, max) => {
     const id = nextId('ob-custom');
-    const input = h('input', { id, class: 'zy-tf__input', placeholder: ph, value: st.draft, maxlength: 100 });
+    const input = h('input', { id, class: 'zy-tf__input', placeholder: ph, value: st.draft, maxlength: max });
     const add = Button({ variant: 'secondary', disabled: !st.draft.trim() }, 'Adicionar');
     input.addEventListener('input', () => { st.draft = input.value; add.disabled = !input.value.trim(); });
     const doAdd = () => { const val = input.value.trim(); if (!val) return; st.draft = ''; onAdd(val); };
@@ -593,7 +595,8 @@ export async function render(main, { step: startAt, me }) {
         paint();
         refocus('.row-end input');
         announce(`${val} adicionado.`);
-      }, s.customLabel, s.customPh));
+            // Sem experiência cadastrada, as ferramentas viram competências (limite de 100).
+      }, s.customLabel, s.customPh, s.key === 'tools' && !st.expId ? CUSTOM_MAX.skills : CUSTOM_MAX[s.key]));
     }
 
     if (s.kind === 'rows') {
@@ -612,7 +615,7 @@ export async function render(main, { step: startAt, me }) {
           if (!st.langs.some((l) => l.name.toLowerCase() === val.toLowerCase())) st.langs.push({ name: val, level: '' });
           paint();
           refocus('.row-end input');
-        }, 'Outro idioma', 'Ex.: Libras, Italiano'));
+        }, 'Outro idioma', 'Ex.: Libras, Italiano', 60));
       }
     }
 

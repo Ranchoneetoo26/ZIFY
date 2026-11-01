@@ -6,7 +6,7 @@ import { adSlot, PLACEMENTS } from '../ads.js';
 import { getBilling } from '../store.js';
 import * as v from '../validate.js';
 
-const MAX_TEXT = 4000;
+const MAX_TEXT = 5000;
 
 export async function render(main) {
   const [list, billing] = await Promise.all([api('/answers').then(asList), getBilling().catch(() => null)]);

@@ -17,7 +17,7 @@
 <fieldset style="border:0;padding:0"><h2>Objetivo</h2>
 <div class="two">
 <label class="f">Cargo pretendido<input name="obj_cargo" maxlength="120"></label>
-<label class="f">Pretensão salarial (R$)<input name="obj_sal" type="number" min="0" max="999999999.99" step="0.01" inputmode="decimal"></label>
+<label class="f">Pretensão salarial (R$)<input name="obj_sal"></label>
 </div></fieldset>
 <fieldset style="border:0;padding:0"><h2>Formação</h2>
 <div class="two">
@@ -47,7 +47,7 @@
 <fieldset style="border:0;padding:0"><h2>Cursos complementares</h2>
 <div class="two">
 <label class="f">Nome do curso<input name="curso_nome" maxlength="150"></label>
-<label class="f">Carga horária<input name="curso_horas" type="number" min="1" max="10000" inputmode="numeric"></label>
+<label class="f">Carga horária<input name="curso_horas"></label>
 </div></fieldset>
 <fieldset style="border:0;padding:0"><h2>Idiomas</h2>
 <div class="two">
@@ -72,7 +72,14 @@ document.querySelectorAll('input:not([type="file"]):not([type="checkbox"]), text
   if (!max) return;
   const counter = document.createElement('span');
   counter.className = 'counter';
-  control.parentElement.append(counter);
+  // Fora do <label>: a extensão lê o rótulo pelo texto do label, e o contador não faz parte dele.
+  const label = control.closest('label');
+  if (label) {
+    const wrap = document.createElement('div');
+    wrap.className = 'counted';
+    label.replaceWith(wrap);
+    wrap.append(label, counter);
+  } else control.after(counter);
   const update = () => { counter.textContent = `${control.value.length} / ${max}`; };
   control.addEventListener('input', update);
   update();
@@ -83,7 +90,11 @@ if (new URLSearchParams(location.search).has('preenchido')) {
   const v = { cand_nome: 'Ana Paula Souza', cand_email: 'ana.souza@email.com', cand_cel: '(44) 99999-1111', cand_cidade: 'Maringá', cand_uf: 'PR',
     obj_cargo: 'Assistente Administrativo', 'form[0][nivel]': 'Ensino médio', 'form[0][inst]': 'Colégio Estadual Central', exp_1_empresa: 'Empresa X Comércio',
     exp_1_cargo: 'Auxiliar Administrativo', exp_1_inicio: '2021-02', exp_1_fim: '2023-06', exp_1_atrib: 'Atendimento ao cliente e organização de arquivos.' };
-  for (const [k, val] of Object.entries(v)) document.querySelector(`[name="${k}"]`).value = val;
+  for (const [k, val] of Object.entries(v)) {
+    const control = document.querySelector(`[name="${k}"]`);
+    control.value = val;
+    control.dispatchEvent(new Event('input', { bubbles: true }));
+  }
 }
 </script>
 </body></html>

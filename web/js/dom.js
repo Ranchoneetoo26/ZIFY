@@ -58,8 +58,17 @@ const MASKS = {
     return digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
   },
   uf: (value) => String(value).replace(/[^a-z]/gi, '').slice(0, 2).toUpperCase(),
-  cnh: (value) => String(value).replace(/[^a-e]/gi, '').slice(0, 2).toUpperCase(),
+  // A CNH aceita combinações de A a E (B, AB…) e a categoria ACC, de ciclomotor.
+  cnh: (value) => {
+    const letters = String(value).replace(/[^a-e]/gi, '').toUpperCase();
+    return letters.startsWith('ACC') ? 'ACC' : letters.slice(0, 2);
+  },
 };
+
+// Tamanho do texto no formato da máscara.
+const MASK_LIMITS = { phone: 15, cep: 9, uf: 2, cnh: 3 };
+// Limites de UpdateProfileValidator: valem para o que a máscara não cobre (dado antigo, telefone internacional).
+const API_LIMITS = { phone: 40, cep: 20, uf: 60, cnh: 5 };
 
 const maskFor = (name, explicit) => {
   if (explicit) return explicit;
@@ -70,30 +79,49 @@ const maskFor = (name, explicit) => {
   return null;
 };
 
-export function enhanceInput(control, { name, mask, maxLength } = {}) {
+/**
+ * Liga a máscara ao campo. Nunca altera o valor recebido: um valor salvo fora do formato da máscara
+ * é válido na API, então o campo fica sem máscara e com o limite da API, para ser editado livremente.
+ */
+export function enhanceInput(control, { name, mask } = {}) {
   const resolved = maskFor(name, mask);
   if (!resolved || !MASKS[resolved]) return control;
-  const limits = { phone: 15, cep: 9, uf: 2, cnh: 2 };
-  control.maxLength = maxLength || limits[resolved];
-  control.inputMode = resolved === 'phone' || resolved === 'cep' ? 'numeric' : 'text';
+  const applyMask = MASKS[resolved];
+  const initial = control.value;
+  if (initial && applyMask(initial) !== initial) {
+    control.maxLength = API_LIMITS[resolved];
+    control.inputMode = resolved === 'phone' ? 'tel' : 'text';
+    return control;
+  }
+  control.maxLength = MASK_LIMITS[resolved];
+  control.inputMode = resolved === 'phone' ? 'tel' : resolved === 'cep' ? 'numeric' : 'text';
+  const isInternational = (value) => resolved === 'phone' && value.trimStart().startsWith('+');
+  // O navegador corta pelo maxlength antes do evento input. Solta o limite durante a inserção para um
+  // texto colado chegar inteiro à máscara, que tem o próprio corte (e "+55 …" não perder os dígitos finais).
+  control.addEventListener('beforeinput', (e) => {
+    if (e.inputType?.startsWith('insert')) control.maxLength = API_LIMITS[resolved];
+  });
   const format = () => {
     const before = control.value;
+    const international = isInternational(before);
+    control.maxLength = international ? API_LIMITS.phone : MASK_LIMITS[resolved];
+    if (international) return;
     const position = control.selectionStart;
-    control.value = MASKS[resolved](before);
+    control.value = applyMask(before);
     if (document.activeElement === control && position !== null) {
       const next = Math.max(0, Math.min(control.value.length, position + control.value.length - before.length));
       control.setSelectionRange(next, next);
     }
   };
   control.addEventListener('input', format);
-  format();
   return control;
 }
 
-export function characterCounter(control, maxLength) {
-  if (!maxLength) return null;
+/** Contador "usados / limite". Lê o maxlength do campo: chame depois de enhanceInput, que pode trocá-lo. */
+export function characterCounter(control) {
+  if (!(control.maxLength > 0)) return null;
   const counter = h('span', { class: 'zy-tf__counter', 'aria-live': 'polite' });
-  const update = () => { counter.textContent = `${control.value.length} / ${maxLength}`; };
+  const update = () => { counter.textContent = `${control.value.length} / ${control.maxLength}`; };
   control.addEventListener('input', update);
   update();
   return counter;
@@ -167,15 +195,14 @@ export function field(opts) {
   } else {
     control = h('input', { ...common, class: 'zy-tf__input', type: opts.type || 'text', value: opts.value ?? '' });
   }
-  const maxLength = Number(control.getAttribute('maxlength')) || null;
-  if (control.matches('input, textarea')) enhanceInput(control, { name: opts.name, mask: opts.mask, maxLength });
+  if (control.matches('input, textarea')) enhanceInput(control, { name: opts.name, mask: opts.mask });
 
   return h('div', { class: `zy-tf ${opts.wide ? 'wide' : ''}` },
     h('label', { class: 'zy-tf__label', for: id }, opts.label,
       opts.optional ? h('span', { class: 'zy-tf__opt' }, ' (opcional)') : null),
     control,
     opts.hint ? h('p', { class: 'zy-tf__hint', id: hintId }, opts.hint) : null,
-    characterCounter(control, maxLength),
+    characterCounter(control),
     h('p', { class: 'zy-tf__error', id: errId, hidden: true }));
 }
 

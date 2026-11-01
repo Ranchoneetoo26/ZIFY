@@ -514,7 +514,7 @@ export async function render(main) {
     const isNew = !item;
     const form = h('form', { novalidate: true, class: 'stack', id: nextId('sens') },
       isNew ? field({ name: 'kind', label: 'Tipo de dado', type: 'select', options: free, value: free[0]?.[0] }) : h('p', {}, h('b', {}, kindLabel(item.kind))),
-      field({ name: 'value', label: 'Valor', value: item?.value || '', attrs: { maxlength: 500, autocomplete: 'off' }, hint: 'Fica cifrado e trancado. Nunca vai para a IA nem entra em aprovação em lote.' }));
+      field({ name: 'value', label: 'Valor', value: item?.value || '', attrs: { maxlength: 200, autocomplete: 'off' }, hint: 'Fica cifrado e trancado. Nunca vai para a IA nem entra em aprovação em lote.' }));
     const save = Button({ variant: 'primary', type: 'submit', form: form.id }, 'Guardar trancado');
     const cancel = Button({ variant: 'quiet' }, 'Cancelar');
     const del = isNew ? null : Button({ variant: 'danger' }, 'Apagar');
