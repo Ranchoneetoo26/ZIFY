@@ -105,7 +105,7 @@ export async function render(main) {
   main.append(h('div', { class: 'content content--wide' },
     PageHead({ overline: 'Seu passaporte', title: 'Perfil Mestre', wide: true, actions: LinkButton('#/importar', { variant: 'quiet', icon: 'upload' }, 'Atualizar com um currículo') }),
     pendingSlot, missionsSlot,
-    h('div', { class: 'profile-cols' }, mainCol, h('aside', { class: 'profile-aside', 'aria-label': 'Resumo do passaporte' }, meSlot, ad))));
+    h('div', { class: 'profile-cols' }, mainCol, h('div', { class: 'profile-aside', role: 'group', 'aria-label': 'Resumo do passaporte' }, meSlot, ad))));
 
   function pendingList() {
     const out = new Map();
@@ -256,6 +256,7 @@ export async function render(main) {
       const data = toApi(BASIC_FIELDS, readForm(form));
       for (const k of ['linkedinUrl', 'githubUrl', 'portfolioUrl']) if (data[k] && !/^https?:\/\//i.test(data[k])) data[k] = `https://${data[k]}`;
       const errors = v.collect({
+        fullName: v.required(data.fullName, 'Informe seu nome completo.'),
         email: data.email ? v.email(data.email) : null,
         linkedinUrl: v.url(data.linkedinUrl), githubUrl: v.url(data.githubUrl), portfolioUrl: v.url(data.portfolioUrl),
         summary: v.maxLen(data.summary, 4000),
@@ -436,7 +437,7 @@ export async function render(main) {
         return true;
       } catch (err) {
         if (err.handled) return false;
-        if (err.code === 'profile.custom_field_sensitive' || err.status === 422) clear(msg, sensitiveMsg(err));
+        if (err.code === 'profile.custom_field_sensitive') clear(msg, sensitiveMsg(err));
         else clear(msg, h('p', { class: 'notice notice--error', role: 'alert' }, err.message));
         return false;
       }

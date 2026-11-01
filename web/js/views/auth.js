@@ -43,7 +43,8 @@ function loginForm() {
   const form = h('form', { novalidate: true, 'aria-labelledby': 'auth-title' },
     h('h1', { id: 'auth-title', class: 'auth__h2' }, 'Que bom ver você de novo'),
     field({ name: 'email', label: 'E-mail', type: 'email', required: true, attrs: { autocomplete: 'email', inputmode: 'email', maxlength: 254 } }),
-    field({ name: 'password', label: 'Senha', type: 'password', required: true, attrs: { autocomplete: 'current-password' } }),
+    // Mesmo limite do cadastro: o navegador corta o que passa de maxlength, e os dois formulários precisam cortar igual.
+    field({ name: 'password', label: 'Senha', type: 'password', required: true, attrs: { autocomplete: 'current-password', maxlength: 128 } }),
     submit);
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -57,7 +58,8 @@ function loginForm() {
       await login(data.email, form.elements.password.value);
       go('#/perfil');
     } catch (err) {
-      if (err.status === 401 || err.status === 400) showErrors(form, { password: ['E-mail ou senha incorretos. Confira e tente de novo.'] });
+      // O 401 não diz qual dos dois campos está errado: o aviso vale para o formulário inteiro.
+      if (err.status === 401) showErrors(form, null, 'E-mail ou senha incorretos. Confira e tente de novo.');
       else showErrors(form, err);
     } finally { submit.disabled = false; }
   });
@@ -72,7 +74,7 @@ function signupForm() {
     h('h1', { id: 'auth-title', class: 'auth__h2' }, 'Crie sua conta'),
     field({ name: 'name', label: 'Nome', required: true, attrs: { autocomplete: 'name', maxlength: 120 } }),
     field({ name: 'email', label: 'E-mail', type: 'email', required: true, placeholder: 'voce@email.com', attrs: { autocomplete: 'email', inputmode: 'email', maxlength: 254 } }),
-    field({ name: 'password', label: 'Senha', type: 'password', required: true, hint: 'Pelo menos 8 caracteres, com letra e número.', attrs: { autocomplete: 'new-password' } }),
+    field({ name: 'password', label: 'Senha', type: 'password', required: true, hint: 'Pelo menos 8 caracteres, com letra e número.', attrs: { autocomplete: 'new-password', maxlength: 128 } }),
     h('div', {},
       h('label', { class: 'check', for: 'terms' }, terms, h('span', {}, 'Li e aceito os termos de uso e a política de privacidade do Zyft.')),
       termsErr),
@@ -98,7 +100,8 @@ function signupForm() {
       try { sessionStorage.setItem('zyft.obChecked', '1'); } catch { /* ok */ }
       go('#/boas-vindas');
     } catch (err) {
-      showErrors(form, err);
+      if (err.status === 409) showErrors(form, { email: [err.message] });
+      else showErrors(form, err);
     } finally { submit.disabled = false; }
   });
   return form;

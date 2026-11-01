@@ -126,8 +126,23 @@ public class HandlerTests
     [InlineData("semnumeros", false)]
     [InlineData("12345678", false)]
     [InlineData("Senha123", true)]
+    [InlineData("ãéíõçãé1", true)]
+    [InlineData("Ação1234", true)]
+    [InlineData("пароль12", true)]
+    [InlineData("1234567!", false)]
     public void Senha_exige_8_caracteres_com_letra_e_numero(string password, bool valid)
     {
+        var r = new RegisterValidator().TestValidate(new RegisterCommand("Ana", "ana@b.com", password));
+        if (valid) r.ShouldNotHaveValidationErrorFor(x => x.Password);
+        else r.ShouldHaveValidationErrorFor(x => x.Password);
+    }
+
+    [Theory]
+    [InlineData(128, true)]
+    [InlineData(129, false)]
+    public void Senha_tem_no_maximo_128_caracteres(int length, bool valid)
+    {
+        var password = "a1" + new string('ã', length - 2);
         var r = new RegisterValidator().TestValidate(new RegisterCommand("Ana", "ana@b.com", password));
         if (valid) r.ShouldNotHaveValidationErrorFor(x => x.Password);
         else r.ShouldHaveValidationErrorFor(x => x.Password);

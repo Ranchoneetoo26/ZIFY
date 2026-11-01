@@ -4,6 +4,17 @@ Mudanças relevantes do projeto. O formato segue o [Keep a Changelog](https://ke
 
 ## [Não lançado]
 
+### Corrigido (bugs de QA do Trello, 01/11/2026)
+- Senha: a API aceita letra de qualquer alfabeto (`\p{L}`), com ou sem acento, e a web usa a mesma regra; antes, `ãéíõçãé1` passava na web e voltava 400. A web também recusa mais de 128 caracteres antes de chamar a API, com `maxlength` no cadastro e no login, para que uma senha colada seja cortada igual nos dois (RF-01).
+- Cadastro: o 409 de e-mail já cadastrado aparece no campo e-mail, não em banner geral.
+- Login: o 401 vira aviso do formulário, sem marcar só a senha; o 400 deixa de ser mostrado como "E-mail ou senha incorretos".
+- Onboarding: pretensão salarial sem dígitos (só "R$", ou só texto) fica como não informada, em vez de salvar R$ 0,00. Valor malformado, como `1.2.3`, continua pedindo correção.
+- Perfil: o modal **Sobre você** não salva com o nome completo em branco.
+- Campos personalizados: só `profile.custom_field_sensitive` mostra o aviso de dado sensível; os demais 422 mostram a mensagem da API (RF-25, RN-15).
+- Acessibilidade (RNF-06): a coluna lateral do Perfil deixa de ser `<aside>`; o anúncio, que também é `<aside>`, ficava com um landmark dentro de outro (axe `landmark-complementary-is-top-level`).
+- Testes: casos de senha com acento, outro alfabeto e limite de 128 caracteres em `HandlerTests`. **269 testes passando** (166 de unidade, 91 de integração, 12 de aceitação).
+- Documentação: frontend web 2.5.
+
 ### Adicionado (rede de anúncios simulada, 22/10/2026)
 - Rede de anúncios Google AdSense **simulada** ([ADR-0021](docs/03-arquitetura/adr/0021-rede-de-anuncios-google-adsense.md), Proposta): `GET /ads` pode devolver `format: "network"` com `network: {provider, client, slot, adFormat, mock}` e id `adsense-<slot>`. A rede vem antes do anúncio direto em `web.banner` e `ext.panel.banner` e preenche `web.profile.rail`, `web.applications.feed` e `ext.after-complete` sem anúncio direto; nunca para Plus, no contextual ou em espaço proibido. Ocultar `adsense-*` vale 30 dias; clique de rede não é contado.
 - Web: `ads.js` desenha o bloco `<ins class="adsbygoogle" data-adtest="on">` com arte neutra "Anúncio do Google (simulado)" (banner até 728×90, retângulo 300×250 na coluna do Perfil, faixa horizontal no feed); selo "Patrocinado", "Por que estou vendo isso?" e "Ocultar" fora do bloco. Novo `web/js/adsense.js` com `adsenseUnit` e `loadAdSense`, que em modo mock não carrega nada (snippet real só em comentário). CSP inalterada.

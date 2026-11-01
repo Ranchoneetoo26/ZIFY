@@ -6,7 +6,7 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Arquitetura do frontend web |
-| Versão | 2.3 |
+| Versão | 2.5 |
 | Status | Vigente para a v2 do MVP 1, conferido contra o código em `web/` em 21/10/2026. As telas de planos e anúncios dependem do [ADR-0020](adr/0020-monetizacao-com-anuncios-e-planos.md) (proposto). |
 | Dono | Arquitetura de software, com o dev frontend (que acumula UX) |
 | Documentos relacionados | [Design system](design-system.md), [API](api.md), [Extensão](extensao.md), [Fluxos](../01-produto/fluxos.md), [DRP](../01-produto/drp.md), [Monetização](../01-produto/monetizacao.md), [ADR-0017](adr/0017-backend-em-csharp-dotnet-clean-architecture.md), [ADR-0018](adr/0018-onboarding-em-passos-com-perguntas-adiaveis.md), [ADR-0019](adr/0019-area-profissional-dinamica-e-campos-personalizados.md) |
@@ -21,6 +21,7 @@
 | 2.2 | 21/10/2026 | Timeout de 1,5 s no pedido de anúncio (RNF-15) implementado em `fetchAd` (`web/js/ads.js`); a linha saiu das limitações. Comprar pacote só com token web, como assinar e cancelar. |
 | 2.3 | 21/10/2026 | Correções da gravação do tour: `select` sem opção vazia nunca abre em branco (Tipo de curso = Curso); erros 400 com nome legível do campo (`fieldLabel`, `describeErrors`, `registerFieldLabels` em `api.js`); item incompleto da importação pede o campo que falta antes de **Aprovar** (`missingFields`); Planos lê `trialAvailable` e só oferece "7 dias grátis" quando disponível. |
 | 2.4 | 22/10/2026 | Rede de anúncios Google AdSense **simulada** ([ADR-0021](adr/0021-rede-de-anuncios-google-adsense.md)): `ads.js` desenha o bloco `<ins class="adsbygoogle">` quando `format === "network"`; novo `web/js/adsense.js` com `adsenseUnit` e `loadAdSense` (não carrega nada em modo mock). CSP inalterada (§6.1). |
+| 2.5 | 01/11/2026 | Correções de QA: senha validada igual à API (de 8 a 128 caracteres, letra de qualquer alfabeto), com `maxlength` no cadastro e no login; 409 do cadastro no campo e-mail; 401 do login como aviso do formulário e 400 sem virar "senha incorreta"; nome completo obrigatório no modal **Sobre você**; aviso de dado sensível só com `profile.custom_field_sensitive`; pretensão sem dígitos no onboarding fica como não informada; a coluna lateral do Perfil deixa de ser `<aside>`, porque o anúncio, que também é `<aside>`, ficava com um landmark dentro de outro (axe `landmark-complementary-is-top-level`). |
 
 ## 1. Escopo
 
@@ -110,7 +111,7 @@ Regras do roteador:
 
 ### 5.1 Entrar e criar conta (RF-01)
 
-Duas abas, **Entrar** e **Criar conta**. Entrar: e-mail e senha; erro de credencial sempre como "E-mail ou senha incorretos", sem revelar se o e-mail existe. Criar conta: nome, e-mail, senha (8 caracteres, com letra e número) e a caixa "Li e aceito os termos de uso e a política de privacidade do Zyft", obrigatória. **Sem anúncio** (RN-08).
+Duas abas, **Entrar** e **Criar conta**. Entrar: e-mail e senha; erro de credencial (401) sempre como aviso do formulário, "E-mail ou senha incorretos", sem revelar se o e-mail existe nem apontar um dos campos. Criar conta: nome, e-mail, senha (de 8 a 128 caracteres, com letra de qualquer alfabeto e número) e a caixa "Li e aceito os termos de uso e a política de privacidade do Zyft", obrigatória. O 409 de e-mail já cadastrado aparece no campo e-mail. **Sem anúncio** (RN-08).
 
 ### 5.2 Onboarding em passos: o passaporte (RF-23, RF-24, ADR-0018)
 
@@ -136,7 +137,7 @@ Duas abas, **Entrar** e **Criar conta**. Entrar: e-mail e senha; erro de credenc
 | Experiências | Linha do tempo com cargo, empresa, período, resultado, atividades e ferramentas. |
 | Competências | Lista da pessoa, até 6 sugestões da área ("toque para adicionar") e "Cadastrar do seu jeito". |
 | Idiomas, Formação e cursos | Listas com adicionar, editar e excluir. O `select` **Tipo** do curso abre em **Curso** (`default: 'Course'` no schema; `field()` nunca deixa um `select` sem opção vazia em branco). |
-| Informações da sua área | Campos personalizados (RF-25): "Nome da informação" e "Sua resposta", botão **Adicionar informação**; editar e excluir em cada linha. Rótulo que pareça dado sensível volta com 422 `profile.custom_field_sensitive` e a tela mostra o aviso com **Ir para Dados sensíveis** (RN-15). |
+| Informações da sua área | Campos personalizados (RF-25): "Nome da informação" e "Sua resposta", botão **Adicionar informação**; editar e excluir em cada linha. Rótulo que pareça dado sensível volta com 422 `profile.custom_field_sensitive` e a tela mostra o aviso com **Ir para Dados sensíveis** (RN-15); os demais 422 (tamanho, duplicado, limite) mostram a mensagem da API. |
 | Dados sensíveis | Sem o consentimento *Dados sensíveis*, o bloco só explica e leva a **Ligar em Conta e privacidade**. Com ele, lista os tipos que a API aceita (gênero, raça ou etnia, deficiência, religião, orientação sexual, saúde, nome social, outro), mascarados, com **Adicionar dado sensível** e **Guardar trancado**. CPF e RG **não** são tipos de dado sensível na API. **Sem anúncio neste bloco.** |
 | Passaporte | Cartão lateral com "N de 22 carimbos" e a porcentagem. |
 | Anúncio | Um card nativo na coluna lateral (`web.profile.rail`), só quando a API devolve anúncio. |
@@ -249,7 +250,7 @@ O 402 nunca aparece em editar perfil, exportar ou excluir conta (RN-12).
 
 ## 8. Acessibilidade e segurança
 
-**Acessibilidade (RNF-06, WCAG 2.1 AA):** `label` em todo controle; erros ligados por `aria-describedby`; foco visível (`--focus-ring`); `<dialog>` nativo com Esc e foco devolvido a quem abriu; "Pular para o conteúdo"; estados com cor, ícone e texto; `aria-live` para salvamento, código de pareamento e medidores; `prefers-reduced-motion`; funciona até 390 px de largura. No onboarding, uma pergunta por tela, opções em `radiogroup` com setas e "Preencher mais tarde" sempre alcançável por teclado (RNF-17). Anúncios ficam em `<aside>` com `aria-label` "Conteúdo patrocinado" ou "Publicidade".
+**Acessibilidade (RNF-06, WCAG 2.1 AA):** `label` em todo controle; erros ligados por `aria-describedby`; foco visível (`--focus-ring`); `<dialog>` nativo com Esc e foco devolvido a quem abriu; "Pular para o conteúdo"; estados com cor, ícone e texto; `aria-live` para salvamento, código de pareamento e medidores; `prefers-reduced-motion`; funciona até 390 px de largura. No onboarding, uma pergunta por tela, opções em `radiogroup` com setas e "Preencher mais tarde" sempre alcançável por teclado (RNF-17). Anúncios ficam em `<aside>` com `aria-label` "Conteúdo patrocinado" ou "Publicidade"; por isso, o contêiner de um anúncio não pode ser outro `<aside>`.
 
 **Segurança:**
 

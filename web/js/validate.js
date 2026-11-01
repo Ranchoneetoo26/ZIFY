@@ -18,7 +18,8 @@ export function email(v) {
 export function password(v) {
   if (!v) return 'Crie uma senha.';
   if (v.length < 8) return 'A senha precisa ter pelo menos 8 caracteres.';
-  if (!/[A-Za-zÀ-ÿ]/.test(v) || !/\d/.test(v)) return 'A senha precisa ter pelo menos uma letra e um número.';
+  if (v.length > 128) return 'A senha deve ter no máximo 128 caracteres.';
+  if (!/\p{L}/u.test(v) || !/\d/.test(v)) return 'A senha precisa ter pelo menos uma letra e um número.';
   return null;
 }
 

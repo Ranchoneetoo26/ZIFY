@@ -82,8 +82,8 @@ function buildSteps(A) {
 }
 
 const parseMoney = (s) => {
-  if (s === null || s === undefined || String(s).trim() === '') return null;
-  let t = String(s).replace(/[^\d.,]/g, '');
+  let t = String(s ?? '').replace(/[^\d.,]/g, '');
+  if (t === '') return null; // vazio, só "R$" ou texto sem dígitos: não informado, nunca R$ 0,00
   if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
   const n = Number(t);
   return Number.isFinite(n) ? n : NaN;
