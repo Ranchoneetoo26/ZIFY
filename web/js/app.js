@@ -1,6 +1,6 @@
 // Shell da SPA: roteamento por hash, guarda de autenticação, menu lateral (AppNav) e foco acessível.
 import { api, asList, isLoggedIn, logout, onAuthChange, rememberRoute } from './api.js';
-import { $, h, clear, announce, errorBox, loading, toast, busy, replaceRoute, closeModals, confirmDiscard, hasUnsavedModal } from './dom.js';
+import { $, h, clear, announce, errorBox, loading, busy, replaceRoute, closeModals, confirmDiscard, hasUnsavedModal } from './dom.js';
 import { AppNav, Logo, Button } from './ui.js';
 import { getOnboarding, getBilling } from './store.js';
 import './billing.js'; // registra o diálogo do 402 para todas as telas
@@ -14,6 +14,7 @@ import * as applications from './views/applications.js';
 import * as audit from './views/audit.js';
 import * as account from './views/account.js';
 import * as plans from './views/plans.js';
+import * as notFound from './views/not-found.js';
 
 // layout: 'public' (entrar), 'full' (onboarding, tela cheia) ou 'app' (com menu lateral).
 const ROUTES = [
@@ -124,19 +125,17 @@ let renderSeq = 0;
 async function route() {
   const raw = location.hash.replace(/^#/, '');
   const path = raw.replace(/\/+$/, '').toLowerCase() || '/perfil';
-  const match = ROUTES.map((r) => ({ r, m: path.match(r.path) })).find((x) => x.m);
-  if (!match) {
-    toast('Não encontramos essa página. Levamos você para o início.');
-    return replaceRoute(isLoggedIn() ? '#/perfil' : '#/entrar');
-  }
+  // Rota desconhecida mostra o 404 no próprio endereço (com menu se houver login), sem redirecionar.
+  const match = ROUTES.map((r) => ({ r, m: path.match(r.path) })).find((x) => x.m)
+    || { r: { view: notFound, title: 'Página não encontrada', layout: isLoggedIn() ? 'app' : 'public', notFound: true }, m: [] };
   const { r, m } = match;
   const isPublic = r.layout === 'public';
 
-  if (!isPublic && !isLoggedIn()) {
+  if (!isPublic && !isLoggedIn() && !r.notFound) {
     rememberRoute(location.hash);
     return replaceRoute('#/entrar');
   }
-  if (isPublic && isLoggedIn()) return replaceRoute('#/perfil');
+  if (isPublic && isLoggedIn() && !r.notFound) return replaceRoute('#/perfil');
 
   const seq = ++renderSeq;
   const main = $('#main');

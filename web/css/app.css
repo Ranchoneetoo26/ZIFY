@@ -73,6 +73,8 @@ select.zy-tf__input { appearance: auto; }
 .app--public .main { padding: 0; }
 
 @media (max-width: 820px) {
+  /* Tela curta (404, erro, carregando): a sobra de altura vai para o conteúdo, não para a faixa do menu. */
+  .app { align-content: flex-start; }
   .sidebar { flex: 1 1 100%; min-width: 0; }
   .sidebar__top { padding: 12px 16px; }
   .sidebar__menu { display: inline-flex; }
