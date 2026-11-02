@@ -50,5 +50,8 @@ public sealed class User : Entity
         TermsAcceptedAt = now;
     }
 
+    public void ChangePassword(string passwordHash) =>
+        PasswordHash = Guard.Required(passwordHash, "user.password_required", "Senha inválida.");
+
     public void Rename(string name) => Name = Guard.Required(name, "user.name_required", "Informe o nome.");
 }

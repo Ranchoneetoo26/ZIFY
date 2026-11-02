@@ -127,6 +127,47 @@ public class AccountSecurityTests
             .Which.Code.Should().Be("email.already_verified");
     }
 
+    // ------------------------------------------------------------------ troca de senha
+
+    [Fact]
+    public async Task Trocar_senha_revoga_refresh_tokens_e_extensoes_e_emite_par_novo()
+    {
+        var c = new Ctx();
+        var tokens = new InMemoryRepository<RefreshToken>();
+        tokens.Add(RefreshToken.Issue(c.User.Id, "a", Now.AddDays(7)));
+        tokens.Add(RefreshToken.Issue(c.User.Id, "b", Now.AddDays(7), Guid.NewGuid()));
+        var otherUser = RefreshToken.Issue(Guid.NewGuid(), "c", Now.AddDays(7));
+        tokens.Add(otherUser);
+        var devices = new InMemoryRepository<Zyft.Domain.Extension.ExtensionDevice>();
+        devices.Add(Zyft.Domain.Extension.ExtensionDevice.Pair(c.User.Id, "Chrome", Now));
+        var hasher = new Moq.Mock<Zyft.Application.Common.Interfaces.IPasswordHasher>();
+        hasher.Setup(h => h.Verify("Senha123", "hash")).Returns(true);
+        hasher.Setup(h => h.Hash("NovaSenha456")).Returns("novo-hash");
+        var issuer = new Moq.Mock<Zyft.Application.Common.IAuthTokenIssuer>();
+        var handler = new ChangePasswordHandler(c.Users, tokens, devices, c.Audit, hasher.Object, issuer.Object, new FakeCurrentUser(c.User.Id), new FakeUnitOfWork(), c.Clock);
+
+        var wrong = () => handler.Handle(new ChangePasswordCommand("Errada123", "NovaSenha456"), default);
+        (await wrong.Should().ThrowAsync<ValidationException>()).Which.Errors.Single().PropertyName.Should().Be("CurrentPassword");
+        c.User.PasswordHash.Should().Be("hash");
+
+        await handler.Handle(new ChangePasswordCommand("Senha123", "NovaSenha456"), default);
+
+        c.User.PasswordHash.Should().Be("novo-hash");
+        tokens.Items.Where(t => t.UserId == c.User.Id).Should().OnlyContain(t => t.RevokedAt == Now);
+        otherUser.RevokedAt.Should().BeNull();
+        devices.Items.Single().IsActive.Should().BeFalse();
+        c.Audit.Items.Select(a => a.Action).Should().Contain(new[] { AuditActions.PasswordChanged, AuditActions.DeviceRevoked });
+        issuer.Verify(i => i.Issue(c.User, null), Moq.Times.Once);
+    }
+
+    [Fact]
+    public void Nova_senha_igual_a_atual_e_recusada()
+    {
+        new ChangePasswordValidator().TestValidate(new ChangePasswordCommand("Senha123", "Senha123"))
+            .ShouldHaveValidationErrorFor(x => x.NewPassword).WithErrorMessage("A nova senha deve ser diferente da senha atual.");
+        new ChangePasswordValidator().TestValidate(new ChangePasswordCommand("", "Senha456")).ShouldHaveValidationErrorFor(x => x.CurrentPassword);
+    }
+
     [Fact]
     public async Task Envio_de_desenvolvimento_registra_so_o_link_sem_email_nem_nome()
     {

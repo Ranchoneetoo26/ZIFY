@@ -90,4 +90,18 @@ public sealed class AuthController : ApiControllerBase
         await Sender.Send(new ResendEmailVerificationCommand(), ct);
         return Accepted();
     }
+
+    /// <summary>
+    /// Troca a senha da pessoa logada. Encerra as outras sessões (refresh tokens e extensões pareadas) e devolve um par
+    /// de tokens novo para esta sessão: o cliente deve guardar o novo <c>refreshToken</c>.
+    /// </summary>
+    /// <response code="200">Senha trocada; corpo igual ao do login.</response>
+    /// <response code="400">Senha atual incorreta (<c>errors.currentPassword</c>) ou nova senha fraca/igual (<c>errors.newPassword</c>).</response>
+    [HttpPost("password")]
+    [Authorize(Policy = Policies.WebUser)]
+    [EnableRateLimiting(Policies.AuthRateLimit)]
+    [ProducesResponseType(typeof(AuthResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public Task<AuthResult> ChangePassword(ChangePasswordCommand cmd, CancellationToken ct) => Sender.Send(cmd, ct);
 }

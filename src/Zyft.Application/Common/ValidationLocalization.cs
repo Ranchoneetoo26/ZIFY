@@ -32,6 +32,7 @@ public static class ValidationLocalization
         ["MaxLength"] = "Limite de caracteres", ["FieldsFilled"] = "Campos preenchidos", ["Period"] = "Período", ["Scope"] = "Opção", ["Purpose"] = "Finalidade",
         ["Answered"] = "Etapas respondidas", ["Skipped"] = "Etapas puladas", ["LastStep"] = "Última etapa", ["Options"] = "Opções", ["Profile"] = "Dados básicos", ["Experiences"] = "Experiências", ["Educations"] = "Formações", ["Courses"] = "Cursos", ["Skills"] = "Competências", ["Languages"] = "Idiomas",
         ["Token"] = "Código de verificação", ["AcceptTerms"] = "Aceite dos termos", ["TermsVersion"] = "Versão dos termos",
+        ["CurrentPassword"] = "Senha atual", ["NewPassword"] = "Nova senha",
     };
 
     public static void Configure()

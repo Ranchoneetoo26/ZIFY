@@ -27,6 +27,7 @@ public sealed class AuditEvent : Entity
 public static class AuditActions
 {
     public const string AccountCreated = "conta.criada";
+    public const string PasswordChanged = "senha.alterada";
     public const string TermsAccepted = "termos.aceitos";
     public const string EmailVerified = "email.verificado";
     public const string DataExported = "dados.exportados";

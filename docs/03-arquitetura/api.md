@@ -379,6 +379,10 @@ O perfil tem `Version` (inteiro, coluna `Profiles.Version`, token de concorrênc
 - Todas as rotas de alteração em `/profile` aceitam `If-Match: "7"` (também `W/"7"` ou `7`). Se o perfil já estiver em outra versão: `409` `profile.conflict`, `detail` "Seu perfil foi alterado em outra sessão. Recarregue a página para ver a versão mais recente antes de salvar." e `currentVersion` (inteiro) no corpo; nada é gravado. `If-Match` mal formado: `400` `bad_request`. `If-Match: *` ou sem cabeçalho: comportamento de antes (a extensão não precisa mudar).
 - A verificação vai no próprio `UPDATE ... WHERE Version = esperada`; duas gravações simultâneas sem `If-Match` também não se sobrescrevem em silêncio (a segunda recebe o mesmo `409`).
 
+### 4.11 Troca de senha
+
+`POST /auth/password` (W, limite `auth`) com `{ "currentPassword": "...", "newPassword": "..." }`. Sucesso: `200` com o mesmo corpo do login (`AuthResult`): a sessão atual continua com o **par novo** (o cliente troca o `refreshToken` guardado). Todas as outras sessões terminam: refresh tokens revogados (inclusive o antigo desta sessão) e extensões pareadas desconectadas (o access token da extensão para de valer na hora; o access token web de outra sessão vale até expirar, no máximo 15 min). Erros `400`: `errors.currentPassword` "Senha atual incorreta." ou "Informe a senha atual."; `errors.newPassword` com as regras de senha forte ou "A nova senha deve ser diferente da senha atual.". Auditoria: `senha.alterada` (e `extensao.revogada` por extensão desconectada).
+
 ## 5. Códigos de erro
 
 | HTTP | `code` | Quando |

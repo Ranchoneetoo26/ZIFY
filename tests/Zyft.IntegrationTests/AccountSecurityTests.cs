@@ -124,4 +124,67 @@ public class AccountSecurityTests(ZyftApiFactory factory) : IClassFixture<ZyftAp
         var audit = await (await web.GetAsync("/api/v1/audit-events")).Content.ReadAsStringAsync();
         audit.Should().Contain("termos.aceitos");
     }
+
+    // ------------------------------------------------------------------ troca de senha
+
+    private async Task<string> PairExtensionAsync(HttpClient web)
+    {
+        var code = (await (await web.PostAsync("/api/v1/extension/pairing-codes", null)).JsonAsync()).GetProperty("code").GetString()!;
+        var pair = await (await factory.CreateClient().PostAsJsonAsync("/api/v1/extension/pair", new { code, deviceName = "Chrome" })).JsonAsync();
+        return pair.GetProperty("tokens").GetProperty("accessToken").GetString()!;
+    }
+
+    [Fact]
+    public async Task Trocar_senha_valida_a_atual_e_a_nova()
+    {
+        var s = await TestApi.RegisterAsync(factory.CreateClient());
+        var web = factory.Authed(s.AccessToken);
+
+        var wrong = await web.PostAsJsonAsync("/api/v1/auth/password", new { currentPassword = "Errada123", newPassword = "NovaSenha456" });
+        wrong.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await wrong.JsonAsync()).GetProperty("errors").GetProperty("currentPassword")[0].GetString().Should().Be("Senha atual incorreta.");
+
+        var weak = await web.PostAsJsonAsync("/api/v1/auth/password", new { currentPassword = "Senha123", newPassword = "curta" });
+        (await weak.JsonAsync()).GetProperty("errors").GetProperty("newPassword").EnumerateArray().Select(e => e.GetString())
+            .Should().Contain("A senha deve ter pelo menos 8 caracteres.");
+
+        var same = await web.PostAsJsonAsync("/api/v1/auth/password", new { currentPassword = "Senha123", newPassword = "Senha123" });
+        same.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await same.JsonAsync()).GetProperty("errors").GetProperty("newPassword")[0].GetString().Should().Be("A nova senha deve ser diferente da senha atual.");
+
+        (await factory.CreateClient().PostAsJsonAsync("/api/v1/auth/password", new { currentPassword = "Senha123", newPassword = "NovaSenha456" }))
+            .StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Trocar_senha_encerra_as_outras_sessoes_e_mantem_a_atual()
+    {
+        var c = factory.CreateClient();
+        var s = await TestApi.RegisterAsync(c);
+        var other = await (await c.PostAsJsonAsync("/api/v1/auth/login", new { email = s.Email, password = "Senha123" })).JsonAsync();
+        var web = factory.Authed(s.AccessToken);
+        var extAccess = await PairExtensionAsync(web);
+
+        var res = await web.PostAsJsonAsync("/api/v1/auth/password", new { currentPassword = "Senha123", newPassword = "NovaSenha456" });
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+        var fresh = await res.JsonAsync();
+        var freshRefresh = fresh.GetProperty("refreshToken").GetString()!;
+
+        // Outras sessões: refresh revogado; extensão desconectada na hora.
+        (await c.PostAsJsonAsync("/api/v1/auth/refresh", new { refreshToken = other.GetProperty("refreshToken").GetString() })).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await c.PostAsJsonAsync("/api/v1/auth/refresh", new { refreshToken = s.RefreshToken })).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await factory.Authed(extAccess).GetAsync("/api/v1/me")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        // Sessão atual continua: novo par funciona.
+        (await factory.Authed(fresh.GetProperty("accessToken").GetString()!).GetAsync("/api/v1/me")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await c.PostAsJsonAsync("/api/v1/auth/refresh", new { refreshToken = freshRefresh })).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Senha nova vale, antiga não.
+        (await c.PostAsJsonAsync("/api/v1/auth/login", new { email = s.Email, password = "Senha123" })).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await c.PostAsJsonAsync("/api/v1/auth/login", new { email = s.Email, password = "NovaSenha456" })).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var audit = await (await web.GetAsync("/api/v1/audit-events")).Content.ReadAsStringAsync();
+        audit.Should().Contain("senha.alterada");
+        string.Join('\n', factory.Logs.Lines).Should().NotContain("NovaSenha456");
+    }
 }
