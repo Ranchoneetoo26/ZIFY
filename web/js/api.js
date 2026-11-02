@@ -96,6 +96,26 @@ export function describeErrors(errors) {
   return out;
 }
 
+// ---------- Concorrência otimista do Perfil Mestre (If-Match / ETag) ----------
+// A versão é a maior que esta aba já viu: ETag de GET /profile e de toda alteração em /profile/*. As versões só sobem,
+// então uma resposta atrasada nunca faz a versão voltar. Toda alteração em /profile/* vai com If-Match dela e passa
+// por uma fila: duas gravações da mesma aba nunca disputam a mesma versão (não há conflito consigo mesma).
+let profileVersion = null;
+let profileWrites = Promise.resolve();
+let conflictHandler = null;
+export const getProfileVersion = () => profileVersion;
+function seeProfileVersion(v) {
+  const n = typeof v === 'string' ? Number(v.replace(/^W\//, '').replace(/"/g, '')) : v;
+  if (Number.isInteger(n) && n >= 0 && (profileVersion === null || n > profileVersion)) profileVersion = n;
+}
+const isProfilePath = (path) => /^\/profile(?:[/?]|$)/.test(path);
+/**
+ * 409 profile.conflict: `fn(err)` pergunta à pessoa e resolve 'overwrite' (reenvia com a versão atual) ou outra
+ * coisa (o erro sobe com handled = true). Registrado por conflict.js.
+ */
+export const onProfileConflict = (fn) => { conflictHandler = fn; };
+export const isProfileConflict = (e) => e instanceof ApiError && e.status === 409 && e.code === 'profile.conflict';
+
 // 402 plan.limit_reached: qualquer tela recebe o mesmo diálogo amigável (billing.js registra).
 let limitHandler = null;
 export const onLimitReached = (fn) => { limitHandler = fn; };
@@ -129,6 +149,7 @@ function normalizeErrors(errors) {
 /** `reason` diz por que a sessão acabou sem a pessoa pedir: 'expired' ou 'gone' (conta excluída). */
 export function setTokens({ accessToken: at, refreshToken: rt } = {}, reason) {
   accessToken = at || null;
+  if (!at && !rt) profileVersion = null; // saiu: a próxima conta começa sem versão conhecida
   try {
     if (rt) sessionStorage.setItem(RT_KEY, rt);
     else sessionStorage.removeItem(RT_KEY);
@@ -239,6 +260,34 @@ async function renew() {
  */
 export async function api(path, opts = {}) {
   const authed = opts.auth !== false;
+  const method = String(opts.method || 'GET').toUpperCase();
+  if (!(authed && method !== 'GET' && isProfilePath(path))) return request(path, opts);
+
+  // Alteração do perfil: em fila, com If-Match da versão conhecida no momento do envio.
+  const send = () => request(path, profileVersion === null ? opts
+    : { ...opts, headers: { ...(opts.headers || {}), 'If-Match': `"${profileVersion}"` } });
+  // keepalive (fechando a aba) sai na hora: esperar a fila faria o envio se perder com a página.
+  const turn = opts.keepalive ? send() : profileWrites.then(send, send);
+  if (!opts.keepalive) profileWrites = turn.catch(() => {});
+  try {
+    return await turn;
+  } catch (err) {
+    // Ao fechar a aba (keepalive) não há a quem perguntar: nada é gravado e o rascunho local fica para a volta.
+    if (!isProfileConflict(err) || opts.keepalive || !conflictHandler) throw err;
+    let choice = 'cancel';
+    try { choice = await conflictHandler(err); } catch { /* o diálogo nunca derruba a tela */ }
+    if (choice === 'overwrite') {
+      // Só aqui a aba adota a versão do servidor. Em "Cancelar", a próxima tentativa avisa de novo.
+      seeProfileVersion(err.problem?.currentVersion);
+      return api(path, opts); // reenvia o mesmo corpo com a versão atual
+    }
+    err.handled = true;
+    throw err;
+  }
+}
+
+async function request(path, opts) {
+  const authed = opts.auth !== false;
   if (authed && !accessToken && getRefreshToken()) await renew();
   let res = await rawFetch(path, opts);
   if (res && res.status === 401 && authed) {
@@ -248,6 +297,7 @@ export async function api(path, opts = {}) {
     }
     if (res && res.status === 401) endSession(SESSION_EXPIRED);
   }
+  if (res?.headers && isProfilePath(path)) seeProfileVersion(res.headers.get('ETag'));
   return parse(res);
 }
 

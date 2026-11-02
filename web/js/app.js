@@ -4,6 +4,7 @@ import { $, h, clear, announce, errorBox, loading, busy, replaceRoute, closeModa
 import { AppNav, Logo, Button, Icon } from './ui.js';
 import { getOnboarding, getBilling } from './store.js';
 import './billing.js'; // registra o diálogo do 402 para todas as telas
+import './conflict.js'; // registra o diálogo do 409 profile.conflict
 import * as auth from './views/auth.js';
 import * as onboarding from './views/onboarding.js';
 import * as profile from './views/profile.js';
