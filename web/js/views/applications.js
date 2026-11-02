@@ -19,7 +19,7 @@ const filters = { status: '', search: '' }; // ficam ao voltar do detalhe para a
 export async function render(main, { id, refreshShell }) {
   if (id) return detail(main, id, refreshShell);
   const apps = asList(await api('/applications'));
-  refreshShell?.({ applications: true }); // uma candidatura nova vem da extensão: o contador do menu não fica sabendo
+  refreshShell?.({ applications: apps.length }); // uma candidatura nova vem da extensão: o menu usa a lista recém-lida
   const now = new Date();
   const thisMonth = apps.filter((a) => { const d = new Date(a.confirmedAt || a.createdAt); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); });
   const fields = apps.reduce((n, a) => n + (a.fieldsFilled || 0), 0);
@@ -108,6 +108,7 @@ async function detail(main, id, refreshShell) {
       const r = await api(`/applications/${encodeURIComponent(id)}`, { method: 'PATCH', body: { status: data.status, notes: data.notes ?? '' } });
       Object.assign(a, { notes: null }, r && typeof r === 'object' ? r : data);
       savedForm = snapshot();
+      refreshShell?.({ applications: true });
       toast('Acompanhamento salvo', 'ok');
       announce(`Status: ${statusLabel(a.status)}.`);
     } catch (err) { if (!err.handled) showErrors(form, err); } finally { save.disabled = false; }

@@ -60,14 +60,29 @@ async function loadMe(force = false) {
   return fresh;
 }
 
-/** Contador de candidaturas e plano para o menu. Falha deixa null: tenta de novo na próxima tela. */
+// Candidaturas nascem na extensão (outra aba): o contador do menu é relido quando fica velho, quando a aba volta
+// a ficar visível e logo depois de a web mudar alguma candidatura.
+const COUNT_TTL = 30_000;
+let appCountAt = 0;
+let countSeq = 0;
+
+/** Contador de candidaturas e plano para o menu. Falha mantém o último valor: tenta de novo na próxima tela. */
 async function loadShellData() {
   const epoch = sessionEpoch;
+  const seq = ++countSeq;
+  const stale = appCount === null || Date.now() - appCountAt > COUNT_TTL;
   const [count, current] = await Promise.all([
-    appCount === null ? api('/applications').then((r) => asList(r).length).catch(() => null) : appCount,
+    stale ? api('/applications').then((r) => asList(r).length).catch(() => appCount) : appCount,
     plan === null ? getBilling().then((b) => b?.plan || null).catch(() => null) : plan,
   ]);
-  if (epoch === sessionEpoch) { appCount = count; plan = current; }
+  if (epoch !== sessionEpoch) return;
+  plan = current;
+  if (seq === countSeq) setAppCount(count); // resposta atrasada não sobrescreve uma mais nova
+}
+
+function setAppCount(n) {
+  appCount = n;
+  appCountAt = n === null ? 0 : Date.now();
 }
 
 const visibleName = (name) => (/[\p{L}\p{N}]/u.test(name || '') ? name : '');
@@ -182,15 +197,27 @@ async function route() {
   announce(failed ? `${r.title}. Não foi possível carregar a tela.` : `${r.title}. Tela carregada.`);
 }
 
-/** Telas chamam depois de mudar plano ou candidaturas, para o menu refletir. */
+const repaintSidebar = () => {
+  const active = $('#sidebar .zy-nav__item.is-active')?.dataset.nav;
+  if (!$('#sidebar').hidden) renderSidebar(active);
+};
+
+/**
+ * Telas chamam depois de mudar plano ou candidaturas, para o menu refletir.
+ * `applications: true` relê a contagem; um número (ex.: a lista que a tela acabou de carregar) é usado direto.
+ */
 function refreshShell({ applications: a, billing } = {}) {
-  if (a) appCount = null;
+  if (typeof a === 'number') { countSeq += 1; setAppCount(a); } // invalida leitura em andamento, mais velha
+  else if (a) setAppCount(null);
   if (billing) plan = null;
-  loadShellData().then(() => {
-    const active = $('#sidebar .zy-nav__item.is-active')?.dataset.nav;
-    if (!$('#sidebar').hidden) renderSidebar(active);
-  });
+  if (typeof a === 'number' && !billing) { repaintSidebar(); return; }
+  loadShellData().then(repaintSidebar);
 }
+
+// Voltou para a aba (ex.: concluiu uma candidatura pela extensão no site da vaga): relê a contagem.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && isLoggedIn() && !$('#sidebar').hidden) refreshShell({ applications: true });
+});
 
 // Link "Pular para o conteúdo": foca o <main> sem mexer na rota.
 document.querySelector('.skip')?.addEventListener('click', (e) => { e.preventDefault(); $('#main').focus(); });
@@ -208,7 +235,7 @@ const isAuthRoute = () => /^#\/(entrar|cadastrar)\/?$/i.test(location.hash);
 onAuthChange((logged, reason) => {
   if (logged) return;
   sessionEpoch += 1;
-  me = null; appCount = null; plan = null;
+  me = null; setAppCount(null); plan = null;
   try {
     sessionStorage.removeItem(OB_CHECK);
     // Sair não deixa dado pessoal na aba. Em sessão expirada, o rascunho fica para a mesma pessoa retomar.
