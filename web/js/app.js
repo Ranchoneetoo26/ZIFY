@@ -1,6 +1,6 @@
 // Shell da SPA: roteamento por hash, guarda de autenticação, menu lateral (AppNav) e foco acessível.
 import { api, asList, isLoggedIn, logout, onAuthChange, rememberRoute } from './api.js';
-import { $, h, clear, announce, errorBox, loading, busy, replaceRoute, closeModals, confirmDiscard, hasUnsavedModal } from './dom.js';
+import { $, h, clear, announce, errorBox, loading, busy, replaceRoute, closeModals, confirmDiscard, hasUnsavedModal, hasUnsavedPage, forgetPageGuards, routeNav } from './dom.js';
 import { AppNav, Logo, Button } from './ui.js';
 import { getOnboarding, getBilling } from './store.js';
 import './billing.js'; // registra o diálogo do 402 para todas as telas
@@ -219,24 +219,54 @@ onAuthChange((logged, reason) => {
     }
   } catch { /* ok */ }
   closeModals();
+  forgetPageGuards();
   if (reason === 'expired' && !isAuthRoute()) rememberRoute(location.hash);
   if (!isAuthRoute()) replaceRoute('#/entrar');
 });
 
+// Cada entrada do histórico ganha uma posição (history.state.zyIdx). Com ela, o Voltar/Avançar sobre um formulário
+// alterado pode ser desfeito com history.go(-delta) sem apagar nem duplicar entradas do histórico.
 let currentHash = location.hash;
+let curIdx = Number.isInteger(history.state?.zyIdx) ? history.state.zyIdx : 0;
+try { history.replaceState({ ...(history.state || {}), zyIdx: curIdx }, ''); } catch { /* ok */ }
+let pass = null; // { hash, render }: próxima troca já decidida (volta depois de Cancelar, ida depois de Descartar)
+
+function entryIndex() {
+  const st = history.state;
+  if (Number.isInteger(st?.zyIdx)) return st.zyIdx;
+  const idx = routeNav.replacing ? curIdx : curIdx + 1; // entrada nova (link, hash digitado) ou substituída
+  try { history.replaceState({ ...(st || {}), zyIdx: idx }, ''); } catch { /* ok */ }
+  return idx;
+}
+
 window.addEventListener('hashchange', async () => {
   const target = location.hash;
-  if (target === currentHash) return route(); // go() para a própria rota: recarrega
-  if (hasUnsavedModal()) {
-    // A URL volta para a tela do formulário enquanto a pessoa decide (vale para o botão Voltar).
-    history.replaceState(null, '', currentHash || '#/perfil');
+  const idx = entryIndex();
+  routeNav.replacing = false;
+  if (pass && target === pass.hash) {
+    const { render } = pass;
+    pass = null;
+    curIdx = idx;
+    currentHash = target;
+    if (render) { closeModals(); route(); }
+    return;
+  }
+  if (target === currentHash) { curIdx = idx; return route(); } // go() para a própria rota: recarrega
+  if (hasUnsavedModal() || hasUnsavedPage()) {
+    // A URL volta para a tela do formulário enquanto a pessoa decide (vale para o botão Voltar e o hash digitado).
+    // A tela não é redesenhada: o que foi digitado continua lá.
+    const delta = idx - curIdx;
+    if (delta) { pass = { hash: currentHash, render: false }; history.go(-delta); }
+    else history.replaceState(history.state, '', currentHash || '#/perfil');
     if (!(await confirmDiscard())) return;
+    if (delta) { pass = { hash: target, render: true }; history.go(delta); return; }
     closeModals();
     currentHash = target;
     location.hash = target;
     return;
   }
   closeModals();
+  curIdx = idx;
   currentHash = target;
   route();
 });

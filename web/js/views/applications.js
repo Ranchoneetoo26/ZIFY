@@ -1,7 +1,7 @@
 // Candidaturas (RF-19, ADR-0012): registro do que a pessoa concluiu no site, com status e anotações.
 // Lista com faixa web.applications.feed; detalhe com banner web.banner. Sem métricas de sucesso (RN-06).
 import { api, asList } from '../api.js';
-import { h, clear, field, readForm, showErrors, toast, announce, confirmDialog, confirmDiscard, fmtDate, fmtDateTime, go, safeUrl } from '../dom.js';
+import { h, clear, field, readForm, showErrors, toast, announce, confirmDialog, confirmDiscard, fmtDate, fmtDateTime, go, safeUrl, guardPage } from '../dom.js';
 import { Button, PageHead, Card } from '../ui.js';
 import { adSlot, PLACEMENTS } from '../ads.js';
 import { labelOf, enumName } from './profile-schema.js';
@@ -70,8 +70,9 @@ export async function render(main, { id, refreshShell }) {
     h('section', { class: 'card card--flush', 'aria-label': 'Lista de candidaturas' }, tableSlot)));
 }
 
-/** Pergunta antes de sair pelos links da tela ou recarregar com o formulário alterado. */
+/** Pergunta antes de sair pelos links da tela, pelo Voltar do navegador ou recarregar com o formulário alterado. */
 function guardUnsaved(form, isDirty, forget) {
+  guardPage(form, isDirty); // Voltar/Avançar e hash digitado: o roteador (app.js) pergunta
   const onClick = async (e) => {
     if (!form.isConnected) { document.removeEventListener('click', onClick, true); return; }
     const link = e.target.closest?.('a[href^="#/"]');

@@ -215,7 +215,7 @@ export async function render(main, { step: startAt, me }) {
     if (known) idx = idxOf(startAt);
     else {
       if (startAt !== 'fim') idx = 0;
-      try { history.replaceState(null, '', `#/boas-vindas/${steps[idx].id}`); } catch { /* ok */ }
+      try { history.replaceState(history.state, '', `#/boas-vindas/${steps[idx].id}`); } catch { /* ok */ }
     }
   }
 
@@ -598,7 +598,7 @@ export async function render(main, { step: startAt, me }) {
     st.draft = '';
     exitArmed = false;
     const id = steps[idx].id;
-    try { history.replaceState(null, '', `#/boas-vindas/${id}`); } catch { /* ok */ }
+    try { history.replaceState(history.state, '', `#/boas-vindas/${id}`); } catch { /* ok */ }
     enterStep();
     paint();
     if (focus) {

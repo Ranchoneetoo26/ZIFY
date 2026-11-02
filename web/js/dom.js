@@ -371,6 +371,23 @@ export function confirmDiscard() {
 /** Há modal aberto com formulário alterado? */
 export const hasUnsavedModal = () => openModals.some((m) => m.isDirty());
 
+// Formulários da própria tela (fora de modal) que pedem confirmação ao trocar de rota, inclusive pelo Voltar.
+const pageGuards = new Set();
+/** Registra `isDirty` enquanto `node` estiver na página; sai sozinho quando a tela troca. */
+export function guardPage(node, isDirty) {
+  pageGuards.add({ node, isDirty });
+}
+/** Fim de sessão: a troca para #/entrar não pergunta nada. */
+export const forgetPageGuards = () => pageGuards.clear();
+/** Há formulário da tela atual com alteração não salva? */
+export function hasUnsavedPage() {
+  for (const g of pageGuards) {
+    if (!g.node.isConnected) pageGuards.delete(g);
+    else if (g.isDirty()) return true;
+  }
+  return false;
+}
+
 /** Fecha todos os modais sem perguntar (troca de rota já confirmada, fim de sessão). */
 export function closeModals() {
   [...openModals].reverse().forEach((m) => m.close(false));
@@ -476,8 +493,10 @@ export function errorBox(err, retry, { back } = {}) {
 /** Vai para a rota sem criar entrada no histórico (redirecionamentos não prendem o Voltar). */
 export function replaceRoute(hash) {
   if (location.hash === hash) window.dispatchEvent(new HashChangeEvent('hashchange'));
-  else location.replace(hash);
+  else { routeNav.replacing = true; location.replace(hash); }
 }
+/** Lido pelo roteador: a próxima troca de hash substitui a entrada atual do histórico (não cria uma nova). */
+export const routeNav = { replacing: false };
 
 /** Navega para uma rota (hash). Se já estiver nela, força o recarregamento. */
 export function go(hash) {
