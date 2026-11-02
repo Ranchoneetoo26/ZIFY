@@ -17,7 +17,9 @@ namespace Zyft.Application.Auth;
 /// Cria a conta, o Perfil Mestre vazio e os consentimentos padrão; já devolve tokens (scope=web) e envia o link de
 /// confirmação de e-mail (o e-mail não verificado não bloqueia nenhuma rota).
 /// </summary>
-public sealed record RegisterCommand(string Name, string Email, string Password) : IRequest<AuthResult>;
+/// <param name="AcceptTerms">Precisa ser <c>true</c>: aceite dos termos de uso e da política de privacidade.</param>
+/// <param name="TermsVersion">Versão aceita; precisa ser a vigente (<c>GET /auth/terms</c>).</param>
+public sealed record RegisterCommand(string Name, string Email, string Password, bool AcceptTerms = false, string? TermsVersion = null) : IRequest<AuthResult>;
 
 public sealed class RegisterValidator : AbstractValidator<RegisterCommand>
 {
@@ -26,6 +28,11 @@ public sealed class RegisterValidator : AbstractValidator<RegisterCommand>
         RuleFor(x => x.Name).Visible().WithMessage("Informe o nome.").MaximumLength(120).WithMessage("O nome deve ter no máximo 120 caracteres.");
         RuleFor(x => x.Email).NotEmpty().WithMessage("Informe o e-mail.").ValidEmail().WithMessage("Informe um e-mail válido.").MaximumLength(254);
         RuleFor(x => x.Password).StrongPassword();
+        RuleFor(x => x.AcceptTerms).Equal(true).WithMessage("Aceite os termos de uso e a política de privacidade.");
+        RuleFor(x => x.TermsVersion)
+            .NotEmpty().WithMessage("Informe a versão dos termos aceita.")
+            .Equal(Terms.CurrentVersion).WithMessage("Os termos foram atualizados. Recarregue a página e aceite a versão atual.")
+            .When(x => x.AcceptTerms);
     }
 }
 
@@ -49,10 +56,12 @@ public sealed class RegisterHandler(
             throw new ConflictException("Já existe uma conta com este e-mail.");
 
         var user = User.Create(email, cmd.Name, hasher.Hash(cmd.Password));
+        user.AcceptTerms(cmd.TermsVersion ?? Terms.CurrentVersion, clock.UtcNow);
         users.Add(user);
         profiles.Add(Profile.CreateFor(user.Id, user.Name, user.Email));
         consents.AddRange(Consent.Defaults(user.Id));
         audit.Add(AuditEvent.Record(user.Id, AuditActions.AccountCreated, clock.UtcNow));
+        audit.Add(AuditEvent.Record(user.Id, AuditActions.TermsAccepted, clock.UtcNow));
         var verification = await UserTokens.IssueAsync(userTokens, tokenService, clock.UtcNow, user.Id, UserTokenPurpose.EmailVerification, UserTokens.EmailVerificationLifetime, ct);
         var result = issuer.Issue(user);
         await uow.SaveChangesAsync(ct);
@@ -61,6 +70,9 @@ public sealed class RegisterHandler(
         return result;
     }
 }
+
+/// <summary>Versão vigente dos termos de uso e da política de privacidade, para o cadastro enviar no aceite.</summary>
+public sealed record TermsInfo(string Version);
 
 // ------------------------------------------------------------------ login
 

@@ -114,15 +114,16 @@ public class HandlerTests
         var emails = new CapturingEmailSender();
         var handler = new RegisterHandler(users, consents, new InMemoryRepository<AuditEvent>(), profiles, userTokens, hasher.Object, issuer.Object, new FakeTokenService(), emails, new FakeUnitOfWork(), new FixedClock(Now));
 
-        await handler.Handle(new RegisterCommand("Ana", "Ana@B.com", "Senha123"), default);
+        await handler.Handle(new RegisterCommand("Ana", "Ana@B.com", "Senha123", true, Terms.CurrentVersion), default);
 
         users.Items.Single().Email.Should().Be("ana@b.com");
         profiles.Items.Single().FullName.Should().Be("Ana");
         consents.Items.Should().HaveCount(3).And.OnlyContain(c => !c.Granted); // opt-in (D-01)
         users.Items.Single().IsEmailVerified.Should().BeFalse();
+        users.Items.Single().TermsVersion.Should().Be(Terms.CurrentVersion);
         emails.Sent.Should().ContainSingle(e => e.Kind == "verify");
         userTokens.Items.Single().TokenHash.Should().Be("h:" + emails.Sent[0].Token); // só o hash é guardado
-        var dup = () => handler.Handle(new RegisterCommand("Outra", "ana@b.com", "Senha123"), default);
+        var dup = () => handler.Handle(new RegisterCommand("Outra", "ana@b.com", "Senha123", true, Terms.CurrentVersion), default);
         await dup.Should().ThrowAsync<ConflictException>();
     }
 

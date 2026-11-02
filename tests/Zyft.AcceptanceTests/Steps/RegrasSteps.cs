@@ -28,7 +28,7 @@ public sealed class RegrasSteps : IDisposable
     public async Task DadoPessoaComPerfil(Table table)
     {
         var anon = _factory.CreateClient();
-        var reg = await anon.PostAsJsonAsync("/api/v1/auth/register", new { name = "Ana", email = $"ana{Guid.NewGuid():N}@exemplo.com", password = "Senha123" });
+        var reg = await anon.PostAsJsonAsync("/api/v1/auth/register", new { name = "Ana", email = $"ana{Guid.NewGuid():N}@exemplo.com", password = "Senha123", acceptTerms = true, termsVersion = "2026-10-22" });
         reg.EnsureSuccessStatusCode();
         var token = (await reg.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString()!;
         _web = Bearer(_factory.CreateClient(), token);

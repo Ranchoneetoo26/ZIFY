@@ -1,4 +1,5 @@
 using FluentValidation;
+using FluentValidation.TestHelper;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -38,6 +39,28 @@ public class AccountSecurityTests
         u.MarkEmailVerified(Now);
         u.MarkEmailVerified(Now.AddDays(1));
         u.EmailVerifiedAt.Should().Be(Now);
+    }
+
+    // ------------------------------------------------------------------ aceite dos termos
+
+    [Fact]
+    public void Cadastro_exige_aceite_e_versao_vigente_dos_termos()
+    {
+        var v = new RegisterValidator();
+        v.TestValidate(new RegisterCommand("Ana", "ana@b.com", "Senha123")).ShouldHaveValidationErrorFor(x => x.AcceptTerms)
+            .WithErrorMessage("Aceite os termos de uso e a política de privacidade.");
+        v.TestValidate(new RegisterCommand("Ana", "ana@b.com", "Senha123", true, "1999-01-01")).ShouldHaveValidationErrorFor(x => x.TermsVersion);
+        var ok = v.TestValidate(new RegisterCommand("Ana", "ana@b.com", "Senha123", true, Terms.CurrentVersion));
+        ok.ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Fact]
+    public void Aceite_dos_termos_guarda_versao_e_data()
+    {
+        var u = User.Create("a@b.com", "Ana", "hash");
+        u.AcceptTerms(Terms.CurrentVersion, Now);
+        u.TermsVersion.Should().Be("2026-10-22");
+        u.TermsAcceptedAt.Should().Be(Now);
     }
 
     private sealed class Ctx

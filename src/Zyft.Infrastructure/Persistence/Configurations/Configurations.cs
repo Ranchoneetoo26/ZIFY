@@ -27,6 +27,7 @@ internal sealed class UserConfig : IEntityTypeConfiguration<User>
         b.HasIndex(x => x.Email).IsUnique();
         b.Property(x => x.Name).HasMaxLength(120).IsRequired();
         b.Property(x => x.PasswordHash).HasMaxLength(100).IsRequired();
+        b.Property(x => x.TermsVersion).HasMaxLength(20);
     }
 }
 

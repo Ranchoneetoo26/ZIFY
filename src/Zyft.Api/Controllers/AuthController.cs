@@ -13,7 +13,10 @@ namespace Zyft.Api.Controllers;
 [Route("api/v1/auth")]
 public sealed class AuthController : ApiControllerBase
 {
-    /// <summary>Cria a conta (senha: mín. 8 caracteres com letra e número) e já devolve os tokens.</summary>
+    /// <summary>
+    /// Cria a conta (senha: mín. 8 caracteres com letra e número) e já devolve os tokens. Exige
+    /// <c>acceptTerms: true</c> e <c>termsVersion</c> igual à vigente (<c>GET /auth/terms</c>).
+    /// </summary>
     /// <response code="201">Conta criada.</response>
     /// <response code="400">Dados inválidos.</response>
     /// <response code="409">E-mail já cadastrado.</response>
@@ -25,6 +28,12 @@ public sealed class AuthController : ApiControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<AuthResult>> Register(RegisterCommand cmd, CancellationToken ct) =>
         StatusCode(StatusCodes.Status201Created, await Sender.Send(cmd, ct));
+
+    /// <summary>Versão vigente dos termos de uso e da política de privacidade (enviar em <c>termsVersion</c> no cadastro).</summary>
+    [HttpGet("terms")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(TermsInfo), StatusCodes.Status200OK)]
+    public TermsInfo Terms() => new(Domain.Users.Terms.CurrentVersion);
 
     /// <summary>Login com e-mail e senha. Limitado por IP (429 ao exceder).</summary>
     /// <response code="401">E-mail ou senha incorretos.</response>

@@ -105,12 +105,15 @@ public static class TestApi
 {
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
+    /// <summary>Versão vigente dos termos (o cadastro exige aceite).</summary>
+    public const string TermsVersion = Zyft.Domain.Users.Terms.CurrentVersion;
+
     public sealed record Session(string AccessToken, string RefreshToken, Guid UserId, string Email);
 
     public static async Task<Session> RegisterAsync(HttpClient c, string? email = null, string password = "Senha123")
     {
         email ??= $"pessoa{Guid.NewGuid():N}@exemplo.com";
-        var res = await c.PostAsJsonAsync("/api/v1/auth/register", new { name = "Pessoa Teste", email, password });
+        var res = await c.PostAsJsonAsync("/api/v1/auth/register", new { name = "Pessoa Teste", email, password, acceptTerms = true, termsVersion = TermsVersion });
         res.EnsureSuccessStatusCode();
         var j = await res.Content.ReadFromJsonAsync<JsonElement>();
         return new Session(j.GetProperty("accessToken").GetString()!, j.GetProperty("refreshToken").GetString()!, j.GetProperty("user").GetProperty("id").GetGuid(), email);

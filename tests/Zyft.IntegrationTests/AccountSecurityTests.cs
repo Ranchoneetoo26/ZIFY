@@ -86,4 +86,42 @@ public class AccountSecurityTests(ZyftApiFactory factory) : IClassFixture<ZyftAp
         all.Should().Contain("/#/verificar?token=" + token);
         all.Should().NotContain(email);
     }
+
+    // ------------------------------------------------------------------ aceite dos termos
+
+    [Fact]
+    public async Task Cadastro_sem_aceite_dos_termos_e_400_pt_BR()
+    {
+        var c = factory.CreateClient();
+        var email = $"termos{Guid.NewGuid():N}@exemplo.com";
+        var res = await c.PostAsJsonAsync("/api/v1/auth/register", new { name = "Pessoa", email, password = "Senha123" });
+        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await res.JsonAsync()).GetProperty("errors").GetProperty("acceptTerms")[0].GetString().Should().Be("Aceite os termos de uso e a política de privacidade.");
+
+        var no = await c.PostAsJsonAsync("/api/v1/auth/register", new { name = "Pessoa", email, password = "Senha123", acceptTerms = false, termsVersion = TestApi.TermsVersion });
+        no.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var old = await c.PostAsJsonAsync("/api/v1/auth/register", new { name = "Pessoa", email, password = "Senha123", acceptTerms = true, termsVersion = "2020-01-01" });
+        old.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await old.JsonAsync()).GetProperty("errors").GetProperty("termsVersion")[0].GetString().Should().StartWith("Os termos foram atualizados");
+
+        var missing = await c.PostAsJsonAsync("/api/v1/auth/register", new { name = "Pessoa", email, password = "Senha123", acceptTerms = true });
+        (await missing.JsonAsync()).GetProperty("errors").GetProperty("termsVersion")[0].GetString().Should().Be("Informe a versão dos termos aceita.");
+    }
+
+    [Fact]
+    public async Task Cadastro_com_aceite_guarda_versao_data_e_auditoria()
+    {
+        var c = factory.CreateClient();
+        (await (await c.GetAsync("/api/v1/auth/terms")).JsonAsync()).GetProperty("version").GetString().Should().Be(TestApi.TermsVersion);
+
+        var s = await TestApi.RegisterAsync(c);
+        var web = factory.Authed(s.AccessToken);
+        var me = await (await web.GetAsync("/api/v1/me")).JsonAsync();
+        me.GetProperty("termsVersion").GetString().Should().Be(TestApi.TermsVersion);
+        me.GetProperty("termsAcceptedAt").GetDateTime().Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+
+        var audit = await (await web.GetAsync("/api/v1/audit-events")).Content.ReadAsStringAsync();
+        audit.Should().Contain("termos.aceitos");
+    }
 }

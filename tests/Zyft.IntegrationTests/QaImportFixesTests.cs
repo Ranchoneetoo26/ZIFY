@@ -247,7 +247,7 @@ public class QaImportFixesTests(ZyftApiFactory factory) : IClassFixture<ZyftApiF
     {
         var c = await User();
         (await Errors(await c.PostAsJsonAsync("/api/v1/answers", new { question = invisible, text = "A" }), "question")).Should().Contain("Informe a pergunta.");
-        (await Errors(await factory.CreateClient().PostAsJsonAsync("/api/v1/auth/register", new { name = invisible, email = "x@exemplo.com", password = "Senha123" }), "name"))
+        (await Errors(await factory.CreateClient().PostAsJsonAsync("/api/v1/auth/register", new { name = invisible, email = "x@exemplo.com", password = "Senha123", acceptTerms = true, termsVersion = TestApi.TermsVersion }), "name"))
             .Should().Contain("Informe o nome.");
     }
 
@@ -258,7 +258,7 @@ public class QaImportFixesTests(ZyftApiFactory factory) : IClassFixture<ZyftApiF
     [InlineData("a@b")]
     public async Task Email_malformado_e_recusado(string email)
     {
-        var res = await factory.CreateClient().PostAsJsonAsync("/api/v1/auth/register", new { name = "Pessoa", email, password = "Senha123" });
+        var res = await factory.CreateClient().PostAsJsonAsync("/api/v1/auth/register", new { name = "Pessoa", email, password = "Senha123", acceptTerms = true, termsVersion = TestApi.TermsVersion });
         (await Errors(res, "email")).Should().Contain("Informe um e-mail válido.");
 
         var c = await User();

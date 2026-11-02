@@ -367,6 +367,10 @@ O cadastro gera um token de uso único (só o hash SHA-256 fica no banco, tabela
 
 `GET /me` e `user` da resposta de autenticação ganham `emailVerified` (bool); `GET /me` também `emailVerifiedAt` (omitido quando nulo). Reenviar invalida o link anterior. Auditoria: `email.verificado`.
 
+### 4.9 Aceite dos termos no cadastro
+
+`POST /auth/register` passa a exigir `"acceptTerms": true` e `"termsVersion"` igual à versão vigente, que `GET /auth/terms` (público) devolve como `{ "version": "2026-10-22" }`. Erros `400`: `errors.acceptTerms` "Aceite os termos de uso e a política de privacidade."; `errors.termsVersion` "Informe a versão dos termos aceita." ou "Os termos foram atualizados. Recarregue a página e aceite a versão atual.". A conta guarda `TermsVersion` e `TermsAcceptedAt` (colunas em `Users`) e o registro ganha `termos.aceitos`. `GET /me` expõe `termsVersion` e `termsAcceptedAt` (omitidos em contas antigas, sem aceite registrado).
+
 ## 5. Códigos de erro
 
 | HTTP | `code` | Quando |

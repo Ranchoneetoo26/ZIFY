@@ -13,10 +13,14 @@ using Zyft.Application.Profiles;
 
 namespace Zyft.Application.Account;
 
-/// <summary>Dados da conta. <c>EmailVerified</c> é só informativo (não bloqueia nenhuma rota).</summary>
-public sealed record MeDto(Guid Id, string Email, string Name, DateTime CreatedAt, string? Scope, bool EmailVerified, DateTime? EmailVerifiedAt)
+/// <summary>
+/// Dados da conta. <c>EmailVerified</c> é só informativo (não bloqueia nenhuma rota). <c>TermsVersion</c> e
+/// <c>TermsAcceptedAt</c> ficam nulos (omitidos) em contas criadas antes do aceite no cadastro.
+/// </summary>
+public sealed record MeDto(Guid Id, string Email, string Name, DateTime CreatedAt, string? Scope, bool EmailVerified, DateTime? EmailVerifiedAt, string? TermsVersion, DateTime? TermsAcceptedAt)
 {
-    public static MeDto From(User u, string? scope) => new(u.Id, u.Email, u.Name, u.CreatedAt, scope, u.IsEmailVerified, u.EmailVerifiedAt);
+    public static MeDto From(User u, string? scope) =>
+        new(u.Id, u.Email, u.Name, u.CreatedAt, scope, u.IsEmailVerified, u.EmailVerifiedAt, u.TermsVersion, u.TermsAcceptedAt);
 }
 
 public sealed record GetMeQuery : IRequest<MeDto>;

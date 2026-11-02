@@ -31,7 +31,7 @@ public static class ValidationLocalization
         ["Proficiency"] = "Nível", ["StartDate"] = "Início", ["EndDate"] = "Fim", ["CompletedAt"] = "Concluído em", ["Type"] = "Tipo", ["Fields"] = "Campos",
         ["MaxLength"] = "Limite de caracteres", ["FieldsFilled"] = "Campos preenchidos", ["Period"] = "Período", ["Scope"] = "Opção", ["Purpose"] = "Finalidade",
         ["Answered"] = "Etapas respondidas", ["Skipped"] = "Etapas puladas", ["LastStep"] = "Última etapa", ["Options"] = "Opções", ["Profile"] = "Dados básicos", ["Experiences"] = "Experiências", ["Educations"] = "Formações", ["Courses"] = "Cursos", ["Skills"] = "Competências", ["Languages"] = "Idiomas",
-        ["Token"] = "Código de verificação",
+        ["Token"] = "Código de verificação", ["AcceptTerms"] = "Aceite dos termos", ["TermsVersion"] = "Versão dos termos",
     };
 
     public static void Configure()
