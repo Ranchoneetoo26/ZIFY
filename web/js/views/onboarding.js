@@ -201,10 +201,13 @@ export async function render(main, { step: startAt, me }) {
   };
   // Campos de formação/curso usam chaves próprias para não colidir com "nível" da carreira.
   const curArea = () => (st.a.area && st.a.area !== OTHER ? areaOrOther(areas, st.a.area) : areaOrOther(areas, OTHER));
+  const selectDefaults = () => {
+    st.a.eduLevel ||= 'Technical';
+    st.a.eduStatus ||= 'Completed';
+    st.a.courseType ||= 'Course';
+  };
   prefill();
-  st.a.eduLevel ||= 'Technical';
-  st.a.eduStatus ||= 'Completed';
-  st.a.courseType ||= 'Course';
+  selectDefaults();
 
   let steps = buildSteps(curArea());
   const idxOf = (id) => Math.max(0, steps.findIndex((s) => s.id === id));
@@ -442,31 +445,110 @@ export async function render(main, { step: startAt, me }) {
     if (completed) st.completedAt ||= new Date().toISOString();
   };
 
-  // ---------- Rascunho do passo aberto ----------
-  // Dados pessoais não vão para localStorage (ver api.js): o rascunho fica em sessionStorage, que sobrevive ao F5
-  // na mesma aba, e ao fechar a aba o passo vai para a API (onPageHide).
-  const DRAFT_KEY = `zyft.onboarding.draft.${me?.id || 'anon'}`;
+  // ---------- Rascunho (localStorage, por pessoa) ----------
+  // O que foi digitado e ainda não está no perfil fica em localStorage (zyft.onboarding.draft.<id>), para
+  // sobreviver a fechar a aba: experiência, formação, cursos, competências e idiomas não cabem no envio do
+  // pagehide. Some ao concluir, ao sair da conta (app.js) e depois de DRAFT_TTL. Cada valor guarda também o
+  // que o servidor tinha quando foi digitado: se o perfil mudou depois disso, vale o perfil (nunca o rascunho).
   const takeState = () => JSON.stringify({ a: st.a, m: st.m, custom: st.custom, langs: st.langs, current: st.current });
   let entry = takeState();
-  const enterStep = () => { entry = takeState(); st.shownSkills = [...st.m.skills]; };
+  let entryIds = { expId: st.expId, eduId: st.eduId, courseId: st.courseId }; // item que o passo editava ao abrir
+  const enterStep = () => { entry = takeState(); entryIds = { expId: st.expId, eduId: st.eduId, courseId: st.courseId }; st.shownSkills = [...st.m.skills]; };
   const isDirty = () => takeState() !== entry;
-  const clearDraft = () => { try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* sem armazenamento */ } };
-  const writeDraft = () => {
-    const cur = steps[idx];
-    if (!cur.ch || !isDirty()) { clearDraft(); return; }
-    const was = JSON.parse(entry);
-    const diff = (now, old) => Object.fromEntries(Object.entries(now).filter(([k, val]) => JSON.stringify(val) !== JSON.stringify(old[k])));
-    const draft = { step: cur.id, a: diff(st.a, was.a), m: diff(st.m, was.m), custom: diff(st.custom, was.custom), langs: st.langs, current: st.current, expId: st.expId, eduId: st.eduId, courseId: st.courseId };
-    try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch { /* sem armazenamento */ }
+  const DRAFT_KEY = `zyft.onboarding.draft.${me?.id || 'anon'}`;
+  const DRAFT_TTL = 7 * 24 * 60 * 60 * 1000;
+  const GROUPS = {
+    expId: { list: 'experiences', load: (x) => loadExperience(x), blank: () => { Object.assign(st.a, { company: '', role: '', startDate: '', endDate: '', activities: '', results: '' }); st.m.tools = []; st.current = false; }, keys: ['company', 'role', 'startDate', 'endDate', 'activities', 'results'], m: ['tools'], current: true },
+    eduId: { list: 'educations', load: (x) => loadEducation(x), blank: () => Object.assign(st.a, { institution: '', course: '', eduStart: '', eduEnd: '' }), keys: ['institution', 'course', 'eduLevel', 'eduStatus', 'eduStart', 'eduEnd'], m: [] },
+    courseId: { list: 'courses', load: (x) => loadCourse(x), blank: () => Object.assign(st.a, { courseName: '', issuer: '', hours: '' }), keys: ['courseName', 'courseType', 'issuer', 'hours'], m: [] },
   };
-  const restoreDraft = () => {
+  const groupOf = (kind, key) => Object.keys(GROUPS).find((g) => (kind === 'current' ? GROUPS[g].current : (GROUPS[g][kind === 'a' ? 'keys' : 'm'] || []).includes(key)));
+  const norm = (x) => (x === undefined || x === null || x === '' ? null : x);
+  const same = (x, y) => JSON.stringify(norm(x)) === JSON.stringify(norm(y));
+  const clone = (x) => JSON.parse(JSON.stringify(x));
+  const ids = () => ({ expId: st.expId, eduId: st.eduId, courseId: st.courseId });
+
+  /** Como a tela ficaria só com o que está salvo em `prof`, nos itens `want` (null = item novo, em branco). */
+  const viewOf = (prof, want) => {
+    const keep = { a: st.a, m: st.m, langs: st.langs, current: st.current, ...ids() };
+    const keepP = p;
+    try {
+      p = prof;
+      Object.assign(st, { a: {}, m: { roles: [], sectors: [], contracts: [], tools: [], skills: [] }, langs: [], current: true, expId: null, eduId: null, courseId: null });
+      prefill();
+      selectDefaults();
+      const missing = [];
+      for (const [g, def] of Object.entries(GROUPS)) {
+        if (want[g] === undefined || want[g] === st[g]) continue;
+        if (want[g] === null) { def.blank(); st[g] = null; continue; }
+        const item = (p[def.list] || []).find((x) => x.id === want[g]);
+        if (item) def.load(item); else missing.push(g);
+      }
+      return { a: { ...st.a }, m: clone(st.m), langs: clone(st.langs), current: st.current, ids: ids(), missing };
+    } finally {
+      Object.assign(st, keep);
+      p = keepP;
+    }
+  };
+
+  const removeDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch { /* sem armazenamento */ } };
+  const readDraft = () => {
     let d = null;
-    try { d = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null'); } catch { return; }
-    if (d?.step !== steps[idx].id) return;
-    Object.assign(st.a, d.a);
-    Object.assign(st.m, d.m);
-    Object.assign(st.custom, d.custom);
-    Object.assign(st, { langs: d.langs, current: d.current, expId: d.expId, eduId: d.eduId, courseId: d.courseId });
+    try { d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch { /* corrompido ou bloqueado */ }
+    if (d && d.v === 2 && Date.now() - d.at < DRAFT_TTL) return d;
+    if (d) removeDraft();
+    return null;
+  };
+  /** Grava só o que difere do perfil salvo (p), com o valor do servidor de quando foi digitado. */
+  const writeDraft = () => {
+    if (steps[idx]?.kind === 'done') { removeDraft(); return; }
+    const server = viewOf(p, ids());
+    const out = { v: 2, at: Date.now(), step: steps[idx].id, ids: ids(), a: {}, m: {}, custom: st.custom, base: { a: {}, m: {} } };
+    for (const [k, val] of Object.entries(st.a)) if (!same(val, server.a[k])) { out.a[k] = val; out.base.a[k] = server.a[k] ?? null; }
+    for (const [k, val] of Object.entries(st.m)) if (!same(val, server.m[k])) { out.m[k] = val; out.base.m[k] = server.m[k] ?? []; }
+    if (!same(st.langs, server.langs)) { out.langs = st.langs; out.base.langs = server.langs; }
+    if (st.current !== server.current) { out.current = st.current; out.base.current = server.current; }
+    if (!Object.keys(out.a).length && !Object.keys(out.m).length && !out.langs && out.current === undefined) { removeDraft(); return; }
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(out)); } catch { /* cheio ou bloqueado: vale o que está na tela */ }
+  };
+
+  /**
+   * Na abertura: aplica o rascunho por cima do perfil recém-lido. Por valor: servidor igual ao de quando foi
+   * digitado → vale o rascunho; servidor igual ao rascunho → já foi salvo; servidor diferente dos dois → o
+   * perfil mudou depois (outra aba, outro aparelho): vale o servidor e a pessoa fica sabendo.
+   */
+  const restoreDraft = () => {
+    const d = readDraft();
+    if (!d) return;
+    const now = viewOf(p, d.ids || {});
+    const lost = new Set(now.missing); // item apagado em outro lugar
+    let applied = 0;
+    let conflicts = 0;
+    const merge = (mine, base, server, set) => {
+      if (same(server, mine)) return;
+      if (same(server, base)) { set(mine); applied += 1; } else conflicts += 1;
+    };
+    // Item do rascunho (ex.: segunda experiência, ou uma nova ainda sem id) aparece com o que o servidor tem dele.
+    for (const [g, def] of Object.entries(GROUPS)) {
+      const touched = def.keys.some((k) => k in (d.a || {})) || def.m.some((k) => k in (d.m || {})) || (def.current && 'current' in d);
+      if (!touched) continue;
+      if (lost.has(g)) { conflicts += 1; continue; }
+      if (now.ids[g] === st[g]) continue;
+      for (const k of def.keys) st.a[k] = now.a[k];
+      for (const k of def.m) st.m[k] = now.m[k];
+      if (def.current) st.current = now.current;
+      st[g] = now.ids[g];
+    }
+    const skip = (kind, k) => lost.has(groupOf(kind, k));
+    for (const [k, val] of Object.entries(d.a || {})) if (!skip('a', k)) merge(val, d.base?.a?.[k], now.a[k], (v) => { st.a[k] = v; });
+    for (const [k, val] of Object.entries(d.m || {})) if (!skip('m', k)) merge(val, d.base?.m?.[k], now.m[k], (v) => { st.m[k] = v; });
+    if (d.langs) merge(d.langs, d.base?.langs, now.langs, (v) => { st.langs = v; });
+    if ('current' in d && !skip('current')) merge(d.current, d.base?.current, now.current, (v) => { st.current = v; });
+    Object.assign(st.custom, d.custom || {});
+    if (!startAt && !ob.completedAt && steps.some((s) => s.id === d.step && s.ch)) idx = idxOf(d.step);
+    if (conflicts) toast('Seu perfil mudou depois do rascunho guardado neste navegador. Mostramos o que está salvo no perfil; confira antes de continuar.');
+    else if (applied) toast('Recuperamos o que você tinha preenchido e ainda não estava salvo.');
+    writeDraft(); // já sem o que foi salvo ou descartado
   };
 
   const onPageHide = () => {
@@ -529,14 +611,14 @@ export async function render(main, { step: startAt, me }) {
       if (cur.ch && cur.kind !== 'consent' && isDirty()) {
         if (!isAnswered(cur) && !hasSaved(cur)) {
           writeDraft();
-          toast('Esta resposta está incompleta: ela fica guardada só nesta aba até você terminar.');
+          toast('Esta resposta está incompleta: ela fica guardada neste navegador até você terminar.');
           go('#/perfil');
           return;
         }
         const errors = stepErrors(cur);
         if (check.hasErrors(errors)) {
           showErrors(formEl, errors);
-          exitFailed('Esta resposta não foi salva. Corrija o campo ou clique em Sair de novo: o rascunho fica só nesta aba.');
+          exitFailed('Esta resposta não foi salva. Corrija o campo ou clique em Sair de novo: o rascunho fica guardado neste navegador.');
           return;
         }
         try {
@@ -545,7 +627,7 @@ export async function render(main, { step: startAt, me }) {
         } catch (err) {
           writeDraft();
           if (!err.handled) showErrors(formEl, err);
-          exitFailed('Não conseguimos salvar esta resposta. Tente de novo ou clique em Sair de novo: o rascunho fica só nesta aba.');
+          exitFailed('Não conseguimos salvar esta resposta. Tente de novo ou clique em Sair de novo: o rascunho fica guardado neste navegador.');
           return;
         }
         enterStep();
@@ -554,7 +636,7 @@ export async function render(main, { step: startAt, me }) {
         exitFailed('Não conseguimos registrar seu progresso. Verifique sua conexão ou clique em Sair de novo para sair assim mesmo.');
         return;
       }
-      clearDraft();
+      writeDraft(); // o que ficou sem salvar em outros passos continua guardado
       go('#/perfil');
     });
   }
@@ -634,7 +716,7 @@ export async function render(main, { step: startAt, me }) {
       showErrors(form, null, 'Sua resposta foi salva, mas não conseguimos registrar o progresso. Verifique sua conexão e tente de novo.');
       return;
     }
-    clearDraft();
+    if (completing) removeDraft();
     goTo(nextIdx);
   });
 
@@ -643,8 +725,8 @@ export async function render(main, { step: startAt, me }) {
   const skip = () => locked(async () => {
     const at = idx;
     const cur = steps[at];
-    const before = { draft: takeState(), answered: [...st.answered], skipped: [...st.skipped] };
-    Object.assign(st, JSON.parse(entry));
+    const before = { draft: takeState(), ids: ids(), answered: [...st.answered], skipped: [...st.skipped] };
+    Object.assign(st, JSON.parse(entry), entryIds); // inclusive o item (rascunho de item novo volta ao salvo)
     if (cur.ch) {
       // Pré-preenchido não conta (e-mail da conta, país): só o que está salvo no perfil tira da pendência.
       if (hasSaved(cur)) { st.answered.add(cur.id); st.skipped.delete(cur.id); } else { st.skipped.add(cur.id); st.answered.delete(cur.id); }
@@ -653,11 +735,11 @@ export async function render(main, { step: startAt, me }) {
     try {
       await persist(steps[at + 1]?.id || cur.id, completing);
     } catch {
-      Object.assign(st, JSON.parse(before.draft), { answered: new Set(before.answered), skipped: new Set(before.skipped) });
+      Object.assign(st, JSON.parse(before.draft), before.ids, { answered: new Set(before.answered), skipped: new Set(before.skipped) });
       showErrors(formEl, null, 'Não conseguimos registrar seu progresso. Verifique sua conexão e tente de novo.');
       return;
     }
-    clearDraft();
+    if (completing) removeDraft();
     goTo(at + 1);
   });
 

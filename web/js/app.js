@@ -238,10 +238,13 @@ onAuthChange((logged, reason) => {
   me = null; setAppCount(null); plan = null;
   try {
     sessionStorage.removeItem(OB_CHECK);
-    // Sair não deixa dado pessoal na aba. Em sessão expirada, o rascunho fica para a mesma pessoa retomar.
+    // Sair não deixa dado pessoal no navegador (aba e localStorage, onde fica o rascunho do onboarding).
+    // Em sessão expirada, o rascunho fica para a mesma pessoa retomar.
     if (reason !== 'expired') {
-      for (const key of Object.keys(sessionStorage)) {
-        if (/^zyft\.(importReview|onboarding\.draft)\./.test(key)) sessionStorage.removeItem(key);
+      for (const store of [sessionStorage, localStorage]) {
+        for (const key of Object.keys(store)) {
+          if (/^zyft\.(importReview|onboarding\.draft)\./.test(key)) store.removeItem(key);
+        }
       }
     }
   } catch { /* ok */ }

@@ -7,7 +7,8 @@
 // - Toda chamada tem tempo limite, com mensagem própria.
 //
 // Armazenamento: o access token (15 min) fica só em memória. O refresh token fica em
-// sessionStorage (some ao fechar a aba). Nada vai para localStorage.
+// sessionStorage (some ao fechar a aba). Nenhum token vai para localStorage; lá fica só o rascunho do
+// onboarding (views/onboarding.js), apagado ao concluir, ao sair da conta e depois de 7 dias.
 
 export const API_BASE = '/api/v1';
 const RT_KEY = 'zyft.refreshToken';
