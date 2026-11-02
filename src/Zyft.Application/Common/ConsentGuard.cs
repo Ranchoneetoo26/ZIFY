@@ -26,6 +26,6 @@ public sealed class ConsentGuard(IRepository<Consent> consents) : IConsentGuard
             ConsentPurpose.JobAnalysis => "análise de vaga",
             _ => "uso de dados sensíveis",
         };
-        throw new ConsentRequiredException($"Esta ação exige o consentimento \"{what}\". Ative-o em Configurações > Privacidade.");
+        throw new ConsentRequiredException($"Esta ação exige o consentimento \"{what}\". Ative-o em Conta e privacidade.");
     }
 }

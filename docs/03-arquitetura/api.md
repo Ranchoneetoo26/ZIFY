@@ -6,8 +6,8 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Contrato REST da API v1 |
-| Versão | 2.3 |
-| Status | Em revisão. Todas as rotas descritas aqui estão implementadas e cobertas por testes de integração: **77 operações** em `/api/v1`, mais `GET /health`. As rotas da versão 2 seguem os [ADR-0018](adr/0018-onboarding-em-passos-com-perguntas-adiaveis.md), [ADR-0019](adr/0019-area-profissional-dinamica-e-campos-personalizados.md) e [ADR-0020](adr/0020-monetizacao-com-anuncios-e-planos.md), todos ainda propostos. |
+| Versão | 2.5 |
+| Status | Em revisão. Todas as rotas descritas aqui estão implementadas e cobertas por testes de integração: **84 operações** em `/api/v1`, mais `GET /health`. As rotas da versão 2 seguem os [ADR-0018](adr/0018-onboarding-em-passos-com-perguntas-adiaveis.md), [ADR-0019](adr/0019-area-profissional-dinamica-e-campos-personalizados.md) e [ADR-0020](adr/0020-monetizacao-com-anuncios-e-planos.md), todos ainda propostos. |
 | Dono | Arquitetura de software, com o time de backend |
 | Documentos relacionados | [Backend](backend.md), [Modelo de dados](modelo-de-dados.md), [Segurança](seguranca.md), [Extensão](extensao.md), [DRP](../01-produto/drp.md), [Monetização](../01-produto/monetizacao.md), [Entrega 2 §3](../entregas/entrega-2-projeto-e-arquitetura.md#3-definição-da-api) |
 
@@ -21,6 +21,7 @@
 | 2.2 | 21/10/2026 | 77 operações: nova `DELETE /extension/devices/current` (a extensão se desconecta e libera a vaga de navegador). `POST /billing/packs` passa a exigir `WebUser` (extensão recebe 403). 402 documentado no Swagger (`ProducesResponseType`) em `forms/mappings`, `forms/open-answers`, `jobs/analyze`, `resume-imports`, `POST /answers` e `extension/pair`. |
 | 2.3 | 21/10/2026 | `GET /billing` (e as respostas de assinar, cancelar, pacote e recompensado) ganham `trialAvailable` e `trialDays`. Erro de formato (model binding) aponta o campo e não a chave do parâmetro (`cmd`). `type` de curso ausente ou nulo vira `Course`. Proposta de importação marca itens incompletos em `missingFields` (sem inventar valor) e o `apply` responde 400 com mensagem que nomeia o item. `open-answers` nunca devolve `value` vazio: texto vazio da IA vira `kind: "missing"` com nota padrão. |
 | 2.4 | 22/10/2026 | `GET /ads` pode devolver `format: "network"` (Google AdSense **simulado**, [ADR-0021](adr/0021-rede-de-anuncios-google-adsense.md)) com o objeto `network`; id `adsense-<slot>` aceito em `hide` (30 dias) e `click` (não contado). Sem rota nova: continuam 77 operações. |
+| 2.5 | 02/11/2026 | 84 operações (+7): verificação de e-mail (`POST /auth/verify`, `/auth/verify/resend`, §4.8), versão dos termos (`GET /auth/terms`) e aceite obrigatório no cadastro (§4.9), troca de senha (`POST /auth/password`, §4.11), recuperação de senha (`POST /auth/password/forgot` e `/reset`, §4.12) e troca de período do Plus (`POST /billing/subscription/period`, §4.13). Concorrência otimista do Perfil Mestre com `ETag`/`If-Match` e 409 `profile.conflict` (§4.10). `POST /auth/verify` é idempotente para o link que já confirmou a conta. `BillingDto` ganha `packTotals`; pacote também no Plus. `GET /me` ganha `emailVerified`, `emailVerifiedAt`, `termsVersion` e `termsAcceptedAt`. Mapa de rotas, rate limit, códigos de erro e compatibilidade (§6) atualizados. |
 
 ## 1. Convenções
 
@@ -40,7 +41,7 @@
 - Policies: **`WebUser`** (só `scope=web`) e **`ExtensionOrWeb`**. Token de extensão revogada é recusado na hora.
 - O fluxo Authorization Code + PKCE do [ADR-0007](adr/0007-autenticacao-e-pareamento-da-extensao.md) ficou para depois do MVP 1 acadêmico; o pareamento é o código curto.
 - CORS: origens de `Cors:AllowedOrigins` e `chrome-extension://<id>` (restrito a `Cors:ExtensionIds` em Production).
-- Rate limiting: por IP em `register`, `login` e `extension/pair` (10/min); por pessoa em `/forms/*`, `/jobs/analyze` e `POST /resume-imports` (60/min). Excesso: 429 com `Retry-After`.
+- Rate limiting: por IP (política `auth`, 10/min, um limite só para todas estas rotas) em `register`, `login`, `verify`, `verify/resend`, `password`, `password/forgot`, `password/reset` e `extension/pair`; por pessoa em `/forms/*`, `/jobs/analyze` e `POST /resume-imports` (60/min). Excesso: 429 com `Retry-After`.
 
 ## 2. Mapa de rotas
 
@@ -50,10 +51,15 @@ Legenda: **W** = só plataforma web (`WebUser`); **E/W** = extensão ou web (`Ex
 
 | Método e rota | Cliente | Requisito |
 |---|---|---|
-| `POST /auth/register` | público | RF-01 |
+| `POST /auth/register` (exige `acceptTerms` e `termsVersion`, §4.9) | público | RF-01 |
+| `GET /auth/terms` | público | RF-01 |
 | `POST /auth/login` | público | RF-01 |
 | `POST /auth/refresh` | público (refresh token) | RF-01 |
 | `POST /auth/logout` | W, E | RF-01 |
+| `POST /auth/verify` | público (token do link) | RF-01 |
+| `POST /auth/verify/resend` | W | RF-01 |
+| `POST /auth/password` | W | RF-30 |
+| `POST /auth/password/forgot`, `POST /auth/password/reset` | público | RF-30 |
 | `GET /me` | E/W | RF-01 |
 | `DELETE /me` | W | RF-08 |
 | `GET /me/export` | W | RF-08 |
@@ -64,7 +70,7 @@ Legenda: **W** = só plataforma web (`WebUser`); **E/W** = extensão ou web (`Ex
 
 | Método e rota | Cliente | Requisito |
 |---|---|---|
-| `GET /profile` (v2: inclui `workArea`, `professionalRegistration`, `salaryType` e `customFields`) | W | RF-02, RF-24, RF-25 |
+| `GET /profile` (v2: inclui `workArea`, `professionalRegistration`, `salaryType` e `customFields`; `version` e `ETag`, §4.10) | W | RF-02, RF-24, RF-25, RNF-18 |
 | `PUT /profile` (v2: aceita `workArea`, `professionalRegistration`, `salaryType`) | W | RF-02, RF-24 |
 | `GET /profile/missing` | W | RF-05 |
 | `GET`, `POST /profile/experiences`; `PUT`, `DELETE /profile/experiences/{id}` | W | RF-02 |
@@ -120,8 +126,9 @@ Legenda: **W** = só plataforma web (`WebUser`); **E/W** = extensão ou web (`Ex
 |---|---|---|
 | `GET /billing` | E/W | RF-26 |
 | `POST /billing/subscribe` | W | RF-26 |
+| `POST /billing/subscription/period` (§4.13) | W | RF-31 |
 | `POST /billing/cancel` | W | RF-26 |
-| `POST /billing/packs` (responde 201) | W | RF-27 |
+| `POST /billing/packs` (responde 201; também no Plus) | W | RF-27 |
 | `GET /ads?placement=<p>[&topic=<texto>]` | E/W | RF-29 |
 | `POST /ads/{id}/hide` | E/W | RF-29 |
 | `POST /ads/{id}/click` | E/W | RF-29 |
@@ -251,7 +258,8 @@ PUT /onboarding  ← { "answered": [...], "skipped": [...], "lastStep": "area", 
   "rewarded": { "claimedThisMonth": 1, "maxPerMonth": 3, "creditsPerClaim": 3 },
   "packs": [{ "assistedRemaining": 15, "aiRemaining": 10, "expiresAt": "2026-12-20T14:00:00Z" }],
   "adsEnabled": true,
-  "trialAvailable": true, "trialDays": 7
+  "trialAvailable": true, "trialDays": 7,
+  "packTotals": { "assistedRemaining": 15, "aiRemaining": 10 }
 }
 ```
 
@@ -354,7 +362,54 @@ Quando o espaço é preenchido pela rede, a resposta muda de forma:
 
 ### 4.7 Auditoria: tipos novos
 
-`GET /audit-events` passa a listar também `plan.changed`, `pack.purchased`, `ad.hidden`, `rewarded.claimed`, `onboarding.completed` e `custom_field.changed`. Como os anteriores, registram **o que** aconteceu, nunca conteúdo pessoal (sem rótulo, valor, anúncio clicado com dados da pessoa ou URL).
+`GET /audit-events` passa a listar também `plan.changed`, `pack.purchased`, `ad.hidden`, `rewarded.claimed`, `onboarding.completed` e `custom_field.changed` e, desde 02/11/2026, `email.verificado`, `termos.aceitos`, `senha.alterada`, `senha.redefinida` e `plan.period_changed`. Como os anteriores, registram **o que** aconteceu, nunca conteúdo pessoal (sem rótulo, valor, anúncio clicado com dados da pessoa ou URL).
+
+### 4.8 Verificação de e-mail (RF-01)
+
+O cadastro gera um token de uso único (só o hash SHA-256 fica no banco, tabela `UserTokens` com `Purpose = EmailVerification`, validade de 24 h) e envia o link `{App:WebBaseUrl}/#/verificar?token=...` por `IEmailSender`. Enquanto não há provedor de e-mail, o envio não manda nada: com `Email:LogLinks=true` (só em `appsettings.Development.json`) registra o link no log; nos outros ambientes registra só que o e-mail foi gerado, sem token. Nunca o endereço. **E-mail não verificado não bloqueia nenhuma rota**: é só informativo.
+
+| Rota | Acesso | Corpo | Resposta |
+|---|---|---|---|
+| `POST /auth/verify` | público, limite `auth` | `{ "token": "..." }` | `204`; também `204` (idempotente, sem novo evento) ao reabrir o link que já confirmou a conta; `400` com `errors.token` ("O link de verificação é inválido ou expirou. Peça um novo link.") se desconhecido, expirado sem uso ou invalidado por um link mais novo |
+| `POST /auth/verify/resend` | W, limite `auth` | — | `202`; `409` `email.already_verified`; `429` |
+
+`GET /me` e `user` da resposta de autenticação ganham `emailVerified` (bool); `GET /me` também `emailVerifiedAt` (omitido quando nulo). Reenviar invalida o link anterior. Auditoria: `email.verificado`.
+
+### 4.9 Aceite dos termos no cadastro (RF-01)
+
+`POST /auth/register` passa a exigir `"acceptTerms": true` e `"termsVersion"` igual à versão vigente, que `GET /auth/terms` (público) devolve como `{ "version": "2026-10-22" }`. Erros `400`: `errors.acceptTerms` "Aceite os termos de uso e a política de privacidade."; `errors.termsVersion` "Informe a versão dos termos aceita." ou "Os termos foram atualizados. Recarregue a página e aceite a versão atual.". A conta guarda `TermsVersion` e `TermsAcceptedAt` (colunas em `Users`) e o registro ganha `termos.aceitos`. `GET /me` expõe `termsVersion` e `termsAcceptedAt` (omitidos em contas antigas, sem aceite registrado).
+
+### 4.10 Concorrência otimista do Perfil Mestre (RNF-18)
+
+O perfil tem `Version` (inteiro, coluna `Profiles.Version`, token de concorrência do EF), que sobe a cada alteração dos dados básicos ou de qualquer item (experiências, formação, cursos, competências, idiomas, campos personalizados e aplicação de currículo).
+
+- `GET /profile` devolve o cabeçalho `ETag: "7"` e `version: 7` no corpo. `PUT /profile` devolve o perfil novo com `ETag` e `version` atualizados; `POST`/`PUT`/`DELETE` de itens devolvem `ETag` com a versão nova. O CORS expõe `ETag`.
+- Todas as rotas de alteração em `/profile` aceitam `If-Match: "7"` (também `W/"7"` ou `7`). Se o perfil já estiver em outra versão: `409` `profile.conflict`, `detail` "Seu perfil foi alterado em outra sessão. Recarregue a página para ver a versão mais recente antes de salvar." e `currentVersion` (inteiro) no corpo; nada é gravado. `If-Match` mal formado: `400` `bad_request`. `If-Match: *` ou sem cabeçalho: comportamento de antes (a extensão não precisa mudar).
+- A verificação vai no próprio `UPDATE ... WHERE Version = esperada`; duas gravações simultâneas sem `If-Match` também não se sobrescrevem em silêncio (a segunda recebe o mesmo `409`).
+
+### 4.11 Troca de senha (RF-30)
+
+`POST /auth/password` (W, limite `auth`) com `{ "currentPassword": "...", "newPassword": "..." }`. Sucesso: `200` com o mesmo corpo do login (`AuthResult`): a sessão atual continua com o **par novo** (o cliente troca o `refreshToken` guardado). Todas as outras sessões terminam: refresh tokens revogados (inclusive o antigo desta sessão) e extensões pareadas desconectadas (o access token da extensão para de valer na hora; o access token web de outra sessão vale até expirar, no máximo 15 min). Erros `400`: `errors.currentPassword` "Senha atual incorreta." ou "Informe a senha atual."; `errors.newPassword` com as regras de senha forte ou "A nova senha deve ser diferente da senha atual.". Auditoria: `senha.alterada` (e `extensao.revogada` por extensão desconectada).
+
+### 4.12 Recuperação de senha (RF-30)
+
+| Rota | Acesso | Corpo | Resposta |
+|---|---|---|---|
+| `POST /auth/password/forgot` | público, limite `auth` | `{ "email": "..." }` | sempre `202` sem corpo, exista ou não a conta (sem enumeração); `400` só para e-mail ausente ou mal formado; `429` |
+| `POST /auth/password/reset` | público, limite `auth` | `{ "token": "...", "newPassword": "..." }` | `204`; `400` com `errors.token` ("O link de redefinição é inválido ou expirou. Peça um novo link.") ou `errors.newPassword` (regras de senha forte) |
+
+O link enviado é `{App:WebBaseUrl}/#/redefinir-senha?token=...` (token de uso único, só o hash no banco, `UserTokens` com `Purpose = PasswordReset`, validade de 30 min; pedir de novo invalida o link anterior). Redefinir encerra todas as sessões (refresh tokens e extensões pareadas), invalida os links de redefinição em aberto e marca o e-mail como verificado (o link prova acesso à caixa). Não faz login: a pessoa entra com a senha nova. Auditoria: `senha.redefinida`.
+
+### 4.13 Troca de período do Plus e pacote no Plus (RF-31, RF-27)
+
+`POST /billing/subscription/period` (W) com `{ "period": "monthly" | "yearly" }` troca o período do Plus ativo **na hora** e responde `200` com `{ "billing": <BillingDto>, "proration": { "from", "to", "unusedCredit", "newPrice", "amount", "duringTrial", "changedAt", "demo": true } }`. Rateio simulado (nenhuma cobrança real):
+
+- no teste grátis: só troca o período; `amount = 0`, `duringTrial = true`, renovação continua no fim do teste;
+- pago: `unusedCredit = preço do período atual × (tempo que falta do ciclo ÷ duração do ciclo)`, `newPrice` = preço do período novo, `amount = newPrice − unusedCredit` (positivo = cobrado agora; negativo = crédito a favor da pessoa, por exemplo anual → mensal). O ciclo novo começa na troca. Arredondamento a 2 casas.
+
+Erros: `400` período inválido; `422` `billing.not_subscribed` (sem Plus ativo) ou `billing.same_period`. A troca fica em `SubscriptionPeriodChanges` (também na exportação, `billing.periodChanges`) e no registro como `plan.period_changed`.
+
+**Pacote no Plus:** `POST /billing/packs` vale também para quem assina o Plus. Os pacotes se somam: `GET /billing` (e as demais respostas de billing) trazem `packTotals: { assistedRemaining, aiRemaining }` com a soma dos pacotes ativos, além da lista `packs`. No Plus o uso sai do plano (sem limite) e os créditos do pacote ficam guardados; voltando ao Gratuito, são usados depois do limite do mês, até vencerem (60 dias após cada compra).
 
 ## 5. Códigos de erro
 
@@ -365,9 +420,9 @@ Quando o espaço é preenchido pela rede, a resposta muda de forma:
 | 402 | `plan.limit_reached` | Limite do plano atingido (v2), com `resource`, `used` e `limit` no topo e em `extensions` |
 | 403 | `forbidden` / `consent_required` | Policy errada (ex.: token de extensão em rota só web) ou finalidade desligada |
 | 404 | `not_found` | Inexistente **ou de outra pessoa** (não revela existência) |
-| 409 | `conflict` / `ads.rewarded_exhausted` / `ads.rewarded_unavailable` | Conflito (e-mail já cadastrado, duplicata no banco); ofertas recompensadas do mês esgotadas; oferta recompensada pedida no Plus (v2) |
+| 409 | `conflict` / `ads.rewarded_exhausted` / `ads.rewarded_unavailable` / `profile.conflict` / `email.already_verified` | Conflito (e-mail já cadastrado, duplicata no banco); ofertas recompensadas do mês esgotadas; oferta recompensada pedida no Plus (v2); perfil alterado em outra sessão, com `currentVersion` (§4.10); reenvio de verificação para e-mail já verificado (§4.8) |
 | 413 | `payload_too_large` | Currículo acima de 10 MB |
-| 422 | regra de domínio (`experience.invalid_period`, `profile.custom_field_sensitive`, `profile.custom_field_duplicated`, `profile.custom_field_limit`, `billing.already_subscribed`, `billing.not_subscribed`…) | Regra de negócio violada. `profile.invalid_salary_type`, `onboarding.invalid_step` e `billing.invalid_period` existem no domínio, mas na prática o validador responde antes com 400 |
+| 422 | regra de domínio (`experience.invalid_period`, `profile.custom_field_sensitive`, `profile.custom_field_duplicated`, `profile.custom_field_limit`, `billing.already_subscribed`, `billing.not_subscribed`, `billing.same_period`…) | Regra de negócio violada. `profile.invalid_salary_type`, `onboarding.invalid_step` e `billing.invalid_period` existem no domínio, mas na prática o validador responde antes com 400 |
 | 429 | `rate_limited` | Acima do limite por IP ou por pessoa, com `Retry-After` |
 | 500 | `internal_error` | Erro inesperado, sem stack trace |
 
@@ -384,5 +439,6 @@ Os códigos genéricos vêm de `src/Zyft.Api/Infrastructure/ExceptionHandlingMid
 ## 6. Versionamento e compatibilidade
 
 - Campos novos e opcionais entram na `v1` sem quebrar clientes (é o caso de toda a versão 2). Mudança incompatível exige `/api/v2`.
-- O status `402` é novo em relação à Entrega 3. A web (`web/js/billing.js`) e a extensão (v0.4.0) já o tratam e mostram as opções. Um cliente antigo mostraria o `detail` como erro comum.
+- O status `402` é novo em relação à Entrega 3. A web (`web/js/billing.js`) e a extensão (desde a 0.4.0) já o tratam e mostram as opções. Um cliente antigo mostraria o `detail` como erro comum.
+- **Mudança incompatível dentro da `v1` (02/11/2026):** `POST /auth/register` passou a exigir `acceptTerms: true` e `termsVersion` (§4.9). Um cliente antigo que só manda nome, e-mail e senha recebe 400. A web já foi ajustada; a extensão não cadastra contas. O resto da rodada é aditivo: `If-Match` é opcional e, sem ele, as rotas de `/profile` se comportam como antes.
 - A extensão envia `X-Zyft-Extension-Version`. Toda mudança de contrato atualiza, no mesmo PR, o controller, os DTOs, os testes de integração, a web, a extensão e este documento.

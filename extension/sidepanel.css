@@ -99,6 +99,7 @@ main:focus { outline: none; box-shadow: none; }
 .status.ok { color: var(--ink); }
 .status.err { padding: 10px 16px; background: var(--blocked-soft); color: var(--ink); display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .status .err-title { font-weight: 700; display: flex; gap: 6px; align-items: center; }
+.pair-notice { border-radius: 8px; padding: 12px 14px; }
 .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--ink); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; margin-right: 6px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 

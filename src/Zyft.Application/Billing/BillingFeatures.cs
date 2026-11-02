@@ -20,6 +20,9 @@ public sealed record RewardedDto(int ClaimedThisMonth, int MaxPerMonth, int Cred
 
 public sealed record PackDto(int AssistedRemaining, int AiRemaining, DateTime ExpiresAt);
 
+/// <summary>Soma dos créditos dos pacotes ativos (os pacotes se acumulam; cada um vence 60 dias após a compra).</summary>
+public sealed record PackTotalsDto(int AssistedRemaining, int AiRemaining);
+
 public sealed record BillingDto(
     string Plan,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? Period,
@@ -34,12 +37,14 @@ public sealed record BillingDto(
     IReadOnlyList<PackDto> Packs,
     bool AdsEnabled,
     bool TrialAvailable,
-    int TrialDays)
+    int TrialDays,
+    PackTotalsDto PackTotals)
 {
     public static BillingDto Build(Subscription? sub, MonthlyUsage? usage, IEnumerable<UsagePack> packs, DateTime now)
     {
         var plan = sub?.Plan ?? PlanKind.Free;
         var month = PlanRules.MonthOf(now);
+        var active = packs.Where(p => p.IsActive(now)).OrderBy(p => p.ExpiresAt).ToList();
         UsageItemDto Item(UsageResource r) => new(
             usage?.UsedOf(r) ?? 0,
             PlanRules.MonthlyLimit(plan, r),
@@ -56,11 +61,12 @@ public sealed record BillingDto(
             PlanRules.AnswersLimit(plan),
             PlanRules.DevicesLimit(plan),
             new RewardedDto(usage?.RewardedClaims ?? 0, PlanRules.RewardedMaxPerMonth, PlanRules.RewardedCreditsPerClaim),
-            packs.Where(p => p.IsActive(now)).OrderBy(p => p.ExpiresAt).Select(p => new PackDto(p.AssistedRemaining, p.AiRemaining, p.ExpiresAt)).ToList(),
+            active.Select(p => new PackDto(p.AssistedRemaining, p.AiRemaining, p.ExpiresAt)).ToList(),
             PlanRules.AdsEnabled(plan),
             // Os 7 dias grátis valem uma vez por conta: quem já testou (mesmo tendo cancelado) não ganha de novo.
             sub is null || !sub.TrialUsed,
-            PlanRules.TrialDays);
+            PlanRules.TrialDays,
+            new PackTotalsDto(active.Sum(p => p.AssistedRemaining), active.Sum(p => p.AiRemaining)));
     }
 }
 
@@ -110,7 +116,7 @@ public sealed record SubscribeCommand(string? Period) : IRequest<BillingDto>;
 public sealed class SubscribeValidator : AbstractValidator<SubscribeCommand>
 {
     public SubscribeValidator() =>
-        RuleFor(x => x.Period).Must(p => p is "monthly" or "yearly").WithMessage("Informe period: monthly ou yearly.");
+        RuleFor(x => x.Period).Must(p => p is "monthly" or "yearly").WithMessage("Informe o período: monthly ou yearly.");
 }
 
 public sealed class SubscribeHandler(BillingState state, IRepository<AuditEvent> audit, ICurrentUser current, IUnitOfWork uow, IClock clock)
@@ -149,8 +155,53 @@ public sealed class CancelSubscriptionHandler(BillingState state, IRepository<Au
     }
 }
 
+// ------------------------------------------------------------------ POST /billing/subscription/period
+
+/// <summary>Troca o período do Plus ativo (monthly ⇄ yearly) com rateio simulado; ver <see cref="Subscription.ChangePeriod"/>.</summary>
+public sealed record ChangePeriodCommand(string? Period) : IRequest<PeriodChangeDto>;
+
+public sealed class ChangePeriodValidator : AbstractValidator<ChangePeriodCommand>
+{
+    public ChangePeriodValidator() =>
+        RuleFor(x => x.Period).Must(p => p is "monthly" or "yearly").WithMessage("Informe o período: monthly ou yearly.");
+}
+
+/// <summary>Rateio da troca. <c>Amount</c> positivo = cobrado agora (simulado); negativo = crédito a favor da pessoa.</summary>
+public sealed record ProrationDto(string From, string To, decimal UnusedCredit, decimal NewPrice, decimal Amount, bool DuringTrial, DateTime ChangedAt, bool Demo)
+{
+    public static ProrationDto Of(SubscriptionPeriodChange c) =>
+        new(ApiName(c.FromPeriod), ApiName(c.ToPeriod), c.UnusedCredit, c.NewPrice, c.Amount, c.DuringTrial, c.ChangedAt, true);
+
+    internal static string ApiName(BillingPeriod p) => p == BillingPeriod.Yearly ? "yearly" : "monthly";
+}
+
+public sealed record PeriodChangeDto(BillingDto Billing, ProrationDto Proration);
+
+public sealed class ChangePeriodHandler(
+    BillingState state, IRepository<SubscriptionPeriodChange> changes, IRepository<AuditEvent> audit, ICurrentUser current, IUnitOfWork uow, IClock clock)
+    : IRequestHandler<ChangePeriodCommand, PeriodChangeDto>
+{
+    public async Task<PeriodChangeDto> Handle(ChangePeriodCommand cmd, CancellationToken ct)
+    {
+        var uid = current.UserId;
+        var now = clock.UtcNow;
+        var sub = await state.GetOrStartSubscriptionAsync(uid, ct);
+        var change = sub.ChangePeriod(cmd.Period == "yearly" ? BillingPeriod.Yearly : BillingPeriod.Monthly, now);
+        changes.Add(change);
+        audit.Add(AuditEvent.Record(uid, AuditActions.PlanPeriodChanged, now));
+        await uow.SaveChangesAsync(ct);
+        var (_, usage, packs) = await state.LoadAsync(uid, ct);
+        return new PeriodChangeDto(BillingDto.Build(sub, usage, packs, now), ProrationDto.Of(change));
+    }
+}
+
 // ------------------------------------------------------------------ POST /billing/packs
 
+/// <summary>
+/// Compra (simulada) um pacote avulso. Vale também para quem assina o Plus: os créditos se somam aos de outros
+/// pacotes e ficam guardados enquanto o Plus (sem limite) estiver ativo; passam a ser usados se a pessoa voltar ao
+/// Gratuito antes de vencerem (60 dias após a compra).
+/// </summary>
 public sealed record BuyPackCommand : IRequest<BillingDto>;
 
 public sealed class BuyPackHandler(BillingState state, IRepository<UsagePack> packs, IRepository<AuditEvent> audit, ICurrentUser current, IUnitOfWork uow, IClock clock)

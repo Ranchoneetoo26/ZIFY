@@ -54,6 +54,10 @@ public static class Problems
         var last = key.Split('.').Last();
         if (last.Contains("Date", StringComparison.OrdinalIgnoreCase) || last.EndsWith("At", StringComparison.Ordinal))
             return "Data inválida. Use AAAA-MM-DD ou AAAA-MM.";
+        if (last.Equals("hours", StringComparison.OrdinalIgnoreCase))
+            return "Use um número inteiro de horas, de 1 a 10000.";
+        if (last.Equals("salaryExpectation", StringComparison.OrdinalIgnoreCase))
+            return "Informe uma pretensão entre R$ 0,00 e R$ 999.999.999,99.";
         return "Valor ausente ou em formato inválido.";
     }
 

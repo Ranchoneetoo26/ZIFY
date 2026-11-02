@@ -27,6 +27,7 @@ internal sealed class UserConfig : IEntityTypeConfiguration<User>
         b.HasIndex(x => x.Email).IsUnique();
         b.Property(x => x.Name).HasMaxLength(120).IsRequired();
         b.Property(x => x.PasswordHash).HasMaxLength(100).IsRequired();
+        b.Property(x => x.TermsVersion).HasMaxLength(20);
     }
 }
 
@@ -41,6 +42,19 @@ internal sealed class RefreshTokenConfig : IEntityTypeConfiguration<RefreshToken
         b.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         // Sem cascade a partir do dispositivo: a exclusão de usuário já apaga os dois (evita múltiplos caminhos de cascade).
         b.HasOne<ExtensionDevice>().WithMany().HasForeignKey(x => x.DeviceId).OnDelete(DeleteBehavior.NoAction);
+    }
+}
+
+internal sealed class UserTokenConfig : IEntityTypeConfiguration<UserToken>
+{
+    public void Configure(EntityTypeBuilder<UserToken> b)
+    {
+        b.ToTable("UserTokens");
+        b.Property(x => x.Purpose).HasConversion<string>().HasMaxLength(30);
+        b.Property(x => x.TokenHash).HasMaxLength(64).IsRequired();
+        b.HasIndex(x => x.TokenHash).IsUnique();
+        b.HasIndex(x => new { x.UserId, x.Purpose });
+        b.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
     }
 }
 
@@ -61,6 +75,7 @@ internal sealed class ProfileConfig : IEntityTypeConfiguration<Profile>
     {
         b.ToTable("Profiles");
         b.HasIndex(x => x.UserId).IsUnique(); // 1:1 com User
+        b.Property(x => x.Version).IsConcurrencyToken(); // UPDATE ... WHERE Version = original (SQLite e PostgreSQL)
         b.HasOne<User>().WithOne().HasForeignKey<Profile>(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         b.Property(x => x.FullName).HasMaxLength(160);
         b.Property(x => x.Email).HasMaxLength(254);
@@ -289,6 +304,21 @@ internal sealed class SubscriptionConfig : IEntityTypeConfiguration<Subscription
         b.Property(x => x.Period).HasConversion<string>().HasMaxLength(10);
         b.HasIndex(x => x.UserId).IsUnique();
         b.HasOne<User>().WithOne().HasForeignKey<Subscription>(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class SubscriptionPeriodChangeConfig : IEntityTypeConfiguration<SubscriptionPeriodChange>
+{
+    public void Configure(EntityTypeBuilder<SubscriptionPeriodChange> b)
+    {
+        b.ToTable("SubscriptionPeriodChanges");
+        b.Property(x => x.FromPeriod).HasConversion<string>().HasMaxLength(10);
+        b.Property(x => x.ToPeriod).HasConversion<string>().HasMaxLength(10);
+        b.Property(x => x.UnusedCredit).HasPrecision(10, 2);
+        b.Property(x => x.NewPrice).HasPrecision(10, 2);
+        b.Property(x => x.Amount).HasPrecision(10, 2);
+        b.HasIndex(x => x.UserId);
+        b.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
     }
 }
 

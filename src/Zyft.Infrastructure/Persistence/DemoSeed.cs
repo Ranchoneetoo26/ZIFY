@@ -31,12 +31,30 @@ internal static class DemoSeed
             await Beatriz(db, hasher, password, ct);
             logger.LogInformation("Usuário de demonstração (Saúde) criado");
         }
+
+        await UpgradeExistingAsync(db, ct);
+    }
+
+    /// <summary>Contas demo criadas por versões anteriores ganham o que as novas já trazem (e-mail verificado, termos aceitos).</summary>
+    private static async Task UpgradeExistingAsync(ZyftDbContext db, CancellationToken ct)
+    {
+        var emails = new[] { DatabaseInitializer.DemoEmail, DatabaseInitializer.DemoHealthEmail };
+        var demos = await db.Users.Where(u => emails.Contains(u.Email)).ToListAsync(ct);
+        foreach (var u in demos)
+        {
+            u.MarkEmailVerified(DateTime.UtcNow);
+            if (u.TermsVersion is null) u.AcceptTerms(Terms.CurrentVersion, DateTime.UtcNow);
+        }
+
+        if (db.ChangeTracker.HasChanges()) await db.SaveChangesAsync(ct);
     }
 
     private static async Task Rafael(ZyftDbContext db, IPasswordHasher hasher, string password, CancellationToken ct)
     {
         var now = DateTime.UtcNow;
         var user = User.Create(DatabaseInitializer.DemoEmail, "Rafael Moreira", hasher.Hash(password));
+        user.MarkEmailVerified(DateTime.UtcNow); // conta demo já sai verificada
+        user.AcceptTerms(Terms.CurrentVersion, DateTime.UtcNow);
         db.Users.Add(user);
         db.Consents.Add(Consent.Create(user.Id, ConsentPurpose.AiText, true));
         db.Consents.Add(Consent.Create(user.Id, ConsentPurpose.JobAnalysis, true));
@@ -145,6 +163,8 @@ internal static class DemoSeed
     {
         var now = DateTime.UtcNow;
         var user = User.Create(DatabaseInitializer.DemoHealthEmail, "Beatriz Lima", hasher.Hash(password));
+        user.MarkEmailVerified(DateTime.UtcNow); // conta demo já sai verificada
+        user.AcceptTerms(Terms.CurrentVersion, DateTime.UtcNow);
         db.Users.Add(user);
         db.Consents.Add(Consent.Create(user.Id, ConsentPurpose.AiText, true));
         db.Consents.Add(Consent.Create(user.Id, ConsentPurpose.JobAnalysis, true));

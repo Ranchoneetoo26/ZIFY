@@ -110,14 +110,20 @@ public class HandlerTests
         var hasher = new Mock<IPasswordHasher>();
         hasher.Setup(h => h.Hash(It.IsAny<string>())).Returns("hash");
         var issuer = new Mock<IAuthTokenIssuer>();
-        var handler = new RegisterHandler(users, consents, new InMemoryRepository<AuditEvent>(), profiles, hasher.Object, issuer.Object, new FakeUnitOfWork(), new FixedClock(Now));
+        var userTokens = new InMemoryRepository<UserToken>();
+        var emails = new CapturingEmailSender();
+        var handler = new RegisterHandler(users, consents, new InMemoryRepository<AuditEvent>(), profiles, userTokens, hasher.Object, issuer.Object, new FakeTokenService(), emails, new FakeUnitOfWork(), new FixedClock(Now));
 
-        await handler.Handle(new RegisterCommand("Ana", "Ana@B.com", "Senha123"), default);
+        await handler.Handle(new RegisterCommand("Ana", "Ana@B.com", "Senha123", true, Terms.CurrentVersion), default);
 
         users.Items.Single().Email.Should().Be("ana@b.com");
         profiles.Items.Single().FullName.Should().Be("Ana");
         consents.Items.Should().HaveCount(3).And.OnlyContain(c => !c.Granted); // opt-in (D-01)
-        var dup = () => handler.Handle(new RegisterCommand("Outra", "ana@b.com", "Senha123"), default);
+        users.Items.Single().IsEmailVerified.Should().BeFalse();
+        users.Items.Single().TermsVersion.Should().Be(Terms.CurrentVersion);
+        emails.Sent.Should().ContainSingle(e => e.Kind == "verify");
+        userTokens.Items.Single().TokenHash.Should().Be("h:" + emails.Sent[0].Token); // só o hash é guardado
+        var dup = () => handler.Handle(new RegisterCommand("Outra", "ana@b.com", "Senha123", true, Terms.CurrentVersion), default);
         await dup.Should().ThrowAsync<ConflictException>();
     }
 
@@ -126,8 +132,23 @@ public class HandlerTests
     [InlineData("semnumeros", false)]
     [InlineData("12345678", false)]
     [InlineData("Senha123", true)]
+    [InlineData("ãéíõçãé1", true)]
+    [InlineData("Ação1234", true)]
+    [InlineData("пароль12", true)]
+    [InlineData("1234567!", false)]
     public void Senha_exige_8_caracteres_com_letra_e_numero(string password, bool valid)
     {
+        var r = new RegisterValidator().TestValidate(new RegisterCommand("Ana", "ana@b.com", password));
+        if (valid) r.ShouldNotHaveValidationErrorFor(x => x.Password);
+        else r.ShouldHaveValidationErrorFor(x => x.Password);
+    }
+
+    [Theory]
+    [InlineData(128, true)]
+    [InlineData(129, false)]
+    public void Senha_tem_no_maximo_128_caracteres(int length, bool valid)
+    {
+        var password = "a1" + new string('ã', length - 2);
         var r = new RegisterValidator().TestValidate(new RegisterCommand("Ana", "ana@b.com", password));
         if (valid) r.ShouldNotHaveValidationErrorFor(x => x.Password);
         else r.ShouldHaveValidationErrorFor(x => x.Password);

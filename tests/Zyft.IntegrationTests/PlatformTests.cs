@@ -74,4 +74,27 @@ public class PlatformTests(ZyftApiFactory factory) : IClassFixture<ZyftApiFactor
         res.StatusCode.Should().Be(HttpStatusCode.NotFound);
         (await res.Content.ReadAsStringAsync()).Should().NotContain("   at ");
     }
+
+    [Theory]
+    [InlineData("/conta", "/#/conta")]
+    [InlineData("/candidaturas/123/", "/#/candidaturas/123")]
+    [InlineData("/redefinir-senha?token=abc", "/#/redefinir-senha?token=abc")]
+    [InlineData("/verificar?token=a%2Bb%3D&x=1", "/#/verificar?token=a%2Bb%3D&x=1")]
+    [InlineData("//evil.com", null)] // parece arquivo (.com): 404, não redireciona
+    [InlineData("//evil.com/x?next=https://evil.com", "/#//evil.com/x?next=https://evil.com")]
+    public async Task Endereco_sem_hash_redireciona_para_a_SPA_com_a_query_e_sem_sair_do_site(string path, string? expected)
+    {
+        var c = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var res = await c.GetAsync(new Uri("http://localhost" + path));
+        if (expected is null)
+        {
+            res.StatusCode.Should().Be(HttpStatusCode.NotFound);
+            res.Headers.Location.Should().BeNull();
+            return;
+        }
+        res.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        var location = res.Headers.Location!.OriginalString;
+        location.Should().Be(expected);
+        location.Should().StartWith("/#");
+    }
 }

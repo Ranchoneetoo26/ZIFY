@@ -1,19 +1,26 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Zyft.Api.Infrastructure;
 using Zyft.Application.Profiles;
 
 namespace Zyft.Api.Controllers;
 
-/// <summary>Perfil Profissional Mestre (RF-02, RF-05). Só a plataforma web vê o perfil inteiro (RNF-02).</summary>
+/// <summary>
+/// Perfil Profissional Mestre (RF-02, RF-05). Só a plataforma web vê o perfil inteiro (RNF-02). Concorrência otimista:
+/// as respostas trazem <c>ETag</c> com a versão do perfil; as alterações aceitam <c>If-Match</c> e respondem 409
+/// <c>profile.conflict</c> (com <c>currentVersion</c>) quando outra sessão alterou o perfil antes.
+/// </summary>
 [Route("api/v1/profile")]
 [Authorize(Policy = Policies.WebUser)]
+[TypeFilter(typeof(ProfileVersionFilter))]
+[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
 public sealed class ProfileController : ApiControllerBase
 {
     /// <summary>Perfil completo com experiências, formação, cursos, competências e idiomas.</summary>
     [HttpGet]
     public Task<ProfileDto> Get(CancellationToken ct) => Sender.Send(new GetProfileQuery(), ct);
 
-    /// <summary>Atualiza os dados básicos (substitui todos os campos básicos).</summary>
+    /// <summary>Atualiza os dados básicos (substitui todos os campos básicos). Aceita <c>If-Match</c> com o ETag de GET.</summary>
     /// <response code="422">Regra de negócio (ex.: categoria de CNH sem possuir CNH).</response>
     [HttpPut]
     [ProducesResponseType(typeof(ProfileDto), StatusCodes.Status200OK)]

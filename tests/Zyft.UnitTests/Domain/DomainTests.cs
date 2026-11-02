@@ -12,6 +12,24 @@ public class ProfileTests
         new("Empresa", "Cargo", start, end, current, null, null, null);
 
     [Fact]
+    public void Versao_do_perfil_sobe_a_cada_alteracao_e_nao_sobe_sem_mudanca()
+    {
+        var p = Profile.CreateFor(Guid.NewGuid());
+        p.Version.Should().Be(0);
+        p.UpdateBasics(p.ToBasicData() with { City = "Maringá" });
+        p.Version.Should().Be(1);
+        var e = p.AddExperience(Exp(new DateOnly(2023, 1, 1), null, true));
+        p.UpdateExperience(e.Id, Exp(new DateOnly(2023, 2, 1), null, true));
+        p.Version.Should().Be(3);
+        p.RemoveExperience(Guid.NewGuid()).Should().BeFalse();
+        p.Version.Should().Be(3); // nada removido, versão igual
+        p.RemoveExperience(e.Id).Should().BeTrue();
+        p.AddSkill("SQL", null);
+        p.AddCustomField("Plantão", "12x36");
+        p.Version.Should().Be(6);
+    }
+
+    [Fact]
     public void Experiencia_com_termino_antes_do_inicio_viola_regra()
     {
         var p = Profile.CreateFor(Guid.NewGuid());

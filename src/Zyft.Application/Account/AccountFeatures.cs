@@ -13,7 +13,15 @@ using Zyft.Application.Profiles;
 
 namespace Zyft.Application.Account;
 
-public sealed record MeDto(Guid Id, string Email, string Name, DateTime CreatedAt, string? Scope);
+/// <summary>
+/// Dados da conta. <c>EmailVerified</c> é só informativo (não bloqueia nenhuma rota). <c>TermsVersion</c> e
+/// <c>TermsAcceptedAt</c> ficam nulos (omitidos) em contas criadas antes do aceite no cadastro.
+/// </summary>
+public sealed record MeDto(Guid Id, string Email, string Name, DateTime CreatedAt, string? Scope, bool EmailVerified, DateTime? EmailVerifiedAt, string? TermsVersion, DateTime? TermsAcceptedAt)
+{
+    public static MeDto From(User u, string? scope) =>
+        new(u.Id, u.Email, u.Name, u.CreatedAt, scope, u.IsEmailVerified, u.EmailVerifiedAt, u.TermsVersion, u.TermsAcceptedAt);
+}
 
 public sealed record GetMeQuery : IRequest<MeDto>;
 
@@ -23,7 +31,7 @@ public sealed class GetMeHandler(IRepository<User> users, ICurrentUser current) 
     {
         var id = current.UserId;
         var u = await users.FindAsync(x => x.Id == id, ct) ?? throw new UnauthorizedException("Conta não encontrada.");
-        return new MeDto(u.Id, u.Email, u.Name, u.CreatedAt, current.Scope);
+        return MeDto.From(u, current.Scope);
     }
 }
 
@@ -75,6 +83,7 @@ public sealed class ExportMeHandler(
     IRepository<Domain.Billing.Subscription> subscriptions,
     IRepository<Domain.Billing.UsagePack> packs,
     IRepository<Domain.Billing.MonthlyUsage> usages,
+    IRepository<Domain.Billing.SubscriptionPeriodChange> periodChanges,
     IRepository<Domain.Onboarding.OnboardingProgress> onboarding,
     IRepository<Domain.Ads.AdHide> adHides,
     ISensitiveDataProtector protector,
@@ -92,7 +101,7 @@ public sealed class ExportMeHandler(
         var profile = await profiles.GetByUserIdAsync(id, ct);
         return new AccountExport(
             clock.UtcNow,
-            new MeDto(u.Id, u.Email, u.Name, u.CreatedAt, null),
+            MeDto.From(u, null),
             profile is null ? null : ProfileDto.From(profile),
             (await consents.ListAsync(x => x.UserId == id, ct)).Select(c => (object)new { c.Purpose, c.Granted, c.UpdatedAt }).ToList(),
             (await answers.ListAsync(x => x.UserId == id, ct)).Select(a => (object)new { a.Id, a.Question, a.Text, a.ApprovedAt, a.LastUsedAt }).ToList(),
@@ -107,6 +116,8 @@ public sealed class ExportMeHandler(
                 Subscription = (await subscriptions.FindAsync(x => x.UserId == id, ct)) is { } sub
                     ? new { sub.Plan, sub.Period, sub.StartedAt, sub.TrialEndsAt, sub.RenewsAt, sub.CanceledAt } : null,
                 Packs = (await packs.ListAsync(x => x.UserId == id, ct)).Select(p => new { p.AssistedRemaining, p.AiRemaining, p.PurchasedAt, p.ExpiresAt }).ToList(),
+                PeriodChanges = (await periodChanges.ListAsync(x => x.UserId == id, ct)).OrderBy(c => c.ChangedAt)
+                    .Select(c => new { c.FromPeriod, c.ToPeriod, c.ChangedAt, c.UnusedCredit, c.NewPrice, c.Amount, c.DuringTrial }).ToList(),
                 Usage = (await usages.ListAsync(x => x.UserId == id, ct)).Select(u => new { u.Month, u.AssistedUsed, u.AiUsed, u.JobAnalysesUsed, u.ResumeImportsUsed, u.BonusGranted, u.BonusUsed, u.RewardedClaims }).ToList(),
             },
             (await onboarding.FindAsync(x => x.UserId == id, ct)) is { } ob ? new { Answered = ob.AnsweredSteps, Skipped = ob.SkippedSteps, ob.LastStep, ob.CompletedAt } : null,

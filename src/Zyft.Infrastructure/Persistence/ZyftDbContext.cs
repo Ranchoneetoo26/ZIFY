@@ -17,10 +17,12 @@ using Zyft.Domain.Users;
 
 namespace Zyft.Infrastructure.Persistence;
 
-public sealed class ZyftDbContext(DbContextOptions<ZyftDbContext> options, IClock? clock = null) : DbContext(options), IUnitOfWork
+public sealed class ZyftDbContext(DbContextOptions<ZyftDbContext> options, IClock? clock = null, IProfileConcurrency? profileConcurrency = null)
+    : DbContext(options), IUnitOfWork
 {
     public DbSet<User> Users => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<UserToken> UserTokens => Set<UserToken>();
     public DbSet<Consent> Consents => Set<Consent>();
     public DbSet<Profile> Profiles => Set<Profile>();
     public DbSet<Experience> Experiences => Set<Experience>();
@@ -39,6 +41,7 @@ public sealed class ZyftDbContext(DbContextOptions<ZyftDbContext> options, ICloc
     public DbSet<CustomField> CustomFields => Set<CustomField>();
     public DbSet<OnboardingProgress> OnboardingProgress => Set<OnboardingProgress>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
+    public DbSet<SubscriptionPeriodChange> SubscriptionPeriodChanges => Set<SubscriptionPeriodChange>();
     public DbSet<MonthlyUsage> MonthlyUsages => Set<MonthlyUsage>();
     public DbSet<UsagePack> UsagePacks => Set<UsagePack>();
     public DbSet<UsageMark> UsageMarks => Set<UsageMark>();
@@ -64,8 +67,16 @@ public sealed class ZyftDbContext(DbContextOptions<ZyftDbContext> options, ICloc
         }
     }
 
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        var profiles = ChangeTracker.Entries<Profile>().Where(e => e.State == EntityState.Modified).ToList();
+        if (profileConcurrency?.ExpectedVersion is { } expected && profiles.Count > 0)
+        {
+            // If-Match: a verificação vai no próprio UPDATE (WHERE Version = esperada), sem janela entre ler e gravar.
+            foreach (var p in profiles) p.Property(x => x.Version).OriginalValue = expected;
+            profileConcurrency.ExpectedVersion = null; // vale para a primeira gravação; as seguintes partem da nova versão
+        }
+
         var now = clock?.UtcNow ?? DateTime.UtcNow;
         foreach (var e in ChangeTracker.Entries<Entity>())
         {
@@ -80,6 +91,16 @@ public sealed class ZyftDbContext(DbContextOptions<ZyftDbContext> options, ICloc
             }
         }
 
-        return base.SaveChangesAsync(cancellationToken);
+        try
+        {
+            var result = await base.SaveChangesAsync(cancellationToken);
+            if (profileConcurrency is not null && profiles.Count > 0) profileConcurrency.SavedVersion = profiles[^1].Entity.Version;
+            return result;
+        }
+        catch (DbUpdateConcurrencyException ex) when (ex.Entries.FirstOrDefault(e => e.Entity is Profile) is { } entry)
+        {
+            var current = await entry.GetDatabaseValuesAsync(cancellationToken);
+            throw new ProfileVersionConflictException(current?.GetValue<int>(nameof(Profile.Version)) ?? 0);
+        }
     }
 }

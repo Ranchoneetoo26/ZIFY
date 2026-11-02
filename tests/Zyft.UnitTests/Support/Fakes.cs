@@ -90,3 +90,30 @@ public static class Profiles
         return p;
     }
 }
+
+/// <summary>Tokens previsíveis: o opaco é um Guid e o "hash" é o valor com prefixo (basta ser determinístico).</summary>
+public sealed class FakeTokenService : ITokenService
+{
+    public AccessToken CreateAccessToken(Zyft.Domain.Users.User user, string scope, Guid? deviceId = null) => new("access", DateTime.UtcNow.AddMinutes(15));
+    public string GenerateOpaqueToken() => Guid.NewGuid().ToString("N");
+    public string Hash(string raw) => "h:" + raw;
+    public TimeSpan RefreshTokenLifetime => TimeSpan.FromDays(7);
+}
+
+/// <summary>Guarda os e-mails "enviados" (destino, finalidade e token) para os testes lerem o link.</summary>
+public sealed class CapturingEmailSender : IEmailSender
+{
+    public List<(string To, string Kind, string Token)> Sent { get; } = new();
+
+    public Task SendEmailVerificationAsync(string toEmail, string name, string token, CancellationToken ct = default)
+    {
+        Sent.Add((toEmail, "verify", token));
+        return Task.CompletedTask;
+    }
+
+    public Task SendPasswordResetAsync(string toEmail, string name, string token, CancellationToken ct = default)
+    {
+        Sent.Add((toEmail, "reset", token));
+        return Task.CompletedTask;
+    }
+}

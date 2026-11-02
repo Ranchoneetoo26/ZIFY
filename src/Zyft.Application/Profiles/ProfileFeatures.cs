@@ -4,6 +4,7 @@ using Zyft.Application.Common;
 using Zyft.Application.Common.Exceptions;
 using Zyft.Application.Common.Interfaces;
 using Zyft.Domain.Audit;
+using Zyft.Domain.Common;
 using Zyft.Domain.Profiles;
 
 namespace Zyft.Application.Profiles;
@@ -26,7 +27,7 @@ public sealed class GetProfileHandler(IProfileRepository profiles, ICurrentUser 
 // ------------------------------------------------------------------ PUT /profile
 
 /// <summary>Atualiza os dados básicos (substitui todos os campos básicos; listas não mudam).</summary>
-public sealed record UpdateProfileCommand : IRequest<ProfileDto>
+public sealed record UpdateProfileCommand : IRequest<ProfileDto>, IProfileContact
 {
     public string? FullName { get; init; }
     public string? Email { get; init; }
@@ -74,26 +75,92 @@ public sealed record UpdateProfileCommand : IRequest<ProfileDto>
     };
 }
 
+/// <summary>Campos básicos que tanto <c>PUT /profile</c> quanto a importação de currículo podem gravar.</summary>
+public interface IProfileContact
+{
+    string? FullName { get; }
+    string? Email { get; }
+    string? Phone { get; }
+    string? City { get; }
+    string? State { get; }
+    string? LinkedinUrl { get; }
+    string? GithubUrl { get; }
+    string? PortfolioUrl { get; }
+    string? Headline { get; }
+    string? Summary { get; }
+    string? DesiredRoles { get; }
+}
+
+/// <summary>Regras compartilhadas de <see cref="IProfileContact"/>. A importação completa https:// nas URLs antes de validar.</summary>
+public sealed class ProfileContactRules<T> : AbstractValidator<T> where T : class, IProfileContact
+{
+    public ProfileContactRules(bool completeUrls = false, bool strict = true)
+    {
+        RuleFor(x => x.FullName).MaximumLength(160).WithMessage("O nome deve ter no máximo 160 caracteres.")
+            .Must(n => string.IsNullOrWhiteSpace(n) || !VisibleText.IsBlank(n)).WithMessage("Informe o nome completo.");
+        // No PUT, o formato estrito só vale para o que mudou (ver UpdateProfileHandler): um valor antigo não trava o salvamento.
+        if (strict) RuleFor(x => x.Email).ValidEmail().When(x => !string.IsNullOrWhiteSpace(x.Email)).WithMessage("Informe um e-mail válido.");
+        RuleFor(x => x.Phone).MaximumLength(ProfileLimits.PhoneLength).WithMessage("Informe o telefone com DDD, como (44) 99999-1111.")
+            .Matches(@"^[0-9()+\-\s.]*$").WithMessage("Telefone só pode ter números, espaços, parênteses, + e -.");
+        if (strict) RuleFor(x => x.Phone).Must(ProfileContact.IsPhone).WithMessage("Informe o telefone com DDD, como (44) 99999-1111.");
+        RuleFor(x => x.State).MaximumLength(60);
+        RuleFor(x => x.City).MaximumLength(120);
+        Url(x => x.LinkedinUrl, completeUrls, strict);
+        Url(x => x.GithubUrl, completeUrls, strict);
+        Url(x => x.PortfolioUrl, completeUrls, strict);
+        RuleFor(x => x.Headline).MaximumLength(200);
+        RuleFor(x => x.Summary).MaximumLength(ProfileLimits.LongText).WithMessage("O resumo deve ter no máximo 4000 caracteres.");
+        RuleFor(x => x.DesiredRoles).MaximumLength(500);
+    }
+
+    private void Url(System.Linq.Expressions.Expression<Func<T, string?>> field, bool complete, bool strict)
+    {
+        var rule = Transform(field, v => complete ? Urls.Complete(v) : v).MaximumLength(ProfileLimits.Url);
+        if (strict) rule.OptionalUrl();
+        else rule.Must(v => string.IsNullOrWhiteSpace(v) || Urls.IsHttp(v)).WithMessage("Informe um endereço http(s) válido.");
+    }
+}
+
+public static class ProfileContact
+{
+    /// <summary>Igual a <c>phone</c> do front: 10 ou 11 dígitos com DDD; com "+" ou mais de 11, internacional (8 ou mais).</summary>
+    public static bool IsPhone(string? phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone)) return true;
+        var digits = phone.Count(char.IsAsciiDigit);
+        return digits >= (phone.TrimStart().StartsWith('+') || digits > 11 ? 8 : 10);
+    }
+
+    /// <summary>Formato estrito só no que mudou: dado salvo por versões antigas continua válido até a pessoa editá-lo.</summary>
+    public static void EnsureEditedValues(UpdateProfileCommand cmd, Profile stored)
+    {
+        var errors = new List<FluentValidation.Results.ValidationFailure>();
+        void Check(string field, string? value, string? current, Func<string?, bool> valid, string message)
+        {
+            if (!string.IsNullOrWhiteSpace(value) && value != current && !valid(value)) errors.Add(new(field, message));
+        }
+        Check(nameof(cmd.Email), cmd.Email, stored.Email, Emails.IsValid, "Informe um e-mail válido.");
+        Check(nameof(cmd.Phone), cmd.Phone, stored.Phone, IsPhone, "Informe o telefone com DDD, como (44) 99999-1111.");
+        const string url = "Informe um endereço http(s) válido.";
+        Check(nameof(cmd.LinkedinUrl), cmd.LinkedinUrl, stored.LinkedinUrl, Urls.IsWebAddress, url);
+        Check(nameof(cmd.GithubUrl), cmd.GithubUrl, stored.GithubUrl, Urls.IsWebAddress, url);
+        Check(nameof(cmd.PortfolioUrl), cmd.PortfolioUrl, stored.PortfolioUrl, Urls.IsWebAddress, url);
+        if (errors.Count > 0) throw new FluentValidation.ValidationException(errors);
+    }
+}
+
 public sealed class UpdateProfileValidator : AbstractValidator<UpdateProfileCommand>
 {
     public UpdateProfileValidator()
     {
-        RuleFor(x => x.FullName).MaximumLength(160).WithMessage("O nome deve ter no máximo 160 caracteres.");
-        RuleFor(x => x.Email).EmailAddress().When(x => !string.IsNullOrWhiteSpace(x.Email)).WithMessage("Informe um e-mail válido.");
-        RuleFor(x => x.Phone).MaximumLength(40).Matches(@"^[0-9()+\-\s.]*$").WithMessage("Telefone só pode ter números, espaços, parênteses, + e -.");
-        RuleFor(x => x.State).MaximumLength(60);
-        RuleFor(x => x.City).MaximumLength(120);
+        Include(new ProfileContactRules<UpdateProfileCommand>(strict: false));
         RuleFor(x => x.Country).MaximumLength(80);
         RuleFor(x => x.ZipCode).MaximumLength(20);
-        RuleFor(x => x.LinkedinUrl).OptionalUrl();
-        RuleFor(x => x.GithubUrl).OptionalUrl();
-        RuleFor(x => x.PortfolioUrl).OptionalUrl();
-        RuleFor(x => x.Headline).MaximumLength(200);
-        RuleFor(x => x.Summary).MaximumLength(4000).WithMessage("O resumo deve ter no máximo 4000 caracteres.");
-        RuleFor(x => x.DesiredRoles).MaximumLength(500);
         RuleFor(x => x.Areas).MaximumLength(500);
         RuleFor(x => x.Seniority).MaximumLength(60);
         RuleFor(x => x.WorkModel).IsInEnum().WithMessage("Modelo de trabalho inválido.");
+        RuleFor(x => x.SalaryExpectation).Must(v => v is null or (>= 0 and <= ProfileLimits.MaxSalary)).WithMessage("Informe uma pretensão entre R$ 0,00 e R$ 999.999.999,99.")
+            .Must(v => v is null || decimal.Round(v.Value, 2) == v.Value).WithMessage("Use no máximo 2 casas decimais na pretensão.");
         RuleFor(x => x.Availability).MaximumLength(200);
         RuleFor(x => x.ContractTypes).MaximumLength(200);
         RuleFor(x => x.DriverLicenseCategory).MaximumLength(5);
@@ -112,6 +179,7 @@ public sealed class UpdateProfileHandler(IProfileRepository profiles, IRepositor
     public async Task<ProfileDto> Handle(UpdateProfileCommand cmd, CancellationToken ct)
     {
         var p = await profiles.LoadAsync(current, ct);
+        ProfileContact.EnsureEditedValues(cmd, p);
         p.UpdateBasics(cmd.ToData());
         audit.Add(AuditEvent.Record(current.UserId, AuditActions.ProfileUpdated, clock.UtcNow));
         await uow.SaveChangesAsync(ct);

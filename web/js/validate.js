@@ -18,7 +18,8 @@ export function email(v) {
 export function password(v) {
   if (!v) return 'Crie uma senha.';
   if (v.length < 8) return 'A senha precisa ter pelo menos 8 caracteres.';
-  if (!/[A-Za-zÀ-ÿ]/.test(v) || !/\d/.test(v)) return 'A senha precisa ter pelo menos uma letra e um número.';
+  if (v.length > 128) return 'A senha deve ter no máximo 128 caracteres.';
+  if (!/\p{L}/u.test(v) || !/\d/.test(v)) return 'A senha precisa ter pelo menos uma letra e um número.';
   return null;
 }
 
@@ -75,6 +76,89 @@ export function resumeFile(file) {
   if (file.size === 0) return 'O arquivo está vazio.';
   if (file.size > MAX_UPLOAD_BYTES) return 'O arquivo passa de 10 MB. Envie uma versão menor.';
   return null;
+}
+
+// ---------- Números digitados à mão ----------
+export const MONEY_MAX = 999999999.99;
+export const HOURS_MAX = 10000;
+const MONEY_HINT = 'Informe só o valor, por exemplo 4.500,00.';
+
+/**
+ * Valor em reais como a pessoa escreve: "4.500" = 4500, "4,50" = 4,5, "4.500,00" = 4500.
+ * Devolve { value, error }. Vazio apaga (value null, sem erro); nada inválido vira null em silêncio.
+ */
+export function parseMoney(input) {
+  const t = String(input ?? '').trim().replace(/^R\$/i, '').replace(/\s/g, '');
+  if (t === '') return { value: null, error: null };
+  if (/^-/.test(t)) return { value: null, error: 'O valor não pode ser negativo.' };
+  let normal = null;
+  if (/^\d+$/.test(t)) normal = t;
+  else if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(t)) normal = t.replace(/\./g, '').replace(',', '.');
+  else if (/^\d+,\d+$/.test(t)) normal = t.replace(',', '.');
+  else if (/^\d+\.\d+$/.test(t)) normal = t;
+  if (normal === null) return { value: null, error: MONEY_HINT };
+  if ((normal.split('.')[1] || '').length > 2) return { value: null, error: 'Use no máximo 2 casas decimais.' };
+  const value = Number(normal);
+  if (!(value <= MONEY_MAX)) return { value: null, error: 'O valor máximo é R$ 999.999.999,99.' };
+  return { value, error: null };
+}
+
+/** Carga horária: inteiro de 1 a 10000. Vazio apaga. Devolve { value, error }. */
+export function parseHours(input) {
+  const t = String(input ?? '').trim();
+  if (t === '') return { value: null, error: null };
+  const value = /^\d+$/.test(t) ? Number(t) : NaN;
+  if (!(value >= 1 && value <= HOURS_MAX)) return { value: null, error: 'Informe um número inteiro de horas, de 1 a 10000.' };
+  return { value, error: null };
+}
+
+// ---------- Contato e endereço ----------
+const plain = (s) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+const UF_NAMES = {
+  AC: 'Acre', AL: 'Alagoas', AP: 'Amapá', AM: 'Amazonas', BA: 'Bahia', CE: 'Ceará', DF: 'Distrito Federal', ES: 'Espírito Santo', GO: 'Goiás',
+  MA: 'Maranhão', MT: 'Mato Grosso', MS: 'Mato Grosso do Sul', MG: 'Minas Gerais', PA: 'Pará', PB: 'Paraíba', PR: 'Paraná', PE: 'Pernambuco',
+  PI: 'Piauí', RJ: 'Rio de Janeiro', RN: 'Rio Grande do Norte', RS: 'Rio Grande do Sul', RO: 'Rondônia', RR: 'Roraima', SC: 'Santa Catarina',
+  SP: 'São Paulo', SE: 'Sergipe', TO: 'Tocantins',
+};
+const UF_BY_NAME = Object.fromEntries(Object.entries(UF_NAMES).map(([uf, name]) => [plain(name), uf]));
+/** "São Paulo" → "SP"; nome desconhecido → null. */
+export const ufFromName = (s) => UF_BY_NAME[plain(s)] || null;
+export const CNH_CATEGORIES = ['A', 'B', 'C', 'D', 'E', 'AB', 'AC', 'AD', 'AE', 'ACC'];
+const isBrazil = (country) => !plain(country) || ['brasil', 'brazil', 'br'].includes(plain(country));
+
+export function phone(v) {
+  if (!v) return null;
+  const s = String(v).trim();
+  if (s.length > 40) return 'Use no máximo 40 caracteres.';
+  if (!/^[0-9()+\-\s.]*$/.test(s)) return 'O telefone só pode ter números, espaços, parênteses, + e -.';
+  const digits = s.replace(/\D/g, '').length;
+  if (s.startsWith('+') || digits > 11) return digits >= 8 ? null : 'Informe o telefone completo, com o código do país.';
+  return digits >= 10 ? null : 'Informe o telefone com DDD, como (44) 99999-1111.';
+}
+
+/** CEP e UF só seguem o formato brasileiro quando o país é o Brasil (ou não foi informado). */
+export function cep(v, country) {
+  if (!v || !isBrazil(country)) return null;
+  return /^\d{5}-?\d{3}$/.test(String(v).trim()) ? null : 'Informe o CEP com 8 números, como 87000-000.';
+}
+
+export function uf(v, country) {
+  if (!v || !isBrazil(country)) return null;
+  return UF_NAMES[String(v).trim().toUpperCase()] ? null : 'Informe a sigla de um dos 27 estados, como MG ou SP.';
+}
+
+export function cnh(v) {
+  if (!v) return null;
+  return CNH_CATEGORIES.includes(String(v).trim().toUpperCase()) ? null : `Use uma categoria válida: ${CNH_CATEGORIES.join(', ')}.`;
+}
+
+/** Endereço de perfil: além de http(s), o domínio precisa existir de fato ("x" não serve). */
+export function webUrl(v, max = 300) {
+  if (!v) return null;
+  if (String(v).length > max) return `Use no máximo ${max} caracteres.`;
+  const e = url(v);
+  if (e) return e;
+  return new URL(v).hostname.includes('.') ? null : 'Informe um endereço completo, como https://www.linkedin.com/in/seu-nome.';
 }
 
 /** Junta resultados { campo: mensagem|null } num mapa de erros { campo: [mensagem] }. */

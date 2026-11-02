@@ -1,7 +1,7 @@
 // Registro de ações (RF-20): linha do tempo por dia, nunca com valores de campos. Banner web.banner.
 import { api, asList } from '../api.js';
-import { h, clear, fmtTime, fmtDay } from '../dom.js';
-import { Icon, PageHead } from '../ui.js';
+import { h, clear, fmtTime, fmtDay, toast, announce, busy } from '../dom.js';
+import { Button, Icon, PageHead } from '../ui.js';
 import { adSlot, PLACEMENTS } from '../ads.js';
 
 // ação → [título, ícone, categoria]
@@ -28,6 +28,9 @@ const ACTIONS = {
   'rewarded.claimed': ['Candidaturas extras por oferta patrocinada', 'target', 'planos'],
   'ad.hidden': ['Anúncio ocultado', 'eyeOff', 'planos'],
 };
+// A API não pagina: devolve os últimos `limit` eventos, de 200 em 200 até o teto de 1000.
+const PAGE = 200;
+const MAX_LIMIT = 1000;
 const FILTERS = [['', 'Tudo'], ['conta', 'Conta'], ['perfil', 'Perfil'], ['curriculo', 'Currículo'], ['extensao', 'Extensão'], ['candidaturas', 'Candidaturas'], ['planos', 'Planos e anúncios']];
 const humanize = (a) => String(a || 'Ação').replace(/[._]/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
 const info = (a) => ACTIONS[a] || ACTIONS[String(a).toLowerCase()] || [humanize(a), 'list', 'outros'];
@@ -39,15 +42,33 @@ function dayLabel(d) {
   const same = (a, b) => a.toDateString() === b.toDateString();
   if (same(x, today)) return `Hoje · ${fmtDay(x)}`;
   if (same(x, y)) return `Ontem · ${fmtDay(x)}`;
-  return x.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' });
+  const year = x.getFullYear() === today.getFullYear() ? {} : { year: 'numeric' };
+  return x.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', ...year });
 }
 
 export async function render(main) {
-  const events = asList(await api('/audit-events')).sort((a, b) => new Date(b.occurredAt) - new Date(a.occurredAt));
+  let limit = PAGE;
+  const fetchEvents = async () => asList(await api(`/audit-events?limit=${limit}`)).sort((a, b) => new Date(b.occurredAt) - new Date(a.occurredAt));
+  let events = await fetchEvents();
+  const mayHaveMore = () => events.length >= limit;
   let filter = '';
   const listSlot = h('section', { class: 'stack-lg', 'aria-label': 'Linha do tempo' });
   const status = h('p', { class: 'sr-only', role: 'status' });
   const chips = h('div', { class: 'filter-chips', role: 'group', 'aria-label': 'Filtrar por tipo' });
+  const coverage = h('p', { class: 'small muted' });
+  const more = Button({ variant: 'quiet' }, 'Carregar mais');
+  more.addEventListener('click', () => busy(more, async () => {
+    const before = events.length;
+    limit = Math.min(limit + PAGE, MAX_LIMIT);
+    try {
+      events = await fetchEvents();
+      paint();
+      announce(`${events.length - before} registros carregados.`);
+    } catch (err) {
+      limit -= PAGE;
+      if (!err.handled) toast(err.message, 'err');
+    }
+  }));
 
   const paint = () => {
     clear(chips, FILTERS.map(([k, label]) => h('button', {
@@ -56,6 +77,12 @@ export async function render(main) {
     }, label)));
     const shown = events.filter((e) => !filter || info(e.action)[2] === filter);
     status.textContent = `${shown.length} ${shown.length === 1 ? 'registro' : 'registros'}.`;
+    const partial = mayHaveMore();
+    const loaded = partial ? `Mostrando os ${events.length} registros mais recentes.` : `Mostrando todos os ${events.length} ${events.length === 1 ? 'registro' : 'registros'}.`;
+    const filtered = filter ? ` ${shown.length} ${shown.length === 1 ? 'combina' : 'combinam'} com o filtro${partial ? ', que vale só para o que já foi carregado' : ''}.` : '';
+    const ceiling = partial && limit >= MAX_LIMIT ? ' Este é o máximo desta tela. O histórico completo está em Baixar meus dados, na Conta e privacidade.' : '';
+    coverage.textContent = `${loaded}${filtered}${ceiling}`;
+    more.hidden = !partial || limit >= MAX_LIMIT;
     const groups = new Map();
     for (const e of shown) {
       const k = new Date(e.occurredAt).toDateString();
@@ -71,12 +98,12 @@ export async function render(main) {
           h('time', { class: 'event__time', datetime: e.occurredAt }, fmtTime(e.occurredAt)),
           h('span', { class: 'event__icon', 'aria-hidden': 'true' }, Icon(icon)),
           h('div', { class: 'event__text' }, h('span', { class: 'event__title' }, title), detail ? h('span', { class: 'event__detail' }, detail) : null));
-      })))) : h('p', { class: 'card empty' }, 'Nenhum registro com esse filtro.'));
+      })))) : h('p', { class: 'card empty' }, filter ? 'Nenhum registro com esse filtro.' : 'Nenhuma ação registrada ainda.'));
   };
   paint();
 
   main.append(h('div', { class: 'content' },
     PageHead({ title: 'Registro de ações', lead: 'Tudo o que o Zyft fez em seu nome, na ordem em que aconteceu. Guardamos a ação, o site e a quantidade de campos, nunca o conteúdo preenchido.' }),
     adSlot(PLACEMENTS.banner),
-    chips, status, listSlot));
+    chips, status, coverage, listSlot, h('div', {}, more)));
 }

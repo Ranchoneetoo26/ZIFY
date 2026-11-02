@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using FluentValidation;
 using MediatR;
+using Zyft.Application.Common;
 using Zyft.Application.Common.Exceptions;
 using Zyft.Application.Common.Interfaces;
 using Zyft.Domain.Profiles;
@@ -29,12 +30,12 @@ public sealed class ExperienceInputValidator<T> : AbstractValidator<T> where T :
 {
     public ExperienceInputValidator()
     {
-        RuleFor(x => x.Company).NotEmpty().WithMessage("Informe a organização.").MaximumLength(200);
-        RuleFor(x => x.Role).NotEmpty().WithMessage("Informe o cargo.").MaximumLength(200);
+        RuleFor(x => x.Company).Visible().WithMessage("Informe a organização.").MaximumLength(ProfileLimits.Organization);
+        RuleFor(x => x.Role).Visible().WithMessage("Informe o cargo.").MaximumLength(ProfileLimits.Organization);
         RuleFor(x => x.StartDate).NotNull().WithMessage("Informe a data de início.");
-        RuleFor(x => x.Activities).MaximumLength(4000);
-        RuleFor(x => x.Tools).MaximumLength(1000);
-        RuleFor(x => x.Results).MaximumLength(4000);
+        RuleFor(x => x.Activities).MaximumLength(ProfileLimits.LongText);
+        RuleFor(x => x.Tools).MaximumLength(ProfileLimits.Tools);
+        RuleFor(x => x.Results).MaximumLength(ProfileLimits.LongText);
     }
 }
 
@@ -97,8 +98,8 @@ public sealed class EducationInputValidator<T> : AbstractValidator<T> where T : 
 {
     public EducationInputValidator()
     {
-        RuleFor(x => x.Institution).NotEmpty().WithMessage("Informe a instituição.").MaximumLength(200);
-        RuleFor(x => x.Course).NotEmpty().WithMessage("Informe o curso.").MaximumLength(200);
+        RuleFor(x => x.Institution).Visible().WithMessage("Informe a instituição.").MaximumLength(ProfileLimits.Organization);
+        RuleFor(x => x.Course).Visible().WithMessage("Informe o curso.").MaximumLength(ProfileLimits.Organization);
         RuleFor(x => x.Level).NotNull().WithMessage("Informe o nível.").IsInEnum().WithMessage("Nível inválido.");
         RuleFor(x => x.Status).NotNull().WithMessage("Informe a situação.").IsInEnum().WithMessage("Situação inválida.");
         RuleFor(x => x.StartDate).NotNull().WithMessage("Informe a data de início.");
@@ -164,9 +165,10 @@ public sealed class CourseInputValidator<T> : AbstractValidator<T> where T : Cou
 {
     public CourseInputValidator()
     {
-        RuleFor(x => x.Name).NotEmpty().WithMessage("Informe o nome do curso.").MaximumLength(200);
-        RuleFor(x => x.Institution).MaximumLength(200);
-        RuleFor(x => x.Hours).LessThanOrEqualTo(10000).WithMessage("Carga horária muito alta.");
+        RuleFor(x => x.Name).Visible().WithMessage("Informe o nome do curso.").MaximumLength(ProfileLimits.Organization);
+        RuleFor(x => x.Institution).MaximumLength(ProfileLimits.Organization);
+        RuleFor(x => x.Hours).GreaterThan(0).WithMessage("Informe um número de horas maior que zero.")
+            .LessThanOrEqualTo(ProfileLimits.MaxHours).WithMessage("Carga horária muito alta.");
         RuleFor(x => x.Type).IsInEnum().WithMessage("Escolha o tipo: Curso ou Certificação.");
     }
 }
@@ -224,7 +226,7 @@ public sealed class SkillInputValidator<T> : AbstractValidator<T> where T : Skil
 {
     public SkillInputValidator()
     {
-        RuleFor(x => x.Name).NotEmpty().WithMessage("Informe a competência.").MaximumLength(100);
+        RuleFor(x => x.Name).Visible().WithMessage("Informe a competência.").MaximumLength(ProfileLimits.SkillName);
         RuleFor(x => x.Level).IsInEnum().WithMessage("Nível inválido.");
     }
 }
@@ -282,7 +284,7 @@ public sealed class LanguageInputValidator<T> : AbstractValidator<T> where T : L
 {
     public LanguageInputValidator()
     {
-        RuleFor(x => x.Name).NotEmpty().WithMessage("Informe o idioma.").MaximumLength(60);
+        RuleFor(x => x.Name).Visible().WithMessage("Informe o idioma.").MaximumLength(ProfileLimits.LanguageName);
         RuleFor(x => x.Proficiency).NotNull().WithMessage("Informe o nível.").IsInEnum().WithMessage("Nível inválido.");
     }
 }

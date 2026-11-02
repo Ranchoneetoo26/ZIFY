@@ -5,65 +5,104 @@
 <h1>Cadastro de currículo</h1>
 <fieldset style="border:0;padding:0"><h2>Informações pessoais</h2>
 <div class="two">
-<label class="f">Nome completo *<input name="cand_nome" required></label>
+<label class="f">Nome completo *<input name="cand_nome" maxlength="150" required></label>
 <label class="f">Data de nascimento<input name="cand_nasc" type="date"></label>
-<label class="f">E-mail *<input name="cand_email" type="email" required></label>
-<label class="f">Celular / WhatsApp<input name="cand_cel" placeholder="(44) 99999-9999"></label>
-<label class="f">Cidade<input name="cand_cidade"></label>
+<label class="f">E-mail *<input name="cand_email" type="email" maxlength="254" required></label>
+<label class="f">Celular / WhatsApp<input name="cand_cel" placeholder="(44) 99999-9999" maxlength="15" inputmode="numeric"></label>
+<label class="f">Cidade<input name="cand_cidade" maxlength="100"></label>
 <label class="f">UF<select name="cand_uf"><option value="">Selecione</option><option value="PR">Paraná</option><option value="SP">São Paulo</option><option value="SC">Santa Catarina</option><option value="RS">Rio Grande do Sul</option></select></label>
 <label class="f">Estado civil<select name="cand_ec"><option value="">Selecione</option><option>Solteiro(a)</option><option>Casado(a)</option></select></label>
 <label class="f">Possui CNH?<select name="cand_cnh"><option value="">Selecione</option><option>Não possuo</option><option>A</option><option>B</option><option>AB</option><option>C</option><option>D</option></select></label>
 </div></fieldset>
 <fieldset style="border:0;padding:0"><h2>Objetivo</h2>
 <div class="two">
-<label class="f">Cargo pretendido<input name="obj_cargo"></label>
+<label class="f">Cargo pretendido<input name="obj_cargo" maxlength="120"></label>
 <label class="f">Pretensão salarial (R$)<input name="obj_sal"></label>
 </div></fieldset>
 <fieldset style="border:0;padding:0"><h2>Formação</h2>
 <div class="two">
 <label class="f">Escolaridade<select name="form[0][nivel]"><option value="">Selecione</option><option>Ensino médio</option><option>Técnico</option><option>Graduação</option><option>Pós-graduação</option></select></label>
-<label class="f">Instituição<input name="form[0][inst]"></label>
-<label class="f">Curso<input name="form[0][curso]"></label>
+<label class="f">Instituição<input name="form[0][inst]" maxlength="150"></label>
+<label class="f">Curso<input name="form[0][curso]" maxlength="150"></label>
 <label class="f">Situação<select name="form[0][sit]"><option value="">Selecione</option><option>Concluído</option><option>Cursando</option><option>Trancado</option></select></label>
 </div></fieldset>
 <fieldset style="border:0;padding:0"><h2>Experiência profissional 1</h2>
 <div class="two">
-<label class="f">Empresa<input name="exp_1_empresa"></label>
-<label class="f">Cargo<input name="exp_1_cargo"></label>
+<label class="f">Empresa<input name="exp_1_empresa" maxlength="150"></label>
+<label class="f">Cargo<input name="exp_1_cargo" maxlength="120"></label>
 <label class="f">Data de início<input name="exp_1_inicio" type="month"></label>
 <label class="f">Data de saída<input name="exp_1_fim" type="month"></label>
 </div>
-<label class="f">Atribuições e realizações<textarea name="exp_1_atrib" rows="4"></textarea></label>
+<label class="f">Atribuições e realizações<textarea name="exp_1_atrib" maxlength="2000" rows="4"></textarea></label>
 </fieldset>
 <fieldset style="border:0;padding:0"><h2>Experiência profissional 2</h2>
 <div class="two">
-<label class="f">Empresa<input name="exp_2_empresa"></label>
-<label class="f">Cargo<input name="exp_2_cargo"></label>
+<label class="f">Empresa<input name="exp_2_empresa" maxlength="150"></label>
+<label class="f">Cargo<input name="exp_2_cargo" maxlength="120"></label>
 <label class="f">Data de início<input name="exp_2_inicio" type="month"></label>
 <label class="f">Data de saída<input name="exp_2_fim" type="month"></label>
 </div>
-<label class="f">Atribuições e realizações<textarea name="exp_2_atrib" rows="4"></textarea></label>
+<label class="f">Atribuições e realizações<textarea name="exp_2_atrib" maxlength="2000" rows="4"></textarea></label>
 </fieldset>
 <fieldset style="border:0;padding:0"><h2>Cursos complementares</h2>
 <div class="two">
-<label class="f">Nome do curso<input name="curso_nome"></label>
+<label class="f">Nome do curso<input name="curso_nome" maxlength="150"></label>
 <label class="f">Carga horária<input name="curso_horas"></label>
 </div></fieldset>
 <fieldset style="border:0;padding:0"><h2>Idiomas</h2>
 <div class="two">
-<label class="f">Idioma<input name="idioma_1"></label>
+<label class="f">Idioma<input name="idioma_1" maxlength="80"></label>
 <label class="f">Nível<select name="idioma_1_nivel"><option value="">Selecione</option><option>Básico</option><option>Intermediário</option><option>Avançado</option><option>Fluente</option></select></label>
 </div></fieldset>
 <h2>Habilidades e qualificações</h2>
-<textarea aria-label="Habilidades e qualificações" name="habilidades" rows="4" style="width:100%;font:14px system-ui;padding:7px"></textarea>
+<textarea aria-label="Habilidades e qualificações" name="habilidades" maxlength="2000" rows="4" style="width:100%;font:14px system-ui;padding:7px"></textarea>
 <p><button type="submit">Salvar currículo</button></p>
 </form></main>
+<script>
+const maskPhone = (value) => {
+  const typed = value.trimStart();
+  if (/^\+\d{0,2}$/.test(typed)) return typed; // ainda digitando o código do país
+  const all = typed.replace(/\D/g, '');
+  const d = (typed.startsWith('+55') ? all.slice(2) : all).slice(0, 11);
+  if (!d) return '';
+  if (d.length <= 2) return `(${d}`;
+  const split = d.length > 10 ? 7 : 6;
+  return d.length <= split ? `(${d.slice(0, 2)}) ${d.slice(2)}` : `(${d.slice(0, 2)}) ${d.slice(2, split)}-${d.slice(split)}`;
+};
+const cel = document.querySelector('[name="cand_cel"]');
+// Solta o limite só durante a inserção: o maxlength cortaria "+55 44 99999-1111" antes da máscara.
+cel.addEventListener('beforeinput', (e) => { if (e.inputType?.startsWith('insert')) cel.maxLength = 40; });
+cel.addEventListener('input', () => { cel.maxLength = 15; cel.value = maskPhone(cel.value); });
+const nome = document.querySelector('[name="cand_nome"]');
+nome.addEventListener('input', () => { nome.setCustomValidity(nome.value && !nome.value.trim() ? 'Informe seu nome.' : ''); });
+document.querySelectorAll('input:not([type="file"]):not([type="checkbox"]), textarea').forEach((control) => {
+  const max = control.maxLength > 0 ? control.maxLength : null;
+  if (!max) return;
+  const counter = document.createElement('span');
+  counter.className = 'counter';
+  // Fora do <label>: a extensão lê o rótulo pelo texto do label, e o contador não faz parte dele.
+  const label = control.closest('label');
+  if (label) {
+    const wrap = document.createElement('div');
+    wrap.className = 'counted';
+    label.replaceWith(wrap);
+    wrap.append(label, counter);
+  } else control.after(counter);
+  const update = () => { counter.textContent = `${control.value.length} / ${max}`; };
+  control.addEventListener('input', update);
+  update();
+});
+</script>
 <script>
 if (new URLSearchParams(location.search).has('preenchido')) {
   const v = { cand_nome: 'Ana Paula Souza', cand_email: 'ana.souza@email.com', cand_cel: '(44) 99999-1111', cand_cidade: 'Maringá', cand_uf: 'PR',
     obj_cargo: 'Assistente Administrativo', 'form[0][nivel]': 'Ensino médio', 'form[0][inst]': 'Colégio Estadual Central', exp_1_empresa: 'Empresa X Comércio',
     exp_1_cargo: 'Auxiliar Administrativo', exp_1_inicio: '2021-02', exp_1_fim: '2023-06', exp_1_atrib: 'Atendimento ao cliente e organização de arquivos.' };
-  for (const [k, val] of Object.entries(v)) document.querySelector(`[name="${k}"]`).value = val;
+  for (const [k, val] of Object.entries(v)) {
+    const control = document.querySelector(`[name="${k}"]`);
+    control.value = val;
+    control.dispatchEvent(new Event('input', { bubbles: true }));
+  }
 }
 </script>
 </body></html>

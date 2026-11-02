@@ -27,6 +27,10 @@ public sealed class AuditEvent : Entity
 public static class AuditActions
 {
     public const string AccountCreated = "conta.criada";
+    public const string PasswordChanged = "senha.alterada";
+    public const string PasswordReset = "senha.redefinida";
+    public const string TermsAccepted = "termos.aceitos";
+    public const string EmailVerified = "email.verificado";
     public const string DataExported = "dados.exportados";
     public const string ConsentChanged = "consentimento.alterado";
     public const string ProfileUpdated = "perfil.atualizado";
@@ -44,6 +48,7 @@ public static class AuditActions
 
     // v2 (planos, anúncios, onboarding e campos personalizados) — nomes definidos no contrato v2.
     public const string PlanChanged = "plan.changed";
+    public const string PlanPeriodChanged = "plan.period_changed";
     public const string PackPurchased = "pack.purchased";
     public const string AdHidden = "ad.hidden";
     public const string RewardedClaimed = "rewarded.claimed";

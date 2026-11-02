@@ -6,8 +6,8 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Modelo de dados (ER e dicionário) |
-| Versão | 3.1 |
-| Status | Em revisão. Implementado: **25 tabelas** (17 da Entrega 3 e 8 da versão 2) e 3 colunas novas em `Profiles`, criadas pela migration `20261021233314_V2PlanosAnunciosOnboarding`. **A migration é a fonte da verdade.** |
+| Versão | 3.2 |
+| Status | Em revisão. Implementado: **27 tabelas** (17 da Entrega 3, 8 da versão 2 e 2 de 02/11/2026: `UserTokens` e `SubscriptionPeriodChanges`), com as colunas novas de `Profiles` e `Users` (§4.6). Migrations: `20261021233314_V2PlanosAnunciosOnboarding` e as quatro de 02/11/2026 (§7). **A migration é a fonte da verdade.** |
 | Dono | Arquitetura de software, com o time de backend |
 | Documentos relacionados | [API](api.md), [Backend](backend.md), [Segurança](seguranca.md), [ADR-0017](adr/0017-backend-em-csharp-dotnet-clean-architecture.md), [ADR-0014](adr/0014-dados-sensiveis-segregados-e-criptografados.md), [ADR-0019](adr/0019-area-profissional-dinamica-e-campos-personalizados.md), [ADR-0020](adr/0020-monetizacao-com-anuncios-e-planos.md), [Entrega 2 §2](../entregas/entrega-2-projeto-e-arquitetura.md#2-modelagem-do-banco-de-dados) |
 
@@ -19,10 +19,11 @@
 | 2.0 | 12/10/2026 | Modelo-alvo em PostgreSQL com o Perfil Mestre em JSONB ([ADR-0008](adr/0008-postgresql-com-perfil-em-jsonb.md)). |
 | 3.0 | 21/10/2026 | Reescrito para o modelo **relacional** implementado em EF Core ([ADR-0017](adr/0017-backend-em-csharp-dotnet-clean-architecture.md) ajustou o ADR-0008). Acrescenta as colunas e tabelas da versão 2: área profissional, campos personalizados, progresso do onboarding, planos, uso, pacotes e anúncios. |
 | 3.1 | 21/10/2026 | Conferido com a migration da v2: nomes reais das 8 tabelas novas, tamanhos de coluna (`SalaryType` 30, `Answered`/`Skipped` 600), índices criados (os "propostos" viraram implementados, com `CustomFields(ProfileId, Label)` único e `AdHides(UserId)` simples). |
+| 3.2 | 02/11/2026 | Conta e concorrência: `Users.EmailVerifiedAt`, `Users.TermsVersion`, `Users.TermsAcceptedAt`, tabela `UserTokens` (verificação de e-mail e redefinição de senha, só hash), `Profiles.Version` (concorrência otimista) e tabela `SubscriptionPeriodChanges` (troca de período do Plus). 27 tabelas. Em SQLite, o `SqliteSchemaUpgrader` aplica mudanças aditivas num banco existente: a orientação de apagar `zyft-dev.db` a cada mudança de esquema ficou obsoleta (§7). |
 
 ## 1. Decisões de modelagem
 
-- **PostgreSQL 16 com EF Core 8 e Migrations**; SQLite em desenvolvimento e nos testes (`EnsureCreated`). As migrations são só do PostgreSQL: `20261015200622_InitialCreate` (Entrega 3) e `20261021233314_V2PlanosAnunciosOnboarding` (versão 2).
+- **PostgreSQL 16 com EF Core 8 e Migrations**; SQLite em desenvolvimento e nos testes (`EnsureCreated` mais `SqliteSchemaUpgrader`). As migrations são só do PostgreSQL: `20261015200622_InitialCreate` (Entrega 3), `20261021233314_V2PlanosAnunciosOnboarding` (versão 2) e, em 02/11/2026, `20261102183823_VerificacaoDeEmail`, `20261102184148_AceiteDosTermos`, `20261102184704_VersaoDoPerfil` e `20261102185344_TrocaDePeriodoDoPlus`.
 - **Perfil relacional**, uma tabela por seção (experiências, formação, cursos, competências, idiomas, campos personalizados). O JSONB do ADR-0008 foi trocado porque a disciplina pede entidades e relacionamentos explícitos e porque o de-para precisa de chaves estáveis (`experiences[0].company`, `custom:<id>`).
 - **Ids `Guid`** gerados na aplicação; `CreatedAt` e `UpdatedAt` em UTC, preenchidos no `SaveChangesAsync`. Enums gravados como texto.
 - **Tudo pendurado em `Users` com `ON DELETE CASCADE`**: excluir a conta apaga tudo (RF-08). A exceção proposital é `AdStats`, que não tem usuário.
@@ -58,6 +59,8 @@ erDiagram
   Users ||--o{ UsagePacks : "v2"
   Users ||--o{ UsageMarks : "v2"
   Users ||--o{ AdHides : "v2"
+  Users ||--o{ UserTokens : "e-mail e senha"
+  Users ||--o{ SubscriptionPeriodChanges : "troca de período"
   AdStats }o..o{ AdCatalog : "por id do anúncio, sem usuário"
 
   Profiles {
@@ -66,6 +69,26 @@ erDiagram
     varchar WorkArea "v2"
     varchar ProfessionalRegistration "v2"
     varchar SalaryType "v2"
+    int Version "concorrência"
+  }
+  UserTokens {
+    uuid Id PK
+    uuid UserId FK
+    varchar Purpose "EmailVerification | PasswordReset"
+    varchar TokenHash "SHA-256, único"
+    timestamptz ExpiresAt
+    timestamptz UsedAt
+  }
+  SubscriptionPeriodChanges {
+    uuid Id PK
+    uuid UserId FK
+    varchar FromPeriod
+    varchar ToPeriod
+    timestamptz ChangedAt
+    numeric UnusedCredit
+    numeric NewPrice
+    numeric Amount
+    bool DuringTrial
   }
   CustomFields {
     uuid Id PK
@@ -135,7 +158,7 @@ erDiagram
   }
 ```
 
-O diagrama acima mostra só as tabelas e colunas da versão 2. O diagrama das 17 tabelas da Entrega 3, com todas as colunas, está em [`docs/entregas/img/04-der.png`](../entregas/img/04-der.png) e na Entrega 2 §2.2.
+O diagrama acima mostra só as tabelas e colunas da versão 2 e as de 02/11/2026. O diagrama das 17 tabelas da Entrega 3, com todas as colunas, está em [`docs/entregas/img/04-der.png`](../entregas/img/04-der.png) e na Entrega 2 §2.2.
 
 ## 3. Tabelas da Entrega 3 (resumo)
 
@@ -143,7 +166,7 @@ O dicionário completo (tipos, nulidade, restrições) está na [Entrega 2 §2.5
 
 | Tabela | Conteúdo | Requisitos |
 |---|---|---|
-| `Users` | Conta: e-mail único, nome, hash BCrypt da senha. `DeletedAt` existe sem uso (pendência D-05). | RF-01 |
+| `Users` | Conta: e-mail único, nome, hash BCrypt da senha. `DeletedAt` existe sem uso (pendência D-05). Desde 02/11/2026 também `EmailVerifiedAt`, `TermsVersion` e `TermsAcceptedAt` (§4.6). | RF-01 |
 | `RefreshTokens` | Hash SHA-256 do refresh, validade, `ReplacedByHash` para detectar reuso, escopo e dispositivo | RF-01, RF-09 |
 | `Consents` | Uma linha por finalidade (`AiText`, `JobAnalysis`, `SensitiveData`), todas nascem desligadas | RF-07 |
 | `Profiles` | Dados básicos, objetivo e preferências (1 : 1 com `Users`) | RF-02 |
@@ -215,6 +238,26 @@ Até 50 campos por perfil (`Profile.MaxCustomFields`). O rótulo é único no pe
 
 O catálogo de anúncios (título, corpo, chamada, URL, área, assunto, palavras-chave) não é tabela: é o `AdCatalog` (`src/Zyft.Application/Ads/AdCatalog.cs`), com **16 anúncios** de "Anunciante de demonstração" e ids de texto (`demo-tec-cloud`, `demo-sau-sbv`…). Por isso `AdId` é varchar(60), não uuid.
 
+### 4.6 Conta, concorrência e troca de período (02/11/2026)
+
+Migrations `20261102183823_VerificacaoDeEmail`, `20261102184148_AceiteDosTermos`, `20261102184704_VersaoDoPerfil` e `20261102185344_TrocaDePeriodoDoPlus`.
+
+| Tabela | Coluna | Tipo | Nulo | Regra |
+|---|---|---|---|---|
+| `Users` | `EmailVerifiedAt` | timestamptz | sim | Data da confirmação pelo link. Nulo = não verificado, só informativo (RF-01) |
+| `Users` | `TermsVersion` | varchar(20) | sim | Versão dos termos aceita no cadastro (hoje `2026-10-22`). Nula em contas anteriores ao aceite |
+| `Users` | `TermsAcceptedAt` | timestamptz | sim | Data do aceite |
+| `Profiles` | `Version` | integer | não (padrão 0) | Sobe a cada alteração do perfil ou de um item; token de concorrência do EF, exposto como `ETag` (RNF-18) |
+| `UserTokens` | `UserId` | uuid | não | FK → `Users`, cascade |
+| | `Purpose` | varchar(30) | não | `EmailVerification` (24 h) ou `PasswordReset` (30 min), como texto |
+| | `TokenHash` | varchar(64) | não | SHA-256 do token; o valor aberto só existe no link. Índice único |
+| | `ExpiresAt`, `UsedAt` | timestamptz | não / sim | Uso único: `UsedAt` marca uso ou invalidação por um token mais novo |
+| `SubscriptionPeriodChanges` | `UserId` | uuid | não | FK → `Users`, cascade |
+| | `FromPeriod`, `ToPeriod` | varchar(10) | não | `Monthly` / `Yearly` |
+| | `ChangedAt` | timestamptz | não | Momento da troca (início do ciclo novo) |
+| | `UnusedCredit`, `NewPrice`, `Amount` | numeric(10,2) | não | Rateio **simulado**; `Amount = NewPrice − UnusedCredit` (negativo = crédito) (RF-31, RN-13) |
+| | `DuringTrial` | boolean | não | Troca feita no teste grátis (valores 0) |
+
 ## 5. Retenção
 
 | Dado | Retenção | Como é apagado |
@@ -223,7 +266,9 @@ O catálogo de anúncios (título, corpo, chamada, URL, área, assunto, palavras
 | `SensitiveData` | Enquanto a conta existir e o consentimento estiver ligado | Desligar o consentimento apaga os dados; excluir a conta também |
 | `ResumeImports` | Até aplicar ou descartar | Arquivo nunca persistido |
 | `PairingCodes` | 10 minutos, uso único | Invalidado ao usar ou expirar |
-| `RefreshTokens` | 7 dias | Revogação ou expiração |
+| `RefreshTokens` | 7 dias | Revogação ou expiração; trocar ou redefinir a senha revoga todos |
+| `UserTokens` | 24 h (verificação) ou 30 min (redefinição); a linha usada ou vencida continua até a exclusão da conta (limpeza periódica: proposta) | Uso, invalidação por token novo e cascata |
+| `SubscriptionPeriodChanges` | Enquanto a conta existir; entra na exportação (`billing.periodChanges`) | Cascata |
 | `OnboardingProgress` | Enquanto a conta existir | Cascata |
 | `Subscriptions` | Enquanto a conta existir | Cascata |
 | `MonthlyUsages`, `UsageMarks` | Por mês; o mês corrente é o que importa para o limite. Proposta: apagar marcas com mais de 2 meses e contadores com mais de 12 meses | Tarefa de limpeza (proposta) e cascata |
@@ -246,8 +291,11 @@ Criados pela migration da versão 2:
 - `AdStats(AdId)` único.
 - `CustomFields(ProfileId, Label)` único.
 
+Criados em 02/11/2026: `UserTokens.TokenHash` único, `UserTokens(UserId, Purpose)` e `SubscriptionPeriodChanges(UserId)`.
+
 ## 7. Migrations
 
 - Migrations em `src/Zyft.Infrastructure/Persistence/Migrations`, só para a frente, aplicadas na subida (`Database.Migrate()`) em PostgreSQL. O CI confere se o modelo e a migration estão em dia.
 - A versão 2 entrou na migration `20261021233314_V2PlanosAnunciosOnboarding`, sobre a `InitialCreate`. Todas as colunas novas de `Profiles` são opcionais, então perfis antigos continuam válidos.
-- Em SQLite (desenvolvimento), o `DatabaseInitializer` usa `EnsureCreated`, que não altera um banco que já existe. Apague `src/Zyft.Api/zyft-dev.db` (e os arquivos `-shm` e `-wal`) para recriar o banco com o esquema novo e os usuários de demonstração.
+- As quatro migrations de 02/11/2026 só acrescentam: colunas anuláveis em `Users`, `Profiles.Version` com padrão 0 e duas tabelas novas. Contas e perfis antigos continuam válidos.
+- Em SQLite (desenvolvimento), o `DatabaseInitializer` usa `EnsureCreated`, que não altera um banco que já existe, e logo depois o `SqliteSchemaUpgrader`, que cria as tabelas e os índices que faltam e adiciona as colunas novas (com valor padrão quando obrigatórias), sem remover nem alterar nada. **Não é mais preciso apagar `src/Zyft.Api/zyft-dev.db` quando o esquema muda.** Apagar o arquivo (e os `-shm` e `-wal`) só serve para zerar os dados e recriar os usuários de demonstração, ou quando uma mudança não for aditiva (renomear ou mudar o tipo de uma coluna).
