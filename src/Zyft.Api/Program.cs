@@ -245,6 +245,19 @@ app.MapHealthChecks("/health", new HealthCheckOptions
     },
 });
 
+// Endereço sem hash (ex.: /conta, /candidaturas/123) vindo de link colado ou favorito: a SPA roteia por hash,
+// então redireciona para /#/conta. Só GET/HEAD fora de /api; arquivo inexistente (nome com extensão) continua 404.
+if (webFiles is not null)
+{
+    app.MapFallback("{*path:nonfile}", (HttpContext ctx) =>
+    {
+        var path = ctx.Request.Path;
+        if (path.StartsWithSegments("/api") || !(HttpMethods.IsGet(ctx.Request.Method) || HttpMethods.IsHead(ctx.Request.Method)))
+            return Results.NotFound();
+        return Results.Redirect("/#" + path.ToUriComponent().TrimEnd('/'));
+    });
+}
+
 if (config.GetValue("Database:InitializeOnStartup", true))
 {
     var seed = app.Environment.IsDevelopment() && config.GetValue("Seed:DemoUser", true);
