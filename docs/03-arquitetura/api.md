@@ -383,6 +383,15 @@ O perfil tem `Version` (inteiro, coluna `Profiles.Version`, token de concorrênc
 
 `POST /auth/password` (W, limite `auth`) com `{ "currentPassword": "...", "newPassword": "..." }`. Sucesso: `200` com o mesmo corpo do login (`AuthResult`): a sessão atual continua com o **par novo** (o cliente troca o `refreshToken` guardado). Todas as outras sessões terminam: refresh tokens revogados (inclusive o antigo desta sessão) e extensões pareadas desconectadas (o access token da extensão para de valer na hora; o access token web de outra sessão vale até expirar, no máximo 15 min). Erros `400`: `errors.currentPassword` "Senha atual incorreta." ou "Informe a senha atual."; `errors.newPassword` com as regras de senha forte ou "A nova senha deve ser diferente da senha atual.". Auditoria: `senha.alterada` (e `extensao.revogada` por extensão desconectada).
 
+### 4.12 Recuperação de senha
+
+| Rota | Acesso | Corpo | Resposta |
+|---|---|---|---|
+| `POST /auth/password/forgot` | público, limite `auth` | `{ "email": "..." }` | sempre `202` sem corpo, exista ou não a conta (sem enumeração); `400` só para e-mail ausente ou mal formado; `429` |
+| `POST /auth/password/reset` | público, limite `auth` | `{ "token": "...", "newPassword": "..." }` | `204`; `400` com `errors.token` ("O link de redefinição é inválido ou expirou. Peça um novo link.") ou `errors.newPassword` (regras de senha forte) |
+
+O link enviado é `{App:WebBaseUrl}/#/redefinir-senha?token=...` (token de uso único, só o hash no banco, `UserTokens` com `Purpose = PasswordReset`, validade de 30 min; pedir de novo invalida o link anterior). Redefinir encerra todas as sessões (refresh tokens e extensões pareadas), invalida os links de redefinição em aberto e marca o e-mail como verificado (o link prova acesso à caixa). Não faz login: a pessoa entra com a senha nova. Auditoria: `senha.redefinida`.
+
 ## 5. Códigos de erro
 
 | HTTP | `code` | Quando |

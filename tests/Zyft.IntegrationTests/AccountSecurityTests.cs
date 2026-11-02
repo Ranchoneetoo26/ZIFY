@@ -187,4 +187,77 @@ public class AccountSecurityTests(ZyftApiFactory factory) : IClassFixture<ZyftAp
         audit.Should().Contain("senha.alterada");
         string.Join('\n', factory.Logs.Lines).Should().NotContain("NovaSenha456");
     }
+
+    // ------------------------------------------------------------------ recuperação de senha
+
+    [Fact]
+    public async Task Esqueci_a_senha_responde_igual_para_email_cadastrado_ou_nao()
+    {
+        var c = factory.CreateClient();
+        var s = await TestApi.RegisterAsync(c);
+        var unknown = $"ninguem{Guid.NewGuid():N}@exemplo.com";
+
+        var known = await c.PostAsJsonAsync("/api/v1/auth/password/forgot", new { email = s.Email.ToUpperInvariant() });
+        var missing = await c.PostAsJsonAsync("/api/v1/auth/password/forgot", new { email = unknown });
+        known.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        missing.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        (await known.Content.ReadAsStringAsync()).Should().Be(await missing.Content.ReadAsStringAsync());
+
+        factory.Emails.Should().Contain(m => m.To == s.Email && m.Kind == "reset");
+        factory.Emails.Should().NotContain(m => m.To == unknown);
+        var all = string.Join('\n', factory.Logs.Lines);
+        all.Should().Contain("/#/redefinir-senha?token=" + factory.Emails.LastToken(s.Email, "reset"));
+        all.Should().NotContain(s.Email).And.NotContain(unknown);
+
+        var bad = await c.PostAsJsonAsync("/api/v1/auth/password/forgot", new { email = "nao-e-email" });
+        bad.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Redefinir_com_o_link_troca_a_senha_encerra_sessoes_e_o_link_nao_vale_de_novo()
+    {
+        var c = factory.CreateClient();
+        var s = await TestApi.RegisterAsync(c);
+        await c.PostAsJsonAsync("/api/v1/auth/password/forgot", new { email = s.Email });
+        var token = factory.Emails.LastToken(s.Email, "reset");
+
+        var weak = await c.PostAsJsonAsync("/api/v1/auth/password/reset", new { token, newPassword = "fraca" });
+        weak.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await weak.JsonAsync()).GetProperty("errors").TryGetProperty("newPassword", out _).Should().BeTrue();
+
+        (await c.PostAsJsonAsync("/api/v1/auth/password/reset", new { token, newPassword = "Redefinida789" })).StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        (await c.PostAsJsonAsync("/api/v1/auth/refresh", new { refreshToken = s.RefreshToken })).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await c.PostAsJsonAsync("/api/v1/auth/login", new { email = s.Email, password = "Senha123" })).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        var login = await c.PostAsJsonAsync("/api/v1/auth/login", new { email = s.Email, password = "Redefinida789" });
+        login.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await login.JsonAsync()).GetProperty("user").GetProperty("emailVerified").GetBoolean().Should().BeTrue();
+
+        var again = await c.PostAsJsonAsync("/api/v1/auth/password/reset", new { token, newPassword = "OutraSenha000" });
+        again.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await again.JsonAsync()).GetProperty("errors").GetProperty("token")[0].GetString().Should().Be("O link de redefinição é inválido ou expirou. Peça um novo link.");
+
+        var web = factory.Authed((await (await c.PostAsJsonAsync("/api/v1/auth/login", new { email = s.Email, password = "Redefinida789" })).JsonAsync()).GetProperty("accessToken").GetString()!);
+        (await (await web.GetAsync("/api/v1/audit-events")).Content.ReadAsStringAsync()).Should().Contain("senha.redefinida");
+    }
+
+    [Fact]
+    public async Task Token_de_verificacao_nao_serve_para_redefinir_senha()
+    {
+        var c = factory.CreateClient();
+        var s = await TestApi.RegisterAsync(c);
+        var verify = factory.Emails.LastToken(s.Email, "verify");
+        (await c.PostAsJsonAsync("/api/v1/auth/password/reset", new { token = verify, newPassword = "Redefinida789" })).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await c.PostAsJsonAsync("/api/v1/auth/password/reset", new { token = "inventado", newPassword = "Redefinida789" })).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Esqueci_a_senha_tem_limite_de_tentativas()
+    {
+        using var f = new ZyftApiFactory { AuthPermitLimit = 2 };
+        var c = f.CreateClient();
+        HttpResponseMessage? last = null;
+        for (var i = 0; i < 3; i++) last = await c.PostAsJsonAsync("/api/v1/auth/password/forgot", new { email = "x@exemplo.com" });
+        last!.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+    }
 }

@@ -109,6 +109,9 @@ public interface IEmailSender
 {
     /// <summary>Envia o link de confirmação de e-mail (<c>/#/verificar?token=...</c>).</summary>
     Task SendEmailVerificationAsync(string toEmail, string name, string token, CancellationToken ct = default);
+
+    /// <summary>Envia o link de redefinição de senha (<c>/#/redefinir-senha?token=...</c>).</summary>
+    Task SendPasswordResetAsync(string toEmail, string name, string token, CancellationToken ct = default);
 }
 
 /// <summary>

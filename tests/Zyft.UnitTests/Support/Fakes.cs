@@ -110,4 +110,10 @@ public sealed class CapturingEmailSender : IEmailSender
         Sent.Add((toEmail, "verify", token));
         return Task.CompletedTask;
     }
+
+    public Task SendPasswordResetAsync(string toEmail, string name, string token, CancellationToken ct = default)
+    {
+        Sent.Add((toEmail, "reset", token));
+        return Task.CompletedTask;
+    }
 }

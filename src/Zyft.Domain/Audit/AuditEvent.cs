@@ -28,6 +28,7 @@ public static class AuditActions
 {
     public const string AccountCreated = "conta.criada";
     public const string PasswordChanged = "senha.alterada";
+    public const string PasswordReset = "senha.redefinida";
     public const string TermsAccepted = "termos.aceitos";
     public const string EmailVerified = "email.verificado";
     public const string DataExported = "dados.exportados";

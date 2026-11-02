@@ -85,6 +85,12 @@ public sealed class RecordingEmailSender(IEmailSender inner, RecordingEmailSende
         outbox.Enqueue(new Message(toEmail, "verify", token));
         return inner.SendEmailVerificationAsync(toEmail, name, token, ct);
     }
+
+    public Task SendPasswordResetAsync(string toEmail, string name, string token, CancellationToken ct = default)
+    {
+        outbox.Enqueue(new Message(toEmail, "reset", token));
+        return inner.SendPasswordResetAsync(toEmail, name, token, ct);
+    }
 }
 
 public sealed class CapturingSink : ILogEventSink

@@ -12,6 +12,7 @@ namespace Zyft.Application.Auth;
 public static class UserTokens
 {
     public static readonly TimeSpan EmailVerificationLifetime = TimeSpan.FromHours(24);
+    public static readonly TimeSpan PasswordResetLifetime = TimeSpan.FromMinutes(30);
 
     /// <summary>
     /// Gera um token novo para a finalidade e invalida os anteriores ainda não usados (só o último link vale).

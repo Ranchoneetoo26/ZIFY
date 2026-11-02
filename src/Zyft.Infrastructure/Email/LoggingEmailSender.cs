@@ -24,6 +24,12 @@ public sealed class LoggingEmailSender(IOptions<AppOptions> options, ILogger<Log
         return Task.CompletedTask;
     }
 
+    public Task SendPasswordResetAsync(string toEmail, string name, string token, CancellationToken ct = default)
+    {
+        logger.LogInformation("Link de redefinição de senha gerado: {Link}", Link("/#/redefinir-senha", token));
+        return Task.CompletedTask;
+    }
+
     internal string Link(string path, string token) =>
         $"{options.Value.WebBaseUrl.TrimEnd('/')}{path}?token={Uri.EscapeDataString(token)}";
 }

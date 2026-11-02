@@ -104,4 +104,37 @@ public sealed class AuthController : ApiControllerBase
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public Task<AuthResult> ChangePassword(ChangePasswordCommand cmd, CancellationToken ct) => Sender.Send(cmd, ct);
+
+    /// <summary>
+    /// Pede o link de redefinição de senha (<c>/#/redefinir-senha?token=...</c>, vale 30 min). Responde sempre 202,
+    /// exista ou não conta com o e-mail.
+    /// </summary>
+    /// <response code="202">Pedido aceito (mesma resposta para e-mail cadastrado ou não).</response>
+    /// <response code="400">E-mail ausente ou mal formado.</response>
+    /// <response code="429">Muitas tentativas.</response>
+    [HttpPost("password/forgot")]
+    [AllowAnonymous]
+    [EnableRateLimiting(Policies.AuthRateLimit)]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordCommand cmd, CancellationToken ct)
+    {
+        await Sender.Send(cmd, ct);
+        return Accepted();
+    }
+
+    /// <summary>Define a senha nova com o token do link; encerra todas as sessões e extensões pareadas da conta.</summary>
+    /// <response code="204">Senha redefinida; faça login com a senha nova.</response>
+    /// <response code="400">Token inválido, expirado ou já usado (<c>errors.token</c>) ou senha fraca (<c>errors.newPassword</c>).</response>
+    [HttpPost("password/reset")]
+    [AllowAnonymous]
+    [EnableRateLimiting(Policies.AuthRateLimit)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ResetPassword(ResetPasswordCommand cmd, CancellationToken ct)
+    {
+        await Sender.Send(cmd, ct);
+        return NoContent();
+    }
 }

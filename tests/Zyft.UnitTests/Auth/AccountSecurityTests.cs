@@ -168,6 +168,53 @@ public class AccountSecurityTests
         new ChangePasswordValidator().TestValidate(new ChangePasswordCommand("", "Senha456")).ShouldHaveValidationErrorFor(x => x.CurrentPassword);
     }
 
+    // ------------------------------------------------------------------ recuperação de senha
+
+    private static ResetPasswordHandler ResetHandler(Ctx c, InMemoryRepository<RefreshToken> tokens, string newHash = "novo-hash")
+    {
+        var hasher = new Moq.Mock<Zyft.Application.Common.Interfaces.IPasswordHasher>();
+        hasher.Setup(h => h.Hash(Moq.It.IsAny<string>())).Returns(newHash);
+        return new ResetPasswordHandler(c.Tokens, c.Users, tokens, new InMemoryRepository<Zyft.Domain.Extension.ExtensionDevice>(), c.Audit, c.TokenService, hasher.Object, new FakeUnitOfWork(), c.Clock);
+    }
+
+    [Fact]
+    public async Task Esqueci_a_senha_so_envia_para_conta_existente_com_validade_de_30_minutos()
+    {
+        var c = new Ctx();
+        var handler = new ForgotPasswordHandler(c.Users, c.Tokens, c.TokenService, c.Emails, new FakeUnitOfWork(), c.Clock);
+
+        await handler.Handle(new ForgotPasswordCommand("ninguem@b.com"), default);
+        c.Emails.Sent.Should().BeEmpty();
+        c.Tokens.Items.Should().BeEmpty();
+
+        await handler.Handle(new ForgotPasswordCommand(" A@B.com "), default);
+        c.Emails.Sent.Should().ContainSingle(e => e.Kind == "reset");
+        var t = c.Tokens.Items.Single();
+        t.Purpose.Should().Be(UserTokenPurpose.PasswordReset);
+        t.ExpiresAt.Should().Be(Now.AddMinutes(30));
+    }
+
+    [Fact]
+    public async Task Redefinir_expirado_falha_e_valido_troca_senha_e_revoga_sessoes()
+    {
+        var c = new Ctx();
+        var tokens = new InMemoryRepository<RefreshToken>();
+        tokens.Add(RefreshToken.Issue(c.User.Id, "a", Now.AddDays(7)));
+        var raw = await UserTokens.IssueAsync(c.Tokens, c.TokenService, Now, c.User.Id, UserTokenPurpose.PasswordReset, UserTokens.PasswordResetLifetime, default);
+
+        c.Clock.UtcNow = Now.AddMinutes(31);
+        await FluentActions.Invoking(() => ResetHandler(c, tokens).Handle(new ResetPasswordCommand(raw, "Nova12345"), default)).Should().ThrowAsync<ValidationException>();
+        c.User.PasswordHash.Should().Be("hash");
+
+        c.Clock.UtcNow = Now.AddMinutes(10);
+        await ResetHandler(c, tokens).Handle(new ResetPasswordCommand(raw, "Nova12345"), default);
+        c.User.PasswordHash.Should().Be("novo-hash");
+        c.User.IsEmailVerified.Should().BeTrue();
+        tokens.Items.Single().RevokedAt.Should().NotBeNull();
+        c.Tokens.Items.Single().UsedAt.Should().NotBeNull();
+        c.Audit.Items.Should().Contain(a => a.Action == AuditActions.PasswordReset);
+    }
+
     [Fact]
     public async Task Envio_de_desenvolvimento_registra_so_o_link_sem_email_nem_nome()
     {
@@ -179,6 +226,9 @@ public class AccountSecurityTests
         var line = logger.Lines.Should().ContainSingle().Subject;
         line.Should().Contain("https://zyft.exemplo/#/verificar?token=tok123");
         line.Should().NotContain("pessoa@privado.com").And.NotContain("Nome Privado");
+
+        await sender.SendPasswordResetAsync("pessoa@privado.com", "Nome Privado", "tok456");
+        logger.Lines[^1].Should().Contain("https://zyft.exemplo/#/redefinir-senha?token=tok456").And.NotContain("pessoa@privado.com");
     }
 
     private sealed class ListLogger<T> : ILogger<T>

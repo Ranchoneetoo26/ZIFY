@@ -7,10 +7,13 @@ public enum UserTokenPurpose
 {
     /// <summary>Confirmação do e-mail da conta (validade de 24 h).</summary>
     EmailVerification = 1,
+
+    /// <summary>Redefinição de senha pelo link "esqueci minha senha" (validade de 30 min).</summary>
+    PasswordReset = 2,
 }
 
 /// <summary>
-/// Token de uso único enviado por e-mail (confirmação de e-mail e, depois, recuperação de senha). Só o hash SHA-256
+/// Token de uso único enviado por e-mail (confirmação de e-mail e recuperação de senha). Só o hash SHA-256
 /// é guardado; o valor aberto vai apenas no link. Expira e não pode ser usado duas vezes.
 /// </summary>
 public sealed class UserToken : Entity
