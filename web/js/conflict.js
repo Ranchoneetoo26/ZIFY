@@ -1,7 +1,8 @@
 // 409 profile.conflict: o Perfil Mestre mudou em outra sessão (outra aba, outro aparelho ou a extensão) depois que
 // esta tela leu os dados. Nada é gravado em silêncio e nada do que a pessoa digitou some sem ela confirmar:
 // - "Recarregar dados mais recentes": pergunta antes de descartar o que foi mudado aqui e redesenha a tela;
-// - "Sobrescrever mesmo assim": confirmação explícita e reenvio com a versão atual (api.js);
+// - "Sobrescrever mesmo assim": confirmação explícita e reenvio com a versão atual (api.js). No PUT /profile, que
+//   substitui tudo, o corpo é remontado sobre o perfil mais recente com só os campos que esta tela mudou (store.js);
 // - "Cancelar": fecha o aviso; o formulário continua como estava, sem salvar.
 import { onProfileConflict } from './api.js';
 import { h, modal, confirmDialog, closeModals, go, announce } from './dom.js';
@@ -45,7 +46,7 @@ async function decide() {
     if (choice === 'overwrite') {
       const ok = await confirmDialog({
         title: 'Sobrescrever a versão mais recente?',
-        message: 'O que está nesta tela será gravado por cima do perfil salvo na outra sessão. As mudanças feitas lá nos mesmos dados serão substituídas.',
+        message: 'O que você mudou nesta tela será gravado por cima do perfil salvo na outra sessão. As mudanças feitas lá nos mesmos dados serão substituídas; o resto continua como foi salvo lá.',
         confirmText: 'Sobrescrever', cancelText: 'Voltar', danger: true,
       });
       if (!ok) continue;

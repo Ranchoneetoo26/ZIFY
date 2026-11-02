@@ -1,6 +1,6 @@
 // Shell da SPA: roteamento por hash, guarda de autenticação, menu lateral (AppNav) e foco acessível.
 import { api, asList, isLoggedIn, logout, onAuthChange, rememberRoute } from './api.js';
-import { $, h, clear, announce, errorBox, loading, busy, replaceRoute, closeModals, confirmDiscard, hasUnsavedModal, hasUnsavedPage, forgetPageGuards, routeNav } from './dom.js';
+import { $, h, clear, announce, errorBox, loading, busy, replaceRoute, closeModals, confirmDiscard, hasUnsavedModal, hasUnsavedPage, hasBusyModal, whenModalsIdle, forgetPageGuards, routeNav, toast } from './dom.js';
 import { AppNav, Logo, Button, Icon } from './ui.js';
 import { getOnboarding, getBilling } from './store.js';
 import './billing.js'; // registra o diálogo do 402 para todas as telas
@@ -318,6 +318,7 @@ let currentHash = location.hash;
 let curIdx = Number.isInteger(history.state?.zyIdx) ? history.state.zyIdx : 0;
 try { history.replaceState({ ...(history.state || {}), zyIdx: curIdx }, ''); } catch { /* ok */ }
 let pass = null; // { hash, render }: próxima troca já decidida (volta depois de Cancelar, ida depois de Descartar)
+let waitTicket = 0; // troca adiada enquanto um modal salva: só a última pedida vale
 
 function entryIndex() {
   const st = history.state;
@@ -340,6 +341,23 @@ window.addEventListener('hashchange', async () => {
     return;
   }
   if (target === currentHash) { curIdx = idx; return route(); } // go() para a própria rota: recarrega
+  if (hasBusyModal()) {
+    // Salvando: perguntar "Descartar?" seria falso (o que foi digitado está indo para o servidor). A URL volta, a troca
+    // espera o pedido terminar e só acontece se deu certo; se deu erro, a pessoa continua no formulário, com o erro.
+    const delta = idx - curIdx;
+    if (delta) { pass = { hash: currentHash, render: false }; history.go(-delta); }
+    else history.replaceState(history.state, '', currentHash || '#/perfil');
+    const ticket = ++waitTicket;
+    toast('Aguarde: estamos salvando. Assim que terminar, seguimos para a outra tela.');
+    await whenModalsIdle();
+    if (ticket !== waitTicket || location.hash !== currentHash) return; // outra navegação já foi decidida
+    if (hasUnsavedModal() || hasUnsavedPage()) return; // não salvou: fica no formulário, sem perguntar
+    if (delta) { pass = { hash: target, render: true }; history.go(delta); return; }
+    closeModals();
+    currentHash = target;
+    location.hash = target;
+    return;
+  }
   if (hasUnsavedModal() || hasUnsavedPage()) {
     // A URL volta para a tela do formulário enquanto a pessoa decide (vale para o botão Voltar e o hash digitado).
     // A tela não é redesenhada: o que foi digitado continua lá.

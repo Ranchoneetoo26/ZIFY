@@ -17,6 +17,13 @@ Mudanças relevantes do projeto. O formato segue o [Keep a Changelog](https://ke
 - Requisitos e critérios: DRP 2.3 (RF-01 ajustado, RF-30, RF-31, RNF-18, RF-27 no Plus); critérios de aceite 2.1 (CA-01 ajustado, CA-02.5, CA-27.6, CA-30, CA-31).
 - Documentação: API 2.5, frontend web 2.8, extensão 2.5, backend 3.4, modelo de dados 3.2, segurança 2.4 (T28 a T31 e lacunas novas), DAT 2.4, runbook 3.4, guia do usuário 1.4, guias de estudo (Guilherme e Matheus) e nova lista de [pendências de revisão dos textos legais](docs/07-legal/pendencias-de-revisao.md).
 
+### Corrigido (QA da conta e do conflito, 02/11/2026)
+- **Sobrescrever mesmo assim** no 409 do `PUT /profile` não reverte mais o que a outra sessão mudou: `saveBasics` relê o perfil e aplica só os campos que a tela mudou (onboarding, "Responda agora" e o modal **Sobre você**).
+- Foco volta ao botão **Salvar** (ou ao primeiro campo do modal aberto) depois de **Cancelar** no aviso de conflito; ações dos diálogos empilham e quebram linha em 320 px.
+- Voltar com texto digitado pergunta também no Banco de respostas (nova e edição), em Informações da sua área, nova competência, "Responda agora" e endereço de site da Extensão; recarregar a aba avisa. Voltar com modal salvando não mostra mais um "Descartar?" falso: espera o salvamento e segue se deu certo.
+- Abrir um link de redefinição com login nesta aba avisa a conta conectada e não encerra a sessão. Renovação recusada depois de estar logado diz "Sua sessão foi encerrada. Se você alterou a senha em outro lugar, entre com a senha nova."
+- Reabrir o link de confirmação já usado mostra "E-mail confirmado".
+
 ### Alterado no contrato da API (02/11/2026)
 - **Incompatível:** `POST /auth/register` sem `acceptTerms` e `termsVersion` passa a responder 400. Aditivos: `emailVerified` em `user` e em `GET /me` (mais `emailVerifiedAt`, `termsVersion`, `termsAcceptedAt`), `version` e `ETag` no perfil, `packTotals` no billing.
 

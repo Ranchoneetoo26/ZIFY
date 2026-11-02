@@ -22,11 +22,24 @@ export async function getProfile() {
   }
 }
 
-/** Atualiza só os campos em `patch`, preservando o resto (lê o perfil atual antes). */
-export async function saveBasics(patch, current) {
+const sameValue = (a, b) => (a ?? null) === (b ?? null) || JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+/**
+ * Atualiza só os campos em `patch`, preservando o resto (lê o perfil atual antes se `current` não vier).
+ * `current` é o retrato que a tela usou para montar o formulário. Se outra sessão salvou o perfil depois dele (409) e a
+ * pessoa escolhe "Sobrescrever mesmo assim", o corpo é remontado sobre o perfil mais recente com SÓ os campos que esta
+ * tela mudou em relação ao retrato (`changed` diz quais, quando a tela sabe melhor; senão, compara `patch` com o
+ * retrato). Os outros campos ficam com o valor salvo na outra sessão.
+ */
+export async function saveBasics(patch, current, { changed } = {}) {
   const base = current ? basicsOf(current) : basicsOf(await getProfile());
   const body = { ...base, ...patch };
-  const r = await api('/profile', { method: 'PUT', body });
+  const mine = (changed ? [...changed] : Object.keys(patch)).filter((k) => BASIC_KEYS.includes(k) && !sameValue(body[k], base[k]));
+  const rebase = async () => {
+    const fresh = basicsOf(await getProfile());
+    return { ...fresh, ...Object.fromEntries(mine.map((k) => [k, body[k]])) };
+  };
+  const r = await api('/profile', { method: 'PUT', body, rebase });
   return r && typeof r === 'object' ? r : body;
 }
 

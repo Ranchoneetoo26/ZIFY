@@ -371,11 +371,58 @@ export function confirmDiscard() {
 /** Há modal aberto com formulário alterado? */
 export const hasUnsavedModal = () => openModals.some((m) => m.isDirty());
 
+/** Há modal com pedido em andamento (botão com aria-busy)? Nesse caso, trocar de rota espera, não pergunta. */
+export const hasBusyModal = () => openModals.some((m) => m.isBusy());
+/** Resolve quando nenhum modal estiver salvando (ou depois de `maxMs`, para nunca prender a navegação). */
+export function whenModalsIdle(maxMs = 60_000) {
+  const started = Date.now();
+  return new Promise((resolve) => {
+    const check = () => { if (!hasBusyModal() || Date.now() - started > maxMs) resolve(); else setTimeout(check, 100); };
+    check();
+  });
+}
+
+// Último elemento que recebeu foco: um botão desabilitado enquanto salva perde o foco para o <body> sem novo focusin,
+// e é para ele que o foco deve voltar quando um aviso aberto nesse meio-tempo fechar.
+let lastFocused = null;
+document.addEventListener('focusin', (e) => { if (e.target !== document.body) lastFocused = e.target; });
+
+const FOCUSABLE_FIELD = '.modal__body input:not([disabled]):not([type=hidden]), .modal__body select:not([disabled]), .modal__body textarea:not([disabled])';
+/**
+ * Devolve o foco a `el` ao fechar um diálogo. Se ele estiver desabilitado (ex.: "Salvar" com o pedido em andamento,
+ * aviso de conflito por cima), espera reabilitar; se não reabilitar logo, vai para o primeiro campo do modal que
+ * continua aberto. Nunca deixa o foco no <body>.
+ */
+function restoreFocus(el) {
+  if (!el || !el.isConnected) return;
+  if (!el.disabled) { el.focus(); return; }
+  const lost = () => !document.activeElement || document.activeElement === document.body;
+  const fallback = () => {
+    const dlg = el.isConnected ? el.closest('dialog[open]') : null;
+    const target = dlg?.querySelector(FOCUSABLE_FIELD) || (el.isConnected ? null : openModals.at(-1)?.dlg.querySelector(FOCUSABLE_FIELD));
+    if (target && lost()) target.focus();
+  };
+  const obs = new MutationObserver(() => {
+    if (el.disabled) return;
+    obs.disconnect(); clearTimeout(timer);
+    if (el.isConnected && lost()) el.focus();
+  });
+  obs.observe(el, { attributes: true, attributeFilter: ['disabled'] });
+  const timer = setTimeout(() => { obs.disconnect(); fallback(); }, 1500);
+}
+
 // Formulários da própria tela (fora de modal) que pedem confirmação ao trocar de rota, inclusive pelo Voltar.
 const pageGuards = new Set();
-/** Registra `isDirty` enquanto `node` estiver na página; sai sozinho quando a tela troca. */
+let unloadGuard = false;
+/**
+ * Registra `isDirty` enquanto `node` estiver na página; sai sozinho quando a tela troca. O roteador pergunta no
+ * Voltar/Avançar, nos links do menu e no hash digitado; recarregar ou fechar a aba usa o aviso do navegador.
+ */
 export function guardPage(node, isDirty) {
   pageGuards.add({ node, isDirty });
+  if (unloadGuard) return;
+  unloadGuard = true;
+  window.addEventListener('beforeunload', (e) => { if (hasUnsavedPage()) e.preventDefault(); });
 }
 /** Fim de sessão: a troca para #/entrar não pergunta nada. */
 export const forgetPageGuards = () => pageGuards.clear();
@@ -409,7 +456,8 @@ export function modal({ title, body, actions = [], onClose, wide = false, label,
     h('div', { class: 'modal__body' }, body instanceof Node ? body : h('p', {}, body)),
     actions.length ? h('div', { class: 'modal__actions' }, actions) : null);
   if (label) dlg.setAttribute('aria-label', label);
-  const opener = document.activeElement;
+  const active = document.activeElement;
+  const opener = active && active !== document.body ? active : lastFocused;
   const form = confirmOnDiscard ? dlg.querySelector('.modal__body form') : null;
   let initial = null; // lido depois de a tela terminar de montar o formulário
   const isDirty = () => Boolean(form && initial !== null && !closed && formSnapshot(form) !== initial);
@@ -422,11 +470,11 @@ export function modal({ title, body, actions = [], onClose, wide = false, label,
     if (ownToast) (openModals.at(-1)?.dlg || document.body).append(ownToast);
     dlg.close();
     dlg.remove();
-    if (opener && opener.isConnected) opener.focus();
+    restoreFocus(opener);
     onClose?.(v);
   };
-  const entry = { dlg, close, isDirty };
   const isBusy = () => Boolean(dlg.querySelector('[aria-busy="true"]'));
+  const entry = { dlg, close, isDirty, isBusy };
   const tryClose = async () => {
     if (isBusy()) { toast('Aguarde: estamos salvando. Assim que terminar, você vê o resultado aqui.'); return; }
     if (isDirty() && !(await confirmDiscard())) return;

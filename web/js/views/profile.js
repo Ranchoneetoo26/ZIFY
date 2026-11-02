@@ -2,7 +2,7 @@
 // linha do tempo, competências com sugestões da área, idiomas, formação e cursos, informações da
 // área (campos personalizados), dados sensíveis trancados e um card de anúncio na coluna.
 import { api, asList } from '../api.js';
-import { h, clear, field, readForm, showErrors, clearErrors, toast, announce, confirmDialog, modal, nextId, fmtDate, fmtMoney, safeUrl, busy } from '../dom.js';
+import { h, clear, field, readForm, showErrors, clearErrors, toast, announce, confirmDialog, modal, nextId, fmtDate, fmtMoney, safeUrl, busy, guardPage } from '../dom.js';
 import { Button, LinkButton, Icon, Card, Chip, Stamp, SensitiveValue, PageHead, initials } from '../ui.js';
 import { adSlot, PLACEMENTS } from '../ads.js';
 import { loadAreas, findArea, areaOrOther, OTHER } from '../catalog.js';
@@ -118,6 +118,17 @@ export async function render(main) {
     PageHead({ overline: 'Seu passaporte', title: 'Perfil Mestre', wide: true, actions: LinkButton('#/importar', { variant: 'quiet', icon: 'upload' }, 'Atualizar com um currículo') }),
     pendingSlot, missionsSlot,
     h('div', { class: 'profile-cols' }, mainCol, h('div', { class: 'profile-aside', role: 'group', 'aria-label': 'Resumo do passaporte' }, meSlot, ad))));
+
+  // Texto digitado nos campos da própria tela (fora de modal) e ainda não salvo: Voltar, menu e recarregar perguntam.
+  guardPage(mainCol, () => {
+    const typed = (el) => Boolean(el?.value.trim());
+    if (st.customDraft.label.trim() || st.customDraft.value.trim()) return true; // Informações da sua área: nova
+    if (st.customEdit) { // Informações da sua área: editando uma existente
+      const orig = (st.customs || []).find((x) => x.id === st.customEdit.id);
+      if (!orig || st.customEdit.label !== orig.label || st.customEdit.value !== orig.value) return true;
+    }
+    return typed(mainCol.querySelector('#skill-new')) || typed(missionsSlot.querySelector('input[name="value"]'));
+  });
 
   function pendingList() {
     const out = new Map();
@@ -273,11 +284,14 @@ export async function render(main) {
     const save = Button({ variant: 'primary', type: 'submit', form: form.id }, 'Salvar e carimbar');
     const cancel = Button({ variant: 'quiet' }, 'Cancelar');
     const m = modal({ title: 'Sobre você', body: form, actions: [save, cancel], wide: true });
+    const initialRaw = readForm(form); // o que a tela mostrou ao abrir: base para saber o que a pessoa mudou (409)
     cancel.addEventListener('click', () => m.close());
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       clearErrors(form);
       const raw = readForm(form);
+      const changed = new Set(Object.keys(raw).filter((k) => (raw[k] ?? null) !== (initialRaw[k] ?? null)));
+      if (changed.has('driverLicenseCategory')) changed.add('hasDriverLicense');
       const numbers = numberErrors(BASIC_FIELDS, raw);
       // Salário antigo fora das regras novas continua como está se a pessoa não mexeu nele.
       const salaryKept = (raw.salaryExpectation ?? '') === toInput(BASIC_FIELDS.find((f) => f.money), p.salaryExpectation);
@@ -300,7 +314,7 @@ export async function render(main) {
       if (v.hasErrors(errors)) return showErrors(form, errors);
       setSaving(save, cancel, true);
       try {
-        await saveBasics({ ...basicsOf(p), ...data }, p);
+        await saveBasics({ ...basicsOf(p), ...data }, p, { changed });
         m.close();
         toast('Sobre você: carimbado', 'ok');
         await reload(headingFocus('about-title'));

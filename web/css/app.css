@@ -164,6 +164,16 @@ dialog.modal::backdrop { background: rgba(10, 24, 28, .55); }
 .modal__x { flex: none; width: 32px; padding: 0; }
 .modal__body { padding: 16px 24px; display: flex; flex-direction: column; gap: var(--space-3); }
 .modal__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: 0 24px 24px; }
+/* Botão de ação com texto longo nunca é cortado: quebra a linha dentro do próprio botão. No celular estreito as
+   ações empilham, cada uma na largura toda (vale para todos os diálogos). */
+.modal__actions > .zy-btn { max-width: 100%; white-space: normal; height: auto; min-height: 40px; padding-block: 8px; text-align: center; }
+.modal__actions > .zy-btn--sm { min-height: 32px; padding-block: 6px; }
+@media (max-width: 480px) {
+  .modal__head { padding: 16px 16px 0; }
+  .modal__body { padding: 12px 16px; }
+  .modal__actions { flex-direction: column; align-items: stretch; padding: 0 16px 16px; }
+  .modal__actions > * { width: 100%; }
+}
 .limit-options { display: flex; flex-direction: column; gap: var(--space-2); }
 .limit-option { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; justify-content: space-between; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
 .limit-option > div { flex: 1 1 240px; }

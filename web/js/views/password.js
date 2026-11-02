@@ -1,7 +1,7 @@
 // Senha: campos compartilhados (troca na Conta e redefinição), "Esqueci minha senha" (#/esqueci-senha) e
 // "Redefinir senha" (#/redefinir-senha?token=…). As duas telas públicas funcionam sem login.
-import { forgotPassword, resetPassword, isLoggedIn, logout } from '../api.js';
-import { h, field, readForm, showErrors, clearErrors, announce, busy, replaceRoute } from '../dom.js';
+import { api, forgotPassword, resetPassword, isLoggedIn } from '../api.js';
+import { h, clear, field, readForm, showErrors, clearErrors, announce, busy, replaceRoute } from '../dom.js';
 import { Icon, Logo, Button, LinkButton } from '../ui.js';
 import * as v from '../validate.js';
 import { flashLogin } from './auth.js';
@@ -45,8 +45,13 @@ export function checkNewPassword(form) {
 const shell = (...children) => h('div', { class: 'auth' },
   h('section', { class: 'auth__panel' }, h('div', { class: 'auth__box' }, Logo({ height: 28 }), ...children)));
 
-export function render(main, { mode, query }) {
-  main.append(mode === 'reset' ? resetScreen((query?.get('token') || '').trim()) : forgotScreen());
+export async function render(main, { mode, query, me }) {
+  if (mode !== 'reset') { main.append(forgotScreen()); return; }
+  // Com login nesta aba, o link pode ser de outra conta (ex.: aberto no computador de outra pessoa): a tela diz com
+  // qual conta a aba está e não encerra esta sessão. A API não diz de quem é o link.
+  let email = null;
+  if (isLoggedIn()) email = me?.email || (await api('/me').catch(() => null))?.email || null;
+  main.append(resetScreen((query?.get('token') || '').trim(), { loggedAs: isLoggedIn() ? email || '' : null }));
 }
 
 function forgotScreen() {
@@ -81,7 +86,7 @@ function forgotScreen() {
   return shell(form);
 }
 
-function resetScreen(token) {
+function resetScreen(token, { loggedAs = null } = {}) {
   if (!token) {
     return shell(h('h1', { class: 'auth__h2' }, 'Link incompleto'),
       h('div', { class: 'notice notice--error', role: 'alert' }, Icon('alert', { size: 16 }),
@@ -90,11 +95,15 @@ function resetScreen(token) {
   }
   const submit = Button({ variant: 'primary', type: 'submit' }, 'Salvar nova senha');
   const pw = passwordFields();
+  const logged = loggedAs !== null;
   const form = h('form', { novalidate: true, 'aria-labelledby': 'pw-title' },
     h('h1', { id: 'pw-title', class: 'auth__h2' }, 'Crie uma senha nova'),
-    h('p', { class: 'muted' }, 'Depois de salvar, todas as sessões abertas e a extensão são desconectadas. Você entra de novo com a senha nova.'),
+    logged ? h('div', { class: 'notice notice--care', role: 'note' }, Icon('alert', { size: 16 }),
+      h('p', {}, loggedAs ? ['Você está conectado como ', h('b', {}, loggedAs), '. '] : 'Você está conectado nesta aba. ',
+        'Redefinir a senha por este link vale para a conta dona do link.')) : null,
+    h('p', { class: 'muted' }, 'Depois de salvar, todas as sessões abertas e a extensão da conta dona do link são desconectadas. Ela entra de novo com a senha nova.'),
     ...pw.nodes, submit,
-    h('a', { href: '#/entrar', class: 'auth__link' }, 'Voltar para Entrar'));
+    logged ? h('a', { href: '#/perfil', class: 'auth__link' }, 'Voltar para o Perfil Mestre') : h('a', { href: '#/entrar', class: 'auth__link' }, 'Voltar para Entrar'));
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     return busy(submit, async () => {
@@ -104,10 +113,21 @@ function resetScreen(token) {
       try {
         await resetPassword(token, form.elements.newPassword.value);
         pw.hide();
-        flashLogin('Senha redefinida. Entre com a senha nova.');
-        // Com login nesta aba, a sessão já foi encerrada pela API: sai daqui também (o Sair já leva para Entrar).
-        if (isLoggedIn()) await logout();
-        else replaceRoute('#/entrar');
+        if (!isLoggedIn()) {
+          flashLogin('Senha redefinida. Entre com a senha nova.');
+          replaceRoute('#/entrar');
+          return;
+        }
+        // Com login nesta aba, a sessão continua: se o link era desta mesma conta, a API já revogou o refresh token e a
+        // próxima renovação leva para Entrar com o aviso de sessão encerrada.
+        const done = h('div', { class: 'stack' },
+          h('h1', { class: 'auth__h2', tabindex: '-1' }, 'Senha redefinida'),
+          h('div', { class: 'notice notice--warm', role: 'status' }, Icon('check', { size: 16 }),
+            h('p', {}, 'A conta dona do link já pode entrar com a senha nova. As sessões dela foram encerradas.')),
+          h('div', { class: 'auth__actions' }, LinkButton('#/perfil', { variant: 'primary' }, 'Ir para o Perfil Mestre')));
+        clear(form.parentElement, Logo({ height: 28 }), done);
+        done.querySelector('h1').focus();
+        announce('Senha redefinida.');
       } catch (err) {
         if (err.errors?.token) {
           // Link vencido ou já usado: a mensagem fica no topo com o caminho para pedir outro.

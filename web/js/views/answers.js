@@ -1,6 +1,6 @@
 // Banco de respostas (RF-06): "Responda uma vez e o Zyft guarda". Banner web.banner.
 import { api, asList } from '../api.js';
-import { h, clear, field, readForm, showErrors, clearErrors, toast, announce, confirmDialog, confirmDiscard, fmtDay, fmtDate } from '../dom.js';
+import { h, clear, field, readForm, showErrors, clearErrors, toast, announce, confirmDialog, confirmDiscard, fmtDay, fmtDate, guardPage } from '../dom.js';
 import { Button, Stamp, PageHead, Card } from '../ui.js';
 import { adSlot, PLACEMENTS } from '../ads.js';
 import { getBilling } from '../store.js';
@@ -59,10 +59,10 @@ export async function render(main) {
         field({ name: 'question', label: 'Pergunta', value: a.question, attrs: { maxlength: 500 } }),
         field({ name: 'text', label: 'Sua resposta', type: 'textarea', rows: 5, value: a.text, attrs: { maxlength: MAX_TEXT } }),
         h('div', { class: 'row' }, save, cancel));
+      const isDirty = () => { const data = readForm(form); return (data.question ?? '') !== (a.question ?? '') || (data.text ?? '') !== (a.text ?? ''); };
+      guardPage(form, isDirty); // Voltar, menu e recarregar perguntam antes de jogar fora a edição
       cancel.addEventListener('click', async () => {
-        const data = readForm(form);
-        const dirty = (data.question ?? '') !== a.question || (data.text ?? '') !== a.text;
-        if (dirty && !(await confirmDiscard())) return;
+        if (isDirty() && !(await confirmDiscard())) return;
         view();
         el.querySelector('button')?.focus();
       });
@@ -107,9 +107,10 @@ export async function render(main) {
     clearErrors(form);
     for (const el of form.elements) if (el.name) el.dispatchEvent(new Event('input')); // reset não dispara input: o contador ficaria no valor antigo
   };
+  const isDirty = () => { const data = readForm(form); return Boolean(data.question || data.text); };
+  guardPage(form, isDirty);
   cancel.addEventListener('click', async () => {
-    const data = readForm(form);
-    if ((data.question || data.text) && !(await confirmDiscard())) return;
+    if (isDirty() && !(await confirmDiscard())) return;
     resetForm();
   });
   form.addEventListener('submit', async (e) => {

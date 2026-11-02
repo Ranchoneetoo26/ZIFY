@@ -25,6 +25,9 @@ const UPLOAD_TIMEOUT_MS = 120_000; // a leitura do currículo responde depois do
 const TIMED_OUT = { timedOut: true, ok: false, status: 0 };
 
 const SESSION_EXPIRED = 'Sua sessão expirou. Entre de novo para continuar de onde parou.';
+// Renovação recusada (401/403) depois de estar logado: pode ser validade vencida, sair em outro lugar ou senha trocada
+// ou redefinida em outra sessão (que revoga todos os refresh tokens). O texto não afirma qual foi.
+const SESSION_ENDED = 'Sua sessão foi encerrada. Se você alterou a senha em outro lugar, entre com a senha nova.';
 const SESSION_REUSED = 'Por segurança, encerramos esta sessão porque ela foi usada em outra aba. Entre de novo para continuar.';
 const SESSION_GONE = 'Esta conta não existe mais. A sessão foi encerrada.';
 
@@ -112,6 +115,8 @@ const isProfilePath = (path) => /^\/profile(?:[/?]|$)/.test(path);
 /**
  * 409 profile.conflict: `fn(err)` pergunta à pessoa e resolve 'overwrite' (reenvia com a versão atual) ou outra
  * coisa (o erro sobe com handled = true). Registrado por conflict.js.
+ * Em 'overwrite', se a chamada trouxe `opts.rebase`, ele monta o corpo novo sobre os dados mais recentes (PUT /profile
+ * substitui tudo: reenviar o corpo antigo apagaria o que a outra sessão mudou nos campos que esta tela não tocou).
  */
 export const onProfileConflict = (fn) => { conflictHandler = fn; };
 export const isProfileConflict = (e) => e instanceof ApiError && e.status === 409 && e.code === 'profile.conflict';
@@ -239,7 +244,7 @@ export function refresh() {
       }
       if (res && (res.status === 401 || res.status === 403)) { // refresh inválido ou reutilizado
         const problem = await res.json().catch(() => ({}));
-        endSession(/reutilizado/i.test(problem?.detail || '') ? SESSION_REUSED : SESSION_EXPIRED);
+        endSession(/reutilizado/i.test(problem?.detail || '') ? SESSION_REUSED : SESSION_ENDED);
         return new ApiError(401);
       }
       // Passageiro (5xx, rede, tempo limite): o refresh token continua valendo para a próxima tentativa.
@@ -279,7 +284,10 @@ export async function api(path, opts = {}) {
     if (choice === 'overwrite') {
       // Só aqui a aba adota a versão do servidor. Em "Cancelar", a próxima tentativa avisa de novo.
       seeProfileVersion(err.problem?.currentVersion);
-      return api(path, opts); // reenvia o mesmo corpo com a versão atual
+      if (typeof opts.rebase !== 'function') return api(path, opts); // item único: o corpo é o próprio item
+      // Corpo completo (PUT /profile): relê o perfil (a versão sobe pelo ETag) e aplica só o que esta tela mudou.
+      const body = await opts.rebase();
+      return api(path, { ...opts, body });
     }
     err.handled = true;
     throw err;

@@ -1,7 +1,7 @@
 // Extensão (RF-09, RF-10): pareamento por código, navegadores conectados e sites autorizados.
 // Banner web.banner abaixo do título.
 import { api, asList } from '../api.js';
-import { h, clear, field, readForm, showErrors, clearErrors, toast, announce, confirmDialog, fmtDate, fmtDateTime, busy } from '../dom.js';
+import { h, clear, field, readForm, showErrors, clearErrors, toast, announce, confirmDialog, fmtDate, fmtDateTime, busy, guardPage } from '../dom.js';
 import { Button, Icon, PageHead, Card, PairingCode, LinkButton } from '../ui.js';
 import { adSlot, PLACEMENTS } from '../ads.js';
 import { getBilling } from '../store.js';
@@ -187,6 +187,7 @@ function sitesCard(sites) {
   const form = h('form', { novalidate: true, class: 'row-end', 'aria-label': 'Autorizar site' },
     h('div', { class: 'grow', style: { flexBasis: '320px' } }, field({ name: 'origin', label: 'Endereço do site', type: 'url', placeholder: 'https://vagas.exemplo.com', attrs: { maxlength: MAX_ORIGIN } })),
     submit);
+  guardPage(form, () => Boolean(form.elements.origin.value.trim())); // endereço digitado e ainda não autorizado
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     return busy(submit, async () => {
