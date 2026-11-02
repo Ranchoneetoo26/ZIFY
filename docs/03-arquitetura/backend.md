@@ -6,8 +6,8 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Arquitetura do backend |
-| Versão | 3.3 |
-| Status | Em revisão. Módulos da Entrega 3 e da versão 2 implementados e conferidos no código (21/10/2026); 252 testes passando. Depende do [ADR-0017](adr/0017-backend-em-csharp-dotnet-clean-architecture.md) (proposto). |
+| Versão | 3.4 |
+| Status | Em revisão. Módulos da Entrega 3 e da versão 2 implementados e conferidos no código (02/11/2026). Depende do [ADR-0017](adr/0017-backend-em-csharp-dotnet-clean-architecture.md) (proposto). |
 | Dono | Arquitetura de software, com o time de backend |
 | Documentos relacionados | [DAT](dat.md), [API](api.md), [IA](ia.md), [Modelo de dados](modelo-de-dados.md), [Segurança](seguranca.md), [Entrega 2 §1](../entregas/entrega-2-projeto-e-arquitetura.md#1-arquitetura-da-solução), [Relatório do backend](../entregas/entrega-3-relatorio-backend.md) |
 
@@ -21,6 +21,7 @@
 | 3.1 | 21/10/2026 | Sincronizado com a implementação: controllers novos (`BillingController`, `AdsController`, `CatalogController`, `OnboardingController` e rotas `custom-fields` no `ProfileController`), pontos de chamada do `IUsageMeter` confirmados, catálogo de anúncios estático, migration `20261021233314_V2PlanosAnunciosOnboarding`, 223 testes (136 + 75 + 12). |
 | 3.2 | 21/10/2026 | `DELETE /extension/devices/current` (`RevokeCurrentDeviceCommand`, 77 operações); `POST /billing/packs` só com token web; 402 documentado no Swagger nas rotas com cota; regras de LinkedIn e GitHub corrigidas (§7); 230 testes (140 + 78 + 12). |
 | 3.3 | 21/10/2026 | Correções da gravação do tour: `trialAvailable`/`trialDays` no `BillingDto`; `CourseInput.Type` nulo vale `Course`; erro de model binding aponta o campo, não o parâmetro; `ProposalCompleteness` e `missingFields` na importação, mensagens do `apply` nomeiam o item; `TextTools.NormalizeExtracted` (NFKC) e `ResumeParser.CourseKind`; `open-answers` com texto vazio vira `missing` com `OpenAnswerNotes.NoDraft`. 252 testes (156 + 84 + 12). |
+| 3.4 | 02/11/2026 | Conta e segurança: verificação de e-mail (`UserToken`, `IEmailSender` com `LoggingEmailSender`, `App:WebBaseUrl`), aceite dos termos com versão (`Terms.CurrentVersion`), troca e recuperação de senha que encerram as sessões (RF-01, RF-30). Concorrência otimista do perfil (`Profile.Version`, `IProfileConcurrency`, `ProfileVersionFilter`, 409 `profile.conflict`, RNF-18). Troca de período do Plus com rateio (`Subscription.ChangePeriod`, `SubscriptionPeriodChange`, RF-31) e pacote no Plus (`packTotals`). `[AllowAnonymous]` por action no `AuthController`. `MapFallback` para endereços sem hash. SQLite: `SqliteSchemaUpgrader` (atualização aditiva; não é mais preciso apagar o banco quando o esquema muda). Quatro migrations novas. 84 operações. |
 
 ## 1. Visão geral
 
@@ -35,17 +36,18 @@ src/Zyft.Domain/          entidades, enums, Guard, DomainException; sem nenhum p
 src/Zyft.Application/     casos de uso (MediatR), DTOs, validators (FluentValidation), portas,
                           FieldMapper, JobAnalyzer, AnswerWriter, ProfileFacts, catálogos estáticos
 src/Zyft.Infrastructure/  EF Core (ZyftDbContext, Configurations, Migrations, repositórios, UnitOfWork),
-                          JWT, BCrypt, AES-256-GCM, OllamaLlmClient, PdfPig/OpenXml
+                          SqliteSchemaUpgrader, JWT, BCrypt, AES-256-GCM, OllamaLlmClient, PdfPig/OpenXml,
+                          LoggingEmailSender (Email/)
 src/Zyft.Api/             controllers finos, ExceptionHandlingMiddleware, Problems, policies,
                           Swagger, Serilog, rate limiting, health checks, CORS, arquivos estáticos
 ```
 
-Controllers (17, 77 operações): `Auth`, `Me`, `Consents`, `Profile` (com `custom-fields` na v2), `ResumeImports`, `Answers`, `SensitiveData`, `Extension`, `AuthorizedSites`, `Forms`, `Jobs`, `Applications`, `AuditEvents` e, na v2, `Catalog`, `Onboarding`, `Billing` e `Ads`. Todos herdam de `ApiControllerBase` e só chamam `Sender.Send`.
+Controllers (17, 84 operações): `Auth`, `Me`, `Consents`, `Profile` (com `custom-fields` na v2), `ResumeImports`, `Answers`, `SensitiveData`, `Extension`, `AuthorizedSites`, `Forms`, `Jobs`, `Applications`, `AuditEvents` e, na v2, `Catalog`, `Onboarding`, `Billing` e `Ads`. Todos herdam de `ApiControllerBase` e só chamam `Sender.Send`. No `AuthController` o `[AllowAnonymous]` fica em cada action pública, não na classe, porque na classe ele anularia o `[Authorize(Policy = WebUser)]` de `verify/resend` e `password`.
 
 | Regra | Como é garantida |
 |---|---|
 | `Domain` não referencia nada | Projeto sem `PackageReference` nem `ProjectReference` |
-| `Application` referencia só `Domain` | Usa portas: `IRepository<T>`, `IProfileRepository`, `IUnitOfWork`, `IPasswordHasher`, `ITokenService`, `ICurrentUser`, `IClock`, `IResumeTextExtractor`, `ISensitiveDataProtector`, `ILlmClient` (`Common/Interfaces/Ports.cs`) |
+| `Application` referencia só `Domain` | Usa portas: `IRepository<T>`, `IProfileRepository`, `IUnitOfWork`, `IPasswordHasher`, `ITokenService`, `ICurrentUser`, `IClock`, `IResumeTextExtractor`, `ISensitiveDataProtector`, `ILlmClient`, `IEmailSender` e `IProfileConcurrency` (`Common/Interfaces/Ports.cs`) |
 | `Infrastructure` implementa as portas | Registro em `DependencyInjection.cs` |
 | Controllers não acessam o banco | Todo controller só chama `IMediator.Send` |
 
@@ -61,7 +63,7 @@ Controllers (17, 77 operações): `Auth`, `Me`, `Consents`, `Profile` (com `cust
 
 | Pasta | Responsabilidade | Requisitos | Entidades |
 |---|---|---|---|
-| `Auth` | Cadastro, login, refresh com rotação e detecção de reuso, logout | RF-01 | `User`, `RefreshToken` |
+| `Auth` | Cadastro (com aceite dos termos na versão vigente), login, refresh com rotação e detecção de reuso, logout; verificação de e-mail (`EmailVerification.cs`); troca e recuperação de senha (`PasswordFeatures.cs`, `Sessions.RevokeAllAsync` revoga refresh tokens e extensões) | RF-01, RF-30 | `User`, `RefreshToken`, `UserToken` |
 | `Account` | `GET /me`, exportação JSON, exclusão em cascata | RF-08 | todas |
 | `Consents` | Finalidades `AiText`, `JobAnalysis`, `SensitiveData`; desligar sensíveis apaga os dados | RF-07 | `Consent` |
 | `Profiles` | Dados básicos, seções, `missing`, `ProfileFacts`; v2: `WorkArea`, `ProfessionalRegistration`, `SalaryType` e **campos personalizados** | RF-02, RF-05, RF-24, RF-25 | `Profile`, `Experience`, `Education`, `Course`, `Skill`, `Language`, `CustomField` |
@@ -77,8 +79,21 @@ Controllers (17, 77 operações): `Auth`, `Me`, `Consents`, `Profile` (com `cust
 | `Jobs` | `JobAnalyzer`: requisitos com evidência por linha | RF-17 | — |
 | `Applications` | Lista, detalhe, status e anotação, exclusão | RF-19 | `JobApplication` |
 | `Audit` | Registro de ações (lista fechada `AuditActions`) | RF-20 | `AuditEvent` |
-| `Billing` (v2) | `GET /billing`, assinatura e cancelamento simulados, pacotes, recompensado; `UsageMeter` | RF-26 a RF-28 | `Subscription`, `MonthlyUsage`, `UsagePack`, `UsageMark` |
+| `Billing` (v2) | `GET /billing`, assinatura e cancelamento simulados, troca de período com rateio, pacotes (também no Plus, `packTotals`), recompensado; `UsageMeter` | RF-26 a RF-28, RF-31 | `Subscription`, `SubscriptionPeriodChange`, `MonthlyUsage`, `UsagePack`, `UsageMark` |
 | `Ads` (v2) | Catálogo de demonstração (`AdCatalog`), seleção por área, cargos e tema, ocultar, clique agregado | RF-29 | `AdHide`, `AdStat` |
+
+### 4.1 Conta: e-mail, termos e senha (RF-01, RF-30)
+
+- **Tokens de e-mail** (`UserToken`, tabela `UserTokens`): uso único, só o hash SHA-256 no banco, `Purpose` `EmailVerification` (24 h) ou `PasswordReset` (30 min). Emitir um novo invalida o anterior da mesma finalidade. Um token de verificação não serve para redefinir senha.
+- **Envio** por `IEmailSender`. A única implementação é `LoggingEmailSender` (Infrastructure/Email), registrada em qualquer ambiente: não envia nada e só registra o link (`{App:WebBaseUrl}/#/verificar?token=…` ou `/#/redefinir-senha?token=…`), nunca o endereço nem o nome (RNF-09). Um provedor real de e-mail ainda não existe; ver [segurança §3.3](seguranca.md).
+- **E-mail não verificado não bloqueia nenhuma rota** (teste `Email_nao_verificado_nao_bloqueia_rotas`). `GET /me` e o `user` do login trazem `emailVerified`.
+- **Termos:** `RegisterValidator` exige `acceptTerms: true` e `termsVersion == Terms.CurrentVersion` (hoje `2026-10-22`, em `Domain/Users/User.cs`). A conta guarda `TermsVersion` e `TermsAcceptedAt`, e o registro ganha `termos.aceitos`. Mudar a constante obriga quem se cadastrar a aceitar a versão nova; contas existentes não são afetadas.
+- **Troca de senha** (`POST /auth/password`): confere a senha atual, recusa senha nova igual, revoga todos os refresh tokens e todas as extensões pareadas (`Sessions.RevokeAllAsync`) e devolve um par novo para a sessão atual. **Recuperação** (`forgot` sempre 202, sem enumeração; `reset` com o token): troca a senha, revoga as sessões, invalida links em aberto e marca o e-mail como verificado. Eventos `senha.alterada` e `senha.redefinida`.
+- Os usuários de demonstração já saem com e-mail verificado e termos aceitos; contas demo de bancos antigos são atualizadas na subida (`DemoSeed.UpgradeExistingAsync`).
+
+### 4.2 Concorrência otimista do Perfil Mestre (RNF-18)
+
+`Profile.Version` sobe a cada alteração dos dados básicos ou de qualquer item e é token de concorrência do EF (`IsConcurrencyToken`). O `ProfileVersionFilter` (filtro do `ProfileController`) lê `If-Match` e coloca a versão esperada em `IProfileConcurrency`; o `ZyftDbContext.SaveChangesAsync` usa essa versão como valor original, então o `UPDATE … WHERE Version = esperada` faz a verificação sem janela entre ler e gravar. `DbUpdateConcurrencyException` vira `ProfileVersionConflictException` → 409 `profile.conflict` com `currentVersion`. A resposta sai com `ETag`. Sem `If-Match` (ou com `*`) nada muda para o cliente, mas duas gravações simultâneas também não se sobrescrevem em silêncio.
 
 ## 5. Planos e cota de uso (v2)
 
@@ -107,7 +122,11 @@ As chamadas ficam **depois** da validação e do consentimento e **antes** da ch
 
 O consumo é registrado nas entidades rastreadas e só vira linha no banco no `SaveChanges` do caso de uso. Se a operação falhar antes (por exemplo, IA fora do ar na importação), nada é cobrado da cota.
 
-Assinar, cancelar e comprar pacote são **simulados**: não existe gateway, cartão nem webhook. As três rotas exigem `Policies.WebUser` (token da plataforma); a extensão recebe 403 e só lê `GET /billing`. O `BillingDto` sempre devolve `demo: true` (RN-13). Cancelar volta ao Gratuito na hora. O pacote cobre só candidaturas assistidas e sugestões de IA (`UsagePack.RemainingOf` devolve 0 para os outros recursos). Ausência de linha em `Subscriptions` significa Gratuito; a linha é criada na primeira assinatura.
+Assinar, trocar o período, cancelar e comprar pacote são **simulados**: não existe gateway, cartão nem webhook. As quatro rotas exigem `Policies.WebUser` (token da plataforma); a extensão recebe 403 e só lê `GET /billing`. O `BillingDto` sempre devolve `demo: true` (RN-13). Cancelar volta ao Gratuito na hora. O pacote cobre só candidaturas assistidas e sugestões de IA (`UsagePack.RemainingOf` devolve 0 para os outros recursos). Ausência de linha em `Subscriptions` significa Gratuito; a linha é criada na primeira assinatura.
+
+**Pacote no Plus.** `POST /billing/packs` aceita quem assina o Plus. No Plus o `UsageMeter` não gasta nada (sem limite), então os créditos do pacote ficam guardados e só entram em uso se a pessoa voltar ao Gratuito antes de o pacote vencer (60 dias depois da compra). `BillingDto.PackTotals` soma os pacotes ativos (teste `No_Plus_os_pacotes_nao_sao_gastos_e_ficam_para_depois`).
+
+**Troca de período (RF-31).** `Subscription.ChangePeriod(to, now)` vale na hora. No teste grátis só troca o período (valor 0, renovação no fim do teste). Pago: crédito = preço do período atual × (tempo que falta do ciclo ÷ duração do ciclo), valor = preço novo − crédito (negativo = crédito a favor da pessoa), e o ciclo novo começa na troca. Cada troca vira uma linha em `SubscriptionPeriodChanges` (entra na exportação) e o evento `plan.period_changed`. Sem Plus: 422 `billing.not_subscribed`; mesmo período: 422 `billing.same_period`.
 
 ## 6. Anúncios (v2)
 
@@ -141,17 +160,19 @@ Formato e códigos na [API §5](api.md#5-códigos-de-erro). O `ExceptionHandling
 | `NotFoundException` | 404 | `not_found` |
 | `PlanLimitReachedException` (v2) | 402 | `plan.limit_reached` + `resource`, `used`, `limit` no topo e repetidos em `extensions` |
 | `RewardedExhaustedException` (v2) | 409 | `ads.rewarded_exhausted` |
-| `ConflictException` com código (v2) | 409 | `ads.rewarded_unavailable` (oferta pedida no Plus) |
+| `ConflictException` com código (v2) | 409 | `ads.rewarded_unavailable` (oferta pedida no Plus), `email.already_verified` |
+| `ProfileVersionConflictException` | 409 | `profile.conflict` + `currentVersion` |
 | Conflito / `DbUpdateException` | 409 | `conflict` |
 | `DomainException` | 422 | o `code` da regra |
 | Qualquer outra | 500 | `internal_error`, sem stack trace |
 
 ## 9. Limites, logs e configuração
 
-- **Rate limiting:** por IP em autenticação e pareamento (10/min); por pessoa nas rotas de IA e importação (60/min). A cota mensal do plano é outra coisa: rate limiting protege a infraestrutura, a cota define o produto.
+- **Rate limiting:** por IP em autenticação, verificação de e-mail, troca e recuperação de senha e pareamento (política `auth`, 10/min, um limite compartilhado entre essas rotas); por pessoa nas rotas de IA e importação (60/min). A cota mensal do plano é outra coisa: rate limiting protege a infraestrutura, a cota define o produto.
 - **Logs (Serilog):** método, caminho sem query, status, duração e nome do caso de uso. Nunca corpo, e-mail, token, prompt, resposta da IA, rótulo de campo personalizado, URL de página ou anúncio clicado por pessoa (RNF-09, RNF-14).
-- **Configuração:** `Database:Provider`, `ConnectionStrings:Default`, `Jwt:*`, `Encryption:Key`, `Llm:*`, `Cors:*`, `RateLimiting:*`, `Seed:DemoUser`. Detalhes no [runbook local](../06-operacao/runbook-local.md).
-- **Banco na subida** (`DatabaseInitializer`): PostgreSQL aplica as migrations (`Database.Migrate`; a da v2 é `20261021233314_V2PlanosAnunciosOnboarding`); SQLite usa `EnsureCreated`, porque as migrations são específicas do PostgreSQL. Em SQLite, um banco antigo não ganha as tabelas novas: apague o arquivo para recriar.
+- **Configuração:** `Database:Provider`, `ConnectionStrings:Default`, `Jwt:*`, `Encryption:Key`, `Llm:*`, `Cors:*`, `RateLimiting:*`, `Seed:DemoUser`, `App:WebBaseUrl` (endereço da plataforma nos links de e-mail, padrão `http://localhost:5080`). Detalhes no [runbook local](../06-operacao/runbook-local.md).
+- **Banco na subida** (`DatabaseInitializer`): PostgreSQL aplica as migrations (`Database.Migrate`; a da v2 é `20261021233314_V2PlanosAnunciosOnboarding`); as migrations de 02/11/2026 são `20261102183823_VerificacaoDeEmail`, `20261102184148_AceiteDosTermos`, `20261102184704_VersaoDoPerfil` e `20261102185344_TrocaDePeriodoDoPlus`. SQLite usa `EnsureCreated`, porque as migrations são específicas do PostgreSQL, seguido do `SqliteSchemaUpgrader`: cria as tabelas e os índices que faltam e adiciona as colunas novas (com valor padrão quando obrigatórias), sem nunca remover nem alterar o que existe (teste `Banco_antigo_ganha_tabelas_e_colunas_que_faltam_sem_perder_dados`). Por isso **não é mais preciso apagar `zyft-dev.db` quando o esquema muda**; apagar só serve para zerar os dados. Mudança não aditiva (renomear ou trocar tipo de coluna) continua exigindo apagar o banco de desenvolvimento.
+- **Endereço sem hash:** `MapFallback` em `Program.cs` redireciona GET/HEAD fora de `/api` e sem extensão de arquivo (ex.: `/conta`) para `/#/conta`. Arquivo inexistente continua 404.
 - **Seed de demonstração** (só Development, `DemoSeed`): Rafael Moreira (`demo@zyft.local`, Tecnologia, perfil completo, onboarding concluído, 2 campos personalizados, 7 de 10 candidaturas assistidas usadas no mês) e Beatriz Lima (`beatriz@demo.zyft`, Saúde, onboarding parado em `competencias` com passos pulados, 2 campos personalizados), ambos com a senha `Zyft@2026` e no plano Gratuito.
 
 ## 10. Testes
@@ -162,4 +183,4 @@ Formato e códigos na [API §5](api.md#5-códigos-de-erro). O `ExceptionHandling
 | Integração (78) | API real em memória com SQLite: autenticação, policies, erros, regras de confiança, importação, rate limit, CORS, logs sem PII. v2 (`V2Tests.cs`, 23 casos): 402 com `extensions`, deduplicação por página, pacote, Plus e cancelamento, limite de respostas e de navegadores, 204 de anúncio para Plus e placement proibido, resposta de `/ads` sem PII, contextual e ocultar assunto, 422 de rótulo sensível, extensão lê billing e não assina; limite atingido nunca bloqueia exportar nem excluir (TN-14); extensão que se desconecta libera a vaga de navegador e não compra pacote (403); logs das rotas v2 sem dados pessoais | `WebApplicationFactory` |
 | Aceitação (12) | Regras inegociáveis em Gherkin (as mesmas da Entrega 3; a v2 ainda não tem cenário Reqnroll) | Reqnroll |
 
-Execução atual: **252 testes, todos passando** (156 unidade, 84 integração, 12 aceitação). Na Entrega 3 eram 157 (90 + 55 + 12); na primeira contagem da v2, 223 (136 + 75 + 12); depois das correções pós-v2, 230 (140 + 78 + 12); as correções da gravação do tour acrescentaram 22 (`ResumeImportFixesTests` e `TourFixesTests`). Os testes da versão 2 estão descritos na [estratégia de testes](../04-qualidade/estrategia-de-testes.md) e nos [critérios de aceite](../04-qualidade/criterios-de-aceite-mvp1.md) CA-23 a CA-29.
+Execução registrada em 21/10/2026: **252 testes, todos passando** (156 unidade, 84 integração, 12 aceitação). Depois disso entraram os testes dos QAs de 01/11/2026 e, em 02/11/2026, 19 casos de unidade (`Auth/AccountSecurityTests`, `Billing/PeriodChangeTests`, `DomainTests`) e 22 de integração (`AccountSecurityTests`, `ProfileConcurrencyTests`, `BillingPeriodTests`, `SqliteUpgradeTests`); a contagem total precisa ser conferida de novo com `dotnet test`. Na Entrega 3 eram 157 (90 + 55 + 12); na primeira contagem da v2, 223 (136 + 75 + 12); depois das correções pós-v2, 230 (140 + 78 + 12); as correções da gravação do tour acrescentaram 22 (`ResumeImportFixesTests` e `TourFixesTests`). Os testes da versão 2 estão descritos na [estratégia de testes](../04-qualidade/estrategia-de-testes.md) e nos [critérios de aceite](../04-qualidade/criterios-de-aceite-mvp1.md) CA-23 a CA-29.

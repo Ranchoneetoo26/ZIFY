@@ -6,8 +6,8 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Guia do usuário (plataforma web e extensão) |
-| Versão | 1.3 |
-| Status | Vigente para a v2 do MVP 1. Cada passo foi conferido contra o código da plataforma (`web/js/views/`) e do painel (`extension/sidepanel.js`, versão 0.4.0) em 21/10/2026. |
+| Versão | 1.4 |
+| Status | Vigente para a v2 do MVP 1. Cada passo foi conferido contra o código da plataforma (`web/js/views/`) e do painel (`extension/sidepanel.js`, versão 0.4.1) em 02/11/2026. |
 | Dono | Product Owner, com o dev frontend |
 | Documentos relacionados | [Runbook local](runbook-local.md), [Fluxos](../01-produto/fluxos.md), [Monetização](../01-produto/monetizacao.md), [Critérios de aceite](../04-qualidade/criterios-de-aceite-mvp1.md), [Design system](../03-arquitetura/design-system.md) |
 
@@ -19,6 +19,7 @@
 | 1.1 | 21/10/2026 | Conferido contra o código: nomes reais de botões e abas, telas de abertura do onboarding, retomada automática do onboarding no login (Beatriz), revisão da importação item a item, dados sensíveis com os tipos da API, painel com abas "A vaga e você" e "Formulário", recompensado pelo botão **Ganhar**, ocultar anúncios, limites também em respostas e navegadores, limitações conhecidas (seção 21) e roteiros ajustados aos dados de demonstração. |
 | 1.2 | 21/10/2026 | **Desconectar extensão** no painel libera a vaga de navegador; data de nascimento também aparece trancada no painel; comprar pacote só pela plataforma; nota de que "ocultar este tema" existe só na plataforma. |
 | 1.3 | 21/10/2026 | Correções da gravação do tour: "Tipo" de curso começa em **Curso**; mensagens de erro dizem o nome do campo; na importação, item incompleto (ex.: formação sem situação) pede a escolha antes de **Aprovar**, e certificações mantêm o nome original; **Salvar no Perfil Mestre** só libera depois de revisar tudo; teste grátis do Plus só na primeira assinatura; rascunho de IA sempre mostra algo no cartão; **Não tenho interesse no tema** também no painel; exemplo do roteiro da Beatriz trocado (ela já tem "Disponível para plantão noturno"). Conferidos de novo: aceite dos termos no cadastro, "Como você quer começar?", código `123-456`, "Aparece em parte" com "Confirme você", conclusão que abre sozinha e **Excluir definitivamente**. |
+| 1.4 | 02/11/2026 | Novos passos: confirmar o e-mail (aviso no topo e **Reenviar link**), **Esqueci minha senha** e redefinir pelo link, **Alterar senha** em Conta (desconecta as outras sessões e a extensão), diálogo "Seu perfil foi alterado em outra sessão", trocar o Plus entre mensal e anual com rateio, pacote também no Plus. Aceite dos termos com o texto novo. O rascunho do onboarding fica guardado neste navegador. Voltar do navegador com formulário alterado pergunta antes. Página "Não encontramos essa página". Painel 0.4.1 explica quando a conta desconectou a extensão. |
 
 ## 1. Para quem é este guia
 
@@ -55,8 +56,23 @@ Quer recomeçar do zero? Pare a API e apague `src/Zyft.Api/zyft-dev.db`. Na pró
 
 1. Em `#/entrar`, use a aba **Criar conta**.
 2. Informe nome, e-mail e uma senha com pelo menos 8 caracteres, com letra e número.
-3. Marque "Li e aceito os termos de uso e a política de privacidade do Zyft." e clique em **Criar conta**. Sem esse aceite a conta não é criada: a tela avisa "Para criar a conta, marque que você leu e aceita os termos."
+3. Marque "Li e aceito os Termos de uso e a Política de privacidade." (os dois nomes são links para os textos) e clique em **Criar conta**. Sem esse aceite a conta não é criada: a tela avisa "Para criar a conta, marque que você leu e aceita os Termos de uso e a Política de privacidade." Se os termos mudarem enquanto a página estiver aberta, a caixa é desmarcada e a tela pede para ler e marcar de novo.
 4. Você entra direto e vai para as boas-vindas (seção 5).
+
+### 4.1 Confirmar o e-mail
+
+Ao criar a conta, o Zyft manda um link de confirmação para o seu e-mail (no ambiente de demonstração não há envio real: o link aparece no log da API, ver o [runbook](runbook-local.md)).
+
+1. Abra o link. A tela "E-mail confirmado" diz que você não precisa fazer mais nada. O link vale 24 horas e uma única vez.
+2. Enquanto não confirmar, as telas com menu mostram no topo "Confirme seu e-mail…" com **Reenviar link** e **Agora não** (que esconde o aviso até fechar a aba). Em **Conta e privacidade**, a linha **Confirmação do e-mail** mostra "Não confirmado" e **Reenviar link de confirmação**. Reenviar invalida o link anterior.
+3. **Você pode usar o Zyft normalmente sem confirmar.** A confirmação só ajuda a recuperar a conta se você esquecer a senha.
+
+### 4.2 Esqueci minha senha
+
+1. Em `#/entrar`, clique em **Esqueci minha senha**, informe o e-mail e clique em **Enviar link**. A resposta é sempre a mesma, tenha ou não uma conta com aquele e-mail: "Se existir uma conta com esse e-mail, enviamos um link para redefinir a senha. Ele vale por 30 minutos."
+2. Abra o link, digite a senha nova duas vezes (**Mostrar senhas** ajuda a conferir) e clique em **Salvar nova senha**.
+3. Você volta para **Entrar** com o aviso "Senha redefinida. Entre com a senha nova." Todas as sessões abertas e **a extensão** são desconectadas; conecte a extensão de novo (seção 9). Redefinir também confirma o seu e-mail.
+4. Link vencido ou já usado: a tela explica e oferece **Pedir um novo link**.
 
 Para entrar depois, use a aba **Entrar**. Se você ainda não concluiu o onboarding, a primeira tela da sessão leva de volta a ele, na pergunta em que você parou; dali você pode sair com **Sair e continuar depois**. Depois de 10 tentativas por minuto do mesmo endereço, o login pede para esperar. O Zyft **nunca** pede a senha dos sites de vagas, em nenhuma tela.
 
@@ -88,6 +104,7 @@ Botões de cada pergunta:
 - **Preencher mais tarde**: pula sem travar nada. Nenhuma pergunta é obrigatória.
 - **Voltar**: volta uma pergunta.
 - **Sair e continuar depois** (no topo): sai para o Perfil Mestre. O progresso fica salvo e você volta de onde parou.
+- **Rascunho neste navegador:** o que você digitou e ainda não foi salvo (por exemplo uma experiência pela metade) fica guardado **neste navegador** por até 7 dias, mesmo se você fechar a aba, e volta quando você abrir o onboarding de novo ("Recuperamos o que você tinha preenchido e ainda não estava salvo."). Se o seu perfil mudou depois em outro lugar, vale o que está salvo no perfil, e a tela avisa. O rascunho é apagado ao concluir o onboarding e ao clicar em **Sair**. Em computador compartilhado, clique em **Sair** ao terminar.
 
 O que vale saber:
 
@@ -120,6 +137,10 @@ Não há anúncio em nenhuma tela do onboarding.
 - **Informações da sua área** (campos personalizados): crie informações que a sua profissão pede e o Zyft não conhece. Preencha "Nome da informação" e "Sua resposta" e clique em **Adicionar informação**. Exemplos: "Curso de ACLS: Concluído em 2025", "Experiência em sala de vacina: 2 anos" (a Beatriz de demonstração já tem "Disponível para plantão noturno" e "Experiência em UTI"). A extensão usa quando um formulário perguntar algo parecido. Nome até 80 caracteres, valor até 500. Rótulos que pareçam dado sensível ou documento (raça, religião, saúde, deficiência, gênero, CPF, RG, senha, entre outros) são recusados, com a orientação de usar **Dados sensíveis**.
 - **Dados sensíveis**: com o consentimento *Dados sensíveis* desligado, o bloco só explica e oferece **Ligar em Conta e privacidade**. Ligado, você pode guardar, um por tipo: gênero, raça ou etnia, deficiência, religião, orientação sexual, saúde, nome social ou outro dado sensível (**Adicionar dado sensível** e **Guardar trancado**). Eles ficam cifrados, mascarados na tela, nunca vão para a IA e só são preenchidos se você destrancar e aprovar aquele campo no painel, um a um. CPF e RG não são guardados aqui. Desligar o consentimento apaga os dados sensíveis guardados.
 - **Passaporte** (coluna lateral): "N de 22 carimbos", com a porcentagem.
+
+**Perfil aberto em dois lugares.** Se você salvar algo aqui depois de o perfil ter sido salvo em outra aba, outro aparelho ou pela extensão, nada é gravado em silêncio: aparece "Seu perfil foi alterado em outra sessão" com três opções. **Recarregar dados mais recentes** (pede para confirmar que descarta o que você mudou nesta tela e mostra o perfil atual), **Sobrescrever mesmo assim** (pede confirmação e grava o que está nesta tela por cima) ou **Cancelar** (nada é salvo e o formulário continua como estava).
+
+Enquanto um formulário está salvando, a janela não fecha por Esc nem pelo "x": espere o resultado. Se você tentar sair de uma tela com um formulário alterado e não salvo, inclusive pelo botão **Voltar** do navegador, o Zyft pergunta antes de descartar.
 
 No plano gratuito pode aparecer **um** card patrocinado na coluna lateral, com "Por que estou vendo isso?" e "Não tenho interesse" (seção 18).
 
@@ -157,6 +178,8 @@ No plano gratuito são 2 importações por mês, com o medidor na própria tela.
 4. Pronto: o painel mostra "Conectada". Na plataforma, clique em "atualize a lista de navegadores" para ver o navegador em **Navegadores conectados**, com a data, o último uso e **Desconectar**.
 
 No plano gratuito você conecta **1 navegador**; no Plus, até 3. Se o limite estiver cheio, o painel avisa e oferece **Ver navegadores conectados na plataforma** e **Conhecer o Plus**. Desconectar derruba o acesso da extensão na hora.
+
+**Trocar ou redefinir a senha desconecta a extensão** (e todos os navegadores conectados). Ao abrir o painel, aparece "Extensão desconectada" com o motivo e o link **Abrir "Conectar um navegador" na plataforma**: gere um código novo e conecte de novo. Queda da internet ou da API não desconecta a extensão; o painel oferece tentar de novo.
 
 Para desconectar **pelo próprio painel**, abra **Ajustes** e clique em **Desconectar extensão** (o painel pede confirmação). O navegador sai da lista de **Navegadores conectados** e a vaga fica livre: no plano gratuito, você já pode conectar outro navegador. Se a API estiver fora do ar nesse momento, o painel desconecta mesmo assim; aí o navegador continua na lista da plataforma e você pode removê-lo lá em **Desconectar**.
 
@@ -266,8 +289,9 @@ O pacote cobre só candidaturas assistidas e sugestões de IA. Análises, import
 **Sempre de graça, em qualquer plano:** revisar cada campo antes de preencher, dados sensíveis trancados, nunca pedir a senha dos portais, consentimentos, baixar e apagar seus dados. Privacidade não é recurso pago.
 
 - **Testar o Plus**: escolha **Mensal** ou **Anual** no topo e clique em **Testar 7 dias grátis**. Os anúncios somem e os limites viram "sem limite". O teste grátis vale **uma vez por conta**: quem já testou e cancelou vê **Assinar o Plus**, sem o selo "7 dias grátis", e a assinatura começa no mesmo dia.
+- **Trocar entre mensal e anual**: no cartão do Plus, **Mudar para o plano anual** (ou **Mudar para o plano mensal**). A janela mostra uma estimativa: o crédito do tempo que falta no plano atual, o preço do novo período e quanto seria cobrado agora (ou o crédito a seu favor, ao passar de anual para mensal). Confirme; a troca vale na hora, o ciclo novo começa no mesmo dia e a janela "Pronto: seu Plus agora é…" mostra o valor final e a próxima renovação. No teste grátis só o período muda, sem valor. Tudo simulado: nada é cobrado.
 - **Cancelar**: no cartão do Plus, **Cancelar assinatura** e confirme. Você volta ao gratuito e nada do seu perfil se perde.
-- **Comprar pacote**: **Comprar pacote** e confirme. A compra é feita só aqui na plataforma; no painel da extensão, a opção de pacote abre esta tela. O saldo aparece em "Seus pacotes ativos" e vale por 60 dias.
+- **Comprar pacote**: **Comprar pacote** e confirme. A compra é feita só aqui na plataforma; no painel da extensão, a opção de pacote abre esta tela. O saldo aparece em "Seus pacotes ativos" (com o total quando há mais de um) e vale por 60 dias. **No Plus** você também pode comprar, mas a tela avisa: enquanto o Plus estiver ativo os créditos ficam guardados e não são usados; só entram em uso se você voltar ao plano gratuito, e cada pacote vence 60 dias depois da compra, usado ou não.
 - **Seu uso neste mês**: medidores de cada recurso e "Recomeça em 1º de {mês}".
 - **Ganhar +3** (recompensado): no painel da extensão, abaixo do contador de candidaturas, clique em **Ganhar**. Aparece uma oferta patrocinada; clique em **Vi a oferta: ganhar +3** (não é preciso clicar no anúncio). Até 3 vezes no mês. É sempre opcional.
 
@@ -296,6 +320,8 @@ Só no plano gratuito, e sempre com o selo **Patrocinado**, separado da interfac
 
 Em **Conta e privacidade** (`#/conta`):
 
+- **Confirmação do e-mail**: "Confirmado em {data}" ou "Não confirmado", com **Reenviar link de confirmação** (seção 4.1).
+- **Alterar senha**: senha atual, senha nova e a confirmação, depois **Alterar senha**. Esta aba continua conectada; as outras sessões abertas e **a extensão** são desconectadas (conecte de novo pela seção 9).
 - **Consentimentos**: ligue ou desligue cada finalidade. A finalidade "Conta e Perfil Mestre" é fixa (é o próprio serviço). O bloqueio vale na hora, na API, não só na tela.
 - **Baixar meus dados (JSON)**: um arquivo com perfil, respostas, candidaturas, consentimentos e registro de ações.
 - **Excluir minha conta**: apaga o Perfil Mestre, as respostas, as candidaturas e os dados sensíveis. As extensões conectadas perdem o acesso na hora. Digite `EXCLUIR`, clique em **Excluir conta** e confirme em **Excluir definitivamente**. Não dá para desfazer.
@@ -305,7 +331,10 @@ Em **Conta e privacidade** (`#/conta`):
 | O que acontece | Por quê | O que fazer |
 |---|---|---|
 | Ao entrar, caio no onboarding | O onboarding ainda não foi concluído | Responda, pule ou use **Sair e continuar depois** |
-| O painel pede para conectar de novo | O navegador foi desconectado na plataforma ou a sessão expirou (7 dias sem uso) | Gere outro código em **Extensão** |
+| O painel pede para conectar de novo ("Extensão desconectada") | A senha foi trocada ou redefinida, o navegador foi desconectado na plataforma ou a sessão expirou (7 dias sem uso) | Gere outro código em **Extensão** |
+| Não recebi o e-mail de confirmação ou de redefinição | No ambiente de demonstração não há envio real | Peça à pessoa que roda a API o link do log ([runbook](runbook-local.md)). Sem confirmar, tudo funciona |
+| "Seu perfil foi alterado em outra sessão" | O perfil foi salvo em outra aba, aparelho ou pela extensão depois que esta tela abriu | Escolha **Recarregar**, **Sobrescrever** ou **Cancelar** (seção 6) |
+| "Não encontramos essa página" | Endereço errado ou antigo | Use **Ir para o Perfil Mestre** (ou **Ir para Entrar**) |
 | "Código inválido ou expirado" ao conectar | O código passou de 10 minutos ou já foi usado | Gere um novo |
 | Não consigo conectar um segundo navegador | O gratuito permite 1 | Use **Desconectar extensão** (em **Ajustes**) no navegador antigo, ou **Desconectar** na plataforma em **Extensão**, ou teste o Plus |
 | O painel não fala com a API | A API está em outro endereço | Ajuste o **Endereço da API** em **Ajustes** |
@@ -327,6 +356,8 @@ Em **Conta e privacidade** (`#/conta`):
 - **Detalhe da candidatura** mostra só quantos campos foram preenchidos, não quais.
 - **Dados sensíveis** aceitam só os tipos listados na seção 6. CPF e RG não são guardados pelo Zyft como dado sensível.
 - **Recompensado na web** só aparece no diálogo de limite; o caminho normal é o botão **Ganhar** no painel.
+- **E-mail** não é enviado de verdade no ambiente de demonstração: os links de confirmação e de redefinição saem no log da API.
+- **Rascunho do onboarding** fica neste navegador até 7 dias, se você não clicar em **Sair** nem concluir o onboarding.
 
 ## 22. Roteiros de demonstração (10 minutos)
 

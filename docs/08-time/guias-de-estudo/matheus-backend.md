@@ -103,7 +103,7 @@ Na Entrega 3: 157 testes (90, 55 e 12). Hoje: **263 testes, todos passando** (16
 16. **"Como provam que não há PII nos logs?"** Teste de integração procura e-mail, senha, nome, telefone e token nos logs (`PlatformTests`). Serilog registra só método, caminho sem query, status e duração.
 17. **"O refresh token pode ser roubado?"** Só o hash fica no banco; ele roda a cada uso; reuso de um antigo revoga a cadeia inteira; revogar o dispositivo derruba access e refresh na hora.
 18. **"Por que o catálogo de áreas é estático e não uma tabela?"** É conteúdo de produto, igual para todos, e muda com deploy. Uma tabela exigiria tela de administração que o MVP 1 não tem (ADR-0019).
-19. **"E a verificação de e-mail e o login com Google?"** Pendência D-08, prevista para a Entrega 4.
+19. **"E a verificação de e-mail e o login com Google?"** Desde 02/11/2026 a verificação existe (`UserTokens` com hash e uso único, `POST /auth/verify`), mas é só informativa: não bloqueia nenhuma rota. O envio passa pela porta `IEmailSender`, que hoje só registra o link no log (`LoggingEmailSender`). Login com Google continua pendente (D-08).
 20. **"O que acontece com os dados de plano e anúncio quando a conta é excluída?"** Tudo que tem `UserId` cai em cascata. Os contadores agregados de clique não têm `UserId` e por isso não identificam ninguém.
 
 ## 4. Onde está cada coisa

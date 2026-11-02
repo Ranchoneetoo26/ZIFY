@@ -6,7 +6,7 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Runbook local (API .NET, plataforma web, extensão e portal demo) |
-| Versão | 3.3 |
+| Versão | 3.4 |
 | Status | Vigente |
 | Dono | Dev backend |
 | Documentos relacionados | [Ambientes](ambientes.md), [ADR-0017](../03-arquitetura/adr/0017-backend-em-csharp-dotnet-clean-architecture.md), [Entrega 3](../entregas/entrega-3-desenvolvimento-e-validacao.md), [Guia do usuário](guia-do-usuario.md), [Monetização](../01-produto/monetizacao.md) |
@@ -21,6 +21,7 @@
 | 3.1 | 21/10/2026 | Sincronizado com a implementação: catálogo de anúncios estático (16 anúncios no código), rótulos reais do painel 0.4.0 e da tela Planos, 402 também no pareamento e no banco de respostas, `ads.rewarded_unavailable`, SQLite com `EnsureCreated`, 223 testes. |
 | 3.2 | 21/10/2026 | 230 testes (140 + 78 + 12); "Desconectar extensão" no painel libera a vaga de navegador. |
 | 3.3 | 21/10/2026 | 252 testes (156 + 84 + 12), com as correções da gravação do tour. |
+| 3.4 | 02/11/2026 | SQLite atualiza um banco antigo na subida (`SqliteSchemaUpgrader`): apagar `zyft-dev.db` só para zerar os dados. Links de verificação de e-mail e de redefinição de senha saem no log da API (§2.2), com `App:WebBaseUrl`. Extensão 0.4.1. Problemas comuns: e-mail que não chega, extensão desconectada depois de trocar a senha, conflito ao salvar o perfil. |
 
 > O protótipo Node (`server/`, porta 4317) **não é mais a forma de rodar o Zyft**. A lógica dele foi portada para a API .NET ([ADR-0017](../03-arquitetura/adr/0017-backend-em-csharp-dotnet-clean-architecture.md)) e ele fica só como referência histórica.
 
@@ -47,7 +48,7 @@ dotnet run --project src/Zyft.Api        # http://localhost:5080
 | `http://localhost:5080/demo/` | Portal de vagas de demonstração |
 | `http://localhost:5080/health` | Saúde do banco e da IA |
 
-- O banco fica em `src/Zyft.Api/zyft-dev.db`, criado na primeira subida com `EnsureCreated` (o SQLite não usa as migrations; elas são do PostgreSQL).
+- O banco fica em `src/Zyft.Api/zyft-dev.db`, criado na primeira subida com `EnsureCreated` (o SQLite não usa as migrations; elas são do PostgreSQL). Num banco que já existe, a subida acrescenta as tabelas, colunas e índices novos (`SqliteSchemaUpgrader`, só mudanças aditivas) e registra "Esquema SQLite atualizado (N alterações aditivas)". **Não é preciso apagar o banco depois de atualizar o código.**
 - Usuários de demonstração (só em Development, com qualquer banco; desligue com `Seed__DemoUser=false`), todos fictícios. Os dois já vêm com os consentimentos de IA para textos e de análise de vaga ligados:
 
   | Pessoa | E-mail | Senha | Conteúdo |
@@ -55,10 +56,12 @@ dotnet run --project src/Zyft.Api        # http://localhost:5080
   | Rafael Moreira | `demo@zyft.local` | `Zyft@2026` | Área Tecnologia, perfil rico (experiências, competências, idiomas, formação, respostas aprovadas), onboarding concluído, plano gratuito com uso do mês já iniciado (7 de 10 candidaturas assistidas, 2 de 5 sugestões de IA, 4 de 10 análises, 1 de 2 importações). Até a v1 este mesmo e-mail trazia o perfil "Ana Paula Souza". |
   | Beatriz Lima | `beatriz@demo.zyft` | `Zyft@2026` | Área Saúde (técnica de enfermagem, COREN), campos personalizados, onboarding parado na pergunta de competências (22 de 25) com perguntas puladas: ao entrar, ela cai direto no onboarding; ao sair dele, o Perfil Mestre mostra o alerta de pendentes. 2 de 10 candidaturas assistidas usadas. |
 
-  O seed só cria um usuário se o e-mail ainda não existir. Um banco criado antes da v2 continua com o perfil antigo: veja a seção 2.1.
+  O seed só cria um usuário se o e-mail ainda não existir. Um banco criado antes da v2 continua com o perfil antigo: veja a seção 2.1. Os dois já vêm com o e-mail confirmado e os termos aceitos (contas demo de bancos antigos ganham isso na subida).
 - IA: se o Ollama responder em `http://localhost:11434` com `qwen2.5:7b`, ele é usado. Para desligar: `Llm__Provider=None dotnet run --project src/Zyft.Api`.
 
 ### 2.1 Recriar os dados de demonstração
+
+Só é preciso para **zerar os dados** (uso do mês, resgates, ocultações, perfil antigo dos usuários demo). Mudança de esquema não exige mais apagar o banco.
 
 ```bash
 # pare a API (Ctrl+C) e apague o banco local
@@ -67,6 +70,16 @@ dotnet run --project src/Zyft.Api        # recria o banco e os dois usuários (z
 ```
 
 Para não criar os usuários de demonstração: `Seed__DemoUser=false dotnet run --project src/Zyft.Api`.
+
+### 2.2 Links de e-mail no desenvolvimento
+
+Não há envio real de e-mail: o `LoggingEmailSender` só escreve o link no log da API, sem o endereço nem o nome da pessoa. Para testar:
+
+1. Crie uma conta (ou, logado, use **Reenviar link** no aviso do topo ou em **Conta e privacidade**). No terminal da API aparece `Link de verificação gerado: http://localhost:5080/#/verificar?token=…`. Abra o link: vale 24 horas e uma vez.
+2. Em `#/entrar`, **Esqueci minha senha**, informe o e-mail. No log: `Link de redefinição de senha gerado: http://localhost:5080/#/redefinir-senha?token=…`. Vale 30 minutos e uma vez; pedir de novo invalida o anterior.
+3. O começo do link vem de `App:WebBaseUrl` (padrão `http://localhost:5080`). Se a web estiver em outro endereço: `App__WebBaseUrl=http://127.0.0.1:5080 dotnet run --project src/Zyft.Api`.
+
+Confirmar o e-mail é só informativo: sem confirmar, tudo funciona. Trocar ou redefinir a senha desconecta as outras sessões e **todas as extensões pareadas** (é preciso parear de novo).
 
 ## 3. Rodar com Docker (PostgreSQL 16)
 
@@ -89,7 +102,8 @@ Tudo aqui é simulado: não existe gateway de pagamento, nenhum dado de cartão 
 | O plano e o uso do mês | Plataforma → **Planos**, ou `GET /api/v1/billing` no Swagger (`demo: true`, preços 9.90 / 99.00 / 4.90, `usage` por recurso) |
 | Assinar o Plus (trial de 7 dias) | **Planos → Testar 7 dias grátis** (escolha mensal ou anual), ou `POST /api/v1/billing/subscribe {"period":"monthly"}` (ou `"yearly"`) |
 | Voltar ao gratuito | **Cancelar assinatura**, ou `POST /api/v1/billing/cancel`. Na demonstração a volta ao gratuito é imediata; cancelar no gratuito responde `billing.not_subscribed` |
-| Comprar um pacote | **Comprar pacote**, ou `POST /api/v1/billing/packs` (responde **201**; +15 assistidas, +10 IA, 60 dias). O pacote cobre só candidaturas assistidas e sugestões de IA |
+| Trocar mensal ⇄ anual no Plus | **Planos → Mudar para o plano anual** (ou **mensal**), ou `POST /api/v1/billing/subscription/period {"period":"yearly"}`. Responde `billing` e `proration` (crédito do que falta, preço novo, valor; negativo = crédito). No teste grátis o valor é 0. Mesmo período: 422 `billing.same_period` |
+| Comprar um pacote | **Comprar pacote**, ou `POST /api/v1/billing/packs` (responde **201**; +15 assistidas, +10 IA, 60 dias). O pacote cobre só candidaturas assistidas e sugestões de IA. Também no Plus: os créditos ficam guardados (`packTotals`) e só são usados se a conta voltar ao gratuito antes de vencerem |
 | Um anúncio | Abra o Perfil Mestre no gratuito (`web.profile.rail`), ou `GET /api/v1/ads?placement=web.banner`. Com `&topic=Inglês avançado`, a seleção usa o requisito |
 | Por que não veio anúncio | `204` é esperado para Plus, placement desconhecido ou proibido, catálogo sem anúncio para a área ou tudo oculto. Em `ext.job.contextual`, só vem anúncio se o `topic` casar com o assunto de algum anúncio. Sem `placement` a resposta é `400` |
 | Ocultar | `POST /api/v1/ads/{id}/hide {"scope":"ad"}` (30 dias) ou `{"scope":"topic"}` (sempre) |
@@ -120,13 +134,13 @@ dotnet test                         # unidade, integração e aceitação
 dotnet test tests/Zyft.UnitTests    # só unidade
 ```
 
-São 252 testes: 156 de unidade, 84 de integração e 12 cenários de aceitação. Os testes de integração e aceitação usam SQLite em memória e IA desligada ou simulada. Não precisam de Docker nem de Ollama.
+A última contagem registrada foi de 252 testes (156 de unidade, 84 de integração e 12 cenários de aceitação, em 21/10/2026); os QAs de 01/11/2026 e a rodada de 02/11/2026 (19 casos de unidade e 22 de integração novos) aumentaram a suíte, e o total deve ser conferido na saída do `dotnet test`. Os testes de integração e aceitação usam SQLite em memória e IA desligada ou simulada. Não precisam de Docker nem de Ollama.
 
 ## 5. Carregar a extensão
 
 1. Abra `chrome://extensions` (ou `edge://extensions`) e ligue o **Modo do desenvolvedor**.
 2. Clique em **Carregar sem compactação** e selecione a pasta `extension/`.
-3. Clique no ícone do Zyft para abrir o painel lateral (versão 0.4.0).
+3. Clique no ícone do Zyft para abrir o painel lateral (versão 0.4.1).
 4. Na plataforma web, vá em **Extensão → Gerar código de pareamento**, digite o código de 6 dígitos no painel (vale 10 minutos), dê um nome ao navegador e toque em **Conectar**.
 5. Se a API estiver em outro endereço, troque em **Ajustes** no painel (campo "Endereço da API"; padrão `http://localhost:5080`).
 
@@ -149,10 +163,12 @@ Para usar a extensão em outros sites, ela pede permissão para o site no primei
 | `/health` com `llm: Degraded` | Ollama parado ou modelo não baixado | `ollama serve` e `ollama pull qwen2.5:7b`, ou ignore: as regras funcionam sem IA |
 | Primeira chamada com IA demora ~40 s | O Ollama está carregando o modelo | Esperado; as seguintes levam segundos |
 | Painel mostra 403 em Analisar vaga ou Sugerir texto | Consentimento desligado | Ligue em **Conta** (ou na tela de boas-vindas) |
-| Painel pede pareamento de novo | Dispositivo revogado ou refresh expirado (7 dias) | Gere outro código na plataforma |
+| Painel pede pareamento de novo, com o aviso "Extensão desconectada" | Dispositivo revogado, senha trocada ou redefinida na plataforma, conta excluída ou refresh expirado (7 dias) | Gere outro código na plataforma. API fora do ar ou erro 5xx **não** desconectam (desde a 0.4.1): use "Tentar de novo" |
+| Não chegou o e-mail de confirmação ou de redefinição | Não há envio real de e-mail | Copie o link do log da API (seção 2.2) |
+| "Seu perfil foi alterado em outra sessão" ao salvar | Outra aba, outro aparelho ou a extensão salvou o perfil depois que a tela abriu (409 `profile.conflict`) | Esperado: **Recarregar dados mais recentes**, **Sobrescrever mesmo assim** ou **Cancelar** |
 | Extensão não reage após editar o código | Extensão em cache | Recarregue em `chrome://extensions` e recarregue a página |
 | API no WSL e navegador no Windows | `localhost` não encaminhado | Confira o encaminhamento de portas do WSL; use `127.0.0.1` |
-| Quero recomeçar do zero | — | Pare a API e apague `src/Zyft.Api/zyft-dev.db` (ou `docker compose down -v`) |
+| Quero recomeçar do zero | — | Pare a API e apague `src/Zyft.Api/zyft-dev.db` (ou `docker compose down -v`). Não é preciso fazer isso só porque o esquema mudou |
 | `demo@zyft.local` ainda mostra "Ana Paula Souza" e `beatriz@demo.zyft` não existe | Banco criado antes da v2; o seed não sobrescreve usuário existente | Apague `zyft-dev.db` e suba de novo (seção 2.1) |
 | Login dos usuários demo falha no Docker | Em Docker (Staging) não há seed | Crie uma conta ou rode com SQLite em Development |
 | Painel mostra "limite do mês" logo no início dos testes | Leituras anteriores no mesmo mês contaram | Recrie o banco ou assine o Plus de demonstração |
