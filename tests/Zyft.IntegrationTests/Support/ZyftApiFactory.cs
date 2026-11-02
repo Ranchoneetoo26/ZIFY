@@ -33,6 +33,9 @@ public class ZyftApiFactory : WebApplicationFactory<Program>
     /// <summary>IA substituta (null = IA desligada).</summary>
     public ILlmClient? Llm { get; init; }
 
+    /// <summary>Registra o link com token no log do envio de desenvolvimento (<c>Email:LogLinks</c>).</summary>
+    public bool LogEmailLinks { get; init; } = true;
+
     public CapturingSink Logs { get; } = new();
 
     /// <summary>E-mails "enviados" (o envio real de desenvolvimento, que só loga, continua rodando por baixo).</summary>
@@ -48,6 +51,7 @@ public class ZyftApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Llm:Provider", "None");
         builder.UseSetting("RateLimiting:AuthPermitLimit", AuthPermitLimit.ToString());
         builder.UseSetting("RateLimiting:AiPermitPerMinute", AiPermitPerMinute.ToString());
+        builder.UseSetting("Email:LogLinks", LogEmailLinks ? "true" : "false");
         builder.UseSetting("Cors:AllowedOrigins:0", "http://localhost:5080");
         builder.ConfigureTestServices(services =>
         {

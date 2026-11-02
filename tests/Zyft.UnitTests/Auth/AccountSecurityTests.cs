@@ -92,8 +92,41 @@ public class AccountSecurityTests
         c.User.EmailVerifiedAt.Should().Be(Now);
         c.Tokens.Items.Single().UsedAt.Should().Be(Now);
         c.Audit.Items.Should().ContainSingle(a => a.Action == AuditActions.EmailVerified);
-        var again = () => handler.Handle(new VerifyEmailCommand(raw), default);
-        (await again.Should().ThrowAsync<ValidationException>()).Which.Errors.Single().PropertyName.Should().Be("Token");
+
+        // Reabrir o mesmo link (mesmo depois da validade) é idempotente e não gera novo evento.
+        c.Clock.UtcNow = Now.AddHours(30);
+        await handler.Handle(new VerifyEmailCommand(raw), default);
+        c.Audit.Items.Should().ContainSingle(a => a.Action == AuditActions.EmailVerified);
+    }
+
+    [Fact]
+    public async Task Link_invalidado_por_um_mais_novo_continua_erro_mesmo_com_a_conta_verificada()
+    {
+        var c = new Ctx();
+        var first = await UserTokens.IssueAsync(c.Tokens, c.TokenService, Now, c.User.Id, UserTokenPurpose.EmailVerification, UserTokens.EmailVerificationLifetime, default);
+        c.Clock.UtcNow = Now.AddMinutes(5);
+        var second = await UserTokens.IssueAsync(c.Tokens, c.TokenService, c.Clock.UtcNow, c.User.Id, UserTokenPurpose.EmailVerification, UserTokens.EmailVerificationLifetime, default);
+        c.Clock.UtcNow = Now.AddMinutes(10);
+        var handler = new VerifyEmailHandler(c.Tokens, c.Users, c.Audit, c.TokenService, new FakeUnitOfWork(), c.Clock);
+
+        await handler.Handle(new VerifyEmailCommand(second), default);
+        c.User.IsEmailVerified.Should().BeTrue();
+
+        var old = () => handler.Handle(new VerifyEmailCommand(first), default);
+        (await old.Should().ThrowAsync<ValidationException>()).Which.Errors.Single().PropertyName.Should().Be("Token");
+    }
+
+    [Fact]
+    public async Task Token_usado_de_conta_que_perdeu_a_verificacao_nao_e_aceito_de_novo()
+    {
+        // Token marcado como usado sem que a conta esteja verificada (ex.: invalidado) não vira sucesso.
+        var c = new Ctx();
+        var raw = await UserTokens.IssueAsync(c.Tokens, c.TokenService, Now, c.User.Id, UserTokenPurpose.EmailVerification, UserTokens.EmailVerificationLifetime, default);
+        c.Tokens.Items.Single().Consume(Now);
+        var handler = new VerifyEmailHandler(c.Tokens, c.Users, c.Audit, c.TokenService, new FakeUnitOfWork(), c.Clock);
+
+        await FluentActions.Invoking(() => handler.Handle(new VerifyEmailCommand(raw), default)).Should().ThrowAsync<ValidationException>();
+        c.User.IsEmailVerified.Should().BeFalse();
     }
 
     [Fact]
@@ -219,7 +252,7 @@ public class AccountSecurityTests
     public async Task Envio_de_desenvolvimento_registra_so_o_link_sem_email_nem_nome()
     {
         var logger = new ListLogger<LoggingEmailSender>();
-        var sender = new LoggingEmailSender(Options.Create(new AppOptions { WebBaseUrl = "https://zyft.exemplo/" }), logger);
+        var sender = new LoggingEmailSender(Options.Create(new AppOptions { WebBaseUrl = "https://zyft.exemplo/" }), Options.Create(new EmailOptions { LogLinks = true }), logger);
 
         await sender.SendEmailVerificationAsync("pessoa@privado.com", "Nome Privado", "tok123");
 
@@ -229,6 +262,22 @@ public class AccountSecurityTests
 
         await sender.SendPasswordResetAsync("pessoa@privado.com", "Nome Privado", "tok456");
         logger.Lines[^1].Should().Contain("https://zyft.exemplo/#/redefinir-senha?token=tok456").And.NotContain("pessoa@privado.com");
+    }
+
+    [Fact]
+    public async Task Envio_sem_LogLinks_nao_registra_token_nem_email()
+    {
+        var logger = new ListLogger<LoggingEmailSender>();
+        var sender = new LoggingEmailSender(Options.Create(new AppOptions { WebBaseUrl = "https://zyft.exemplo/" }), Options.Create(new EmailOptions()), logger);
+
+        await sender.SendEmailVerificationAsync("pessoa@privado.com", "Nome Privado", "tok123");
+        await sender.SendPasswordResetAsync("pessoa@privado.com", "Nome Privado", "tok456");
+
+        logger.Lines.Should().Equal(
+            "E-mail de verificação gerado (envio não configurado).",
+            "E-mail de redefinição de senha gerado (envio não configurado).");
+        string.Join('\n', logger.Lines).Should().NotContain("tok123").And.NotContain("tok456").And.NotContain("token")
+            .And.NotContain("pessoa@privado.com").And.NotContain("Nome Privado");
     }
 
     private sealed class ListLogger<T> : ILogger<T>

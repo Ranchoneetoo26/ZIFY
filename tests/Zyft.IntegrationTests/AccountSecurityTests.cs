@@ -24,10 +24,8 @@ public class AccountSecurityTests(ZyftApiFactory factory) : IClassFixture<ZyftAp
         me.GetProperty("emailVerified").GetBoolean().Should().BeTrue();
         me.TryGetProperty("emailVerifiedAt", out _).Should().BeTrue();
 
-        // Uso único.
-        var again = await c.PostAsJsonAsync("/api/v1/auth/verify", new { token });
-        again.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        (await again.JsonAsync()).GetProperty("errors").GetProperty("token")[0].GetString().Should().Contain("inválido ou expirou");
+        // Reabrir o mesmo link depois de confirmado é idempotente (204), sem novo evento de auditoria.
+        (await c.PostAsJsonAsync("/api/v1/auth/verify", new { token })).StatusCode.Should().Be(HttpStatusCode.NoContent);
 
         // Já verificado: login devolve emailVerified=true e reenviar é 409.
         var login = await (await c.PostAsJsonAsync("/api/v1/auth/login", new { email = s.Email, password = "Senha123" })).JsonAsync();
@@ -63,6 +61,12 @@ public class AccountSecurityTests(ZyftApiFactory factory) : IClassFixture<ZyftAp
 
         (await c.PostAsJsonAsync("/api/v1/auth/verify", new { token = first })).StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await c.PostAsJsonAsync("/api/v1/auth/verify", new { token = second })).StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        // Depois de verificada, o link antigo (invalidado, nunca usado para confirmar) continua 400; o usado, 204.
+        var stale = await c.PostAsJsonAsync("/api/v1/auth/verify", new { token = first });
+        stale.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await stale.JsonAsync()).GetProperty("errors").GetProperty("token")[0].GetString().Should().Contain("inválido ou expirou");
+        (await c.PostAsJsonAsync("/api/v1/auth/verify", new { token = second })).StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
 
     [Fact]
@@ -85,6 +89,23 @@ public class AccountSecurityTests(ZyftApiFactory factory) : IClassFixture<ZyftAp
         var all = string.Join('\n', factory.Logs.Lines);
         all.Should().Contain("/#/verificar?token=" + token);
         all.Should().NotContain(email);
+    }
+
+    [Fact]
+    public async Task Fora_de_desenvolvimento_o_log_nao_tem_token_nem_email()
+    {
+        using var f = new ZyftApiFactory { LogEmailLinks = false };
+        var c = f.CreateClient();
+        var email = $"semlink{Guid.NewGuid():N}@segredo.com";
+        await TestApi.RegisterAsync(c, email);
+        (await c.PostAsJsonAsync("/api/v1/auth/password/forgot", new { email })).StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+        var verify = f.Emails.LastToken(email, "verify");
+        var reset = f.Emails.LastToken(email, "reset");
+        var all = string.Join('\n', f.Logs.Lines);
+        all.Should().Contain("E-mail de verificação gerado (envio não configurado).")
+            .And.Contain("E-mail de redefinição de senha gerado (envio não configurado).");
+        all.Should().NotContain(verify).And.NotContain(reset).And.NotContain("?token=").And.NotContain(email);
     }
 
     // ------------------------------------------------------------------ aceite dos termos

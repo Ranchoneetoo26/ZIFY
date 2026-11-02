@@ -38,6 +38,7 @@ public static class DependencyInjection
         services.Configure<LlmOptions>(config.GetSection(LlmOptions.Section));
         services.Configure<AdNetworkOptions>(config.GetSection(AdNetworkOptions.Section));
         services.Configure<AppOptions>(config.GetSection(AppOptions.Section));
+        services.Configure<EmailOptions>(config.GetSection(EmailOptions.Section));
         services.AddSingleton<IEmailSender, LoggingEmailSender>();
         services.AddSingleton<IAdNetwork, AdSenseNetwork>();
         services.AddSingleton<IClock, SystemClock>();

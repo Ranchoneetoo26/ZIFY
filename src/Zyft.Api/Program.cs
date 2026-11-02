@@ -245,8 +245,10 @@ app.MapHealthChecks("/health", new HealthCheckOptions
     },
 });
 
-// Endereço sem hash (ex.: /conta, /candidaturas/123) vindo de link colado ou favorito: a SPA roteia por hash,
-// então redireciona para /#/conta. Só GET/HEAD fora de /api; arquivo inexistente (nome com extensão) continua 404.
+// Endereço sem hash (ex.: /conta, /candidaturas/123, /redefinir-senha?token=...) vindo de link colado ou favorito:
+// a SPA roteia por hash, então redireciona para /#/conta mantendo a query (/#/redefinir-senha?token=...). O destino
+// sempre começa com "/#", então nunca sai do site (//evil.com vira /#//evil.com). Só GET/HEAD fora de /api; arquivo
+// inexistente (nome com extensão) continua 404.
 if (webFiles is not null)
 {
     app.MapFallback("{*path:nonfile}", (HttpContext ctx) =>
@@ -254,7 +256,7 @@ if (webFiles is not null)
         var path = ctx.Request.Path;
         if (path.StartsWithSegments("/api") || !(HttpMethods.IsGet(ctx.Request.Method) || HttpMethods.IsHead(ctx.Request.Method)))
             return Results.NotFound();
-        return Results.Redirect("/#" + path.ToUriComponent().TrimEnd('/'));
+        return Results.Redirect("/#" + path.ToUriComponent().TrimEnd('/') + ctx.Request.QueryString.ToUriComponent());
     });
 }
 

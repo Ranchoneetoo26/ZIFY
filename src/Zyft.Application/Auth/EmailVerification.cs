@@ -63,6 +63,7 @@ public sealed class VerifyEmailHandler(
     public async Task<Unit> Handle(VerifyEmailCommand cmd, CancellationToken ct)
     {
         var now = clock.UtcNow;
+        if (await IsAlreadyConfirmedByAsync(cmd.Token, ct)) return Unit.Value;
         var token = await UserTokens.FindUsableAsync(tokens, tokenService, now, cmd.Token, UserTokenPurpose.EmailVerification, InvalidToken, ct);
         var user = await users.FindAsync(u => u.Id == token.UserId, ct)
             ?? throw new ValidationException(new[] { new ValidationFailure("Token", InvalidToken) });
@@ -76,6 +77,20 @@ public sealed class VerifyEmailHandler(
 
         await uow.SaveChangesAsync(ct);
         return Unit.Value;
+    }
+
+    /// <summary>
+    /// Reabrir o link que já confirmou o e-mail é idempotente: vale só para o token de verificação que foi de fato usado
+    /// na confirmação (<c>UsedAt</c> igual a <c>EmailVerifiedAt</c> da conta). Token invalidado por um link mais novo,
+    /// expirado sem uso ou desconhecido continua 400.
+    /// </summary>
+    private async Task<bool> IsAlreadyConfirmedByAsync(string raw, CancellationToken ct)
+    {
+        var hash = tokenService.Hash(raw.Trim());
+        var token = await tokens.FindAsync(t => t.TokenHash == hash && t.Purpose == UserTokenPurpose.EmailVerification, ct);
+        if (token?.UsedAt is null) return false;
+        var user = await users.FindAsync(u => u.Id == token.UserId, ct);
+        return user?.EmailVerifiedAt is not null && user.EmailVerifiedAt == token.UsedAt;
     }
 }
 

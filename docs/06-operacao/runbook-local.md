@@ -21,7 +21,7 @@
 | 3.1 | 21/10/2026 | Sincronizado com a implementação: catálogo de anúncios estático (16 anúncios no código), rótulos reais do painel 0.4.0 e da tela Planos, 402 também no pareamento e no banco de respostas, `ads.rewarded_unavailable`, SQLite com `EnsureCreated`, 223 testes. |
 | 3.2 | 21/10/2026 | 230 testes (140 + 78 + 12); "Desconectar extensão" no painel libera a vaga de navegador. |
 | 3.3 | 21/10/2026 | 252 testes (156 + 84 + 12), com as correções da gravação do tour. |
-| 3.4 | 02/11/2026 | SQLite atualiza um banco antigo na subida (`SqliteSchemaUpgrader`): apagar `zyft-dev.db` só para zerar os dados. Links de verificação de e-mail e de redefinição de senha saem no log da API (§2.2), com `App:WebBaseUrl`. Extensão 0.4.1. Problemas comuns: e-mail que não chega, extensão desconectada depois de trocar a senha, conflito ao salvar o perfil. |
+| 3.4 | 02/11/2026 | SQLite atualiza um banco antigo na subida (`SqliteSchemaUpgrader`): apagar `zyft-dev.db` só para zerar os dados. Links de verificação de e-mail e de redefinição de senha saem no log da API em Development (`Email:LogLinks`, §2.2), com `App:WebBaseUrl`; endereço sem hash mantém a query (`/redefinir-senha?token=…` → `/#/redefinir-senha?token=…`). Extensão 0.4.1. Problemas comuns: e-mail que não chega, extensão desconectada depois de trocar a senha, conflito ao salvar o perfil. |
 
 > O protótipo Node (`server/`, porta 4317) **não é mais a forma de rodar o Zyft**. A lógica dele foi portada para a API .NET ([ADR-0017](../03-arquitetura/adr/0017-backend-em-csharp-dotnet-clean-architecture.md)) e ele fica só como referência histórica.
 
@@ -73,7 +73,7 @@ Para não criar os usuários de demonstração: `Seed__DemoUser=false dotnet run
 
 ### 2.2 Links de e-mail no desenvolvimento
 
-Não há envio real de e-mail: o `LoggingEmailSender` só escreve o link no log da API, sem o endereço nem o nome da pessoa. Para testar:
+Não há envio real de e-mail: o `LoggingEmailSender` só escreve o link no log da API, sem o endereço nem o nome da pessoa. O link (com o token) só aparece com `Email:LogLinks=true`, que vem ligado em `appsettings.Development.json`; em outro ambiente o log diz só `E-mail de verificação gerado (envio não configurado).` ou `E-mail de redefinição de senha gerado (envio não configurado).`. Para ver o link rodando fora de Development, ligue só na sua máquina: `Email__LogLinks=true` (nunca em Staging ou Production). Para testar:
 
 1. Crie uma conta (ou, logado, use **Reenviar link** no aviso do topo ou em **Conta e privacidade**). No terminal da API aparece `Link de verificação gerado: http://localhost:5080/#/verificar?token=…`. Abra o link: vale 24 horas e uma vez.
 2. Em `#/entrar`, **Esqueci minha senha**, informe o e-mail. No log: `Link de redefinição de senha gerado: http://localhost:5080/#/redefinir-senha?token=…`. Vale 30 minutos e uma vez; pedir de novo invalida o anterior.
@@ -164,7 +164,7 @@ Para usar a extensão em outros sites, ela pede permissão para o site no primei
 | Primeira chamada com IA demora ~40 s | O Ollama está carregando o modelo | Esperado; as seguintes levam segundos |
 | Painel mostra 403 em Analisar vaga ou Sugerir texto | Consentimento desligado | Ligue em **Conta** (ou na tela de boas-vindas) |
 | Painel pede pareamento de novo, com o aviso "Extensão desconectada" | Dispositivo revogado, senha trocada ou redefinida na plataforma, conta excluída ou refresh expirado (7 dias) | Gere outro código na plataforma. API fora do ar ou erro 5xx **não** desconectam (desde a 0.4.1): use "Tentar de novo" |
-| Não chegou o e-mail de confirmação ou de redefinição | Não há envio real de e-mail | Copie o link do log da API (seção 2.2) |
+| Não chegou o e-mail de confirmação ou de redefinição | Não há envio real de e-mail | Copie o link do log da API (seção 2.2). Se o log só diz "envio não configurado", a API não está em Development: rode com `ASPNETCORE_ENVIRONMENT=Development` ou `Email__LogLinks=true` |
 | "Seu perfil foi alterado em outra sessão" ao salvar | Outra aba, outro aparelho ou a extensão salvou o perfil depois que a tela abriu (409 `profile.conflict`) | Esperado: **Recarregar dados mais recentes**, **Sobrescrever mesmo assim** ou **Cancelar** |
 | Extensão não reage após editar o código | Extensão em cache | Recarregue em `chrome://extensions` e recarregue a página |
 | API no WSL e navegador no Windows | `localhost` não encaminhado | Confira o encaminhamento de portas do WSL; use `127.0.0.1` |
