@@ -1,5 +1,5 @@
 // Entrar e criar conta (RF-01). Sem anúncios (contrato v2).
-import { login, register, getSessionNotice, takeReturnRoute } from '../api.js';
+import { login, register, getTermsVersion, getSessionNotice, takeReturnRoute } from '../api.js';
 import { h, clear, field, readForm, showErrors, clearErrors, go, replaceRoute, announce, busy } from '../dom.js';
 import { Icon, Logo, Button } from '../ui.js';
 import * as v from '../validate.js';
@@ -89,15 +89,24 @@ function loginForm() {
   return form;
 }
 
+// Versão dos termos que a pessoa está aceitando: lida ao abrir o cadastro e de novo se a API disser que mudou.
+let termsVersion = null;
+const loadTerms = () => {
+  termsVersion = getTermsVersion().catch((err) => { termsVersion = null; throw err; });
+  return termsVersion;
+};
+
 function signupForm() {
   const submit = Button({ variant: 'primary', type: 'submit' }, 'Criar conta');
-  const terms = h('input', { type: 'checkbox', id: 'terms', name: 'terms', 'aria-describedby': 'terms-err' });
+  // name = acceptTerms: o erro da API (errors.acceptTerms) cai embaixo da caixa, pelo aria-describedby.
+  const terms = h('input', { type: 'checkbox', id: 'terms', name: 'acceptTerms', 'aria-describedby': 'terms-err' });
   const termsErr = h('p', { class: 'zy-tf__error', id: 'terms-err', hidden: true });
   const legalLink = (href, text) => h('a', { href, target: '_blank', rel: 'noopener' }, text, h('span', { class: 'sr-only' }, ' (abre em nova aba)'));
   terms.addEventListener('change', () => {
     termsErr.hidden = true;
     terms.removeAttribute('aria-invalid');
   });
+  if (!termsVersion) loadTerms().catch(() => {}); // falha aqui é tentada de novo ao enviar
   const form = h('form', { novalidate: true, 'aria-labelledby': 'auth-title' },
     h('h1', { id: 'auth-title', class: 'auth__h2' }, 'Crie sua conta'),
     field({ name: 'name', label: 'Nome', required: true, value: draft.name, attrs: { autocomplete: 'name', maxlength: 120 } }),
@@ -105,34 +114,43 @@ function signupForm() {
     // Sem maxlength: o navegador cortaria a senha colada em silêncio. A validação avisa acima de 128.
     field({ name: 'password', label: 'Senha', type: 'password', required: true, hint: 'Pelo menos 8 caracteres, com letra e número.', attrs: { autocomplete: 'new-password' } }),
     h('div', {},
-      h('label', { class: 'check', for: 'terms' }, terms, h('span', {}, 'Li e aceito os ', legalLink('legal/termos.html', 'termos de uso'), ' e a ', legalLink('legal/privacidade.html', 'política de privacidade'), ' do Zyft.')),
+      h('label', { class: 'check', for: 'terms' }, terms, h('span', {}, 'Li e aceito os ', legalLink('legal/termos.html', 'Termos de uso'), ' e a ', legalLink('legal/privacidade.html', 'Política de privacidade'), '.')),
       termsErr),
     submit);
+  const termsError = (msg) => showErrors(form, { acceptTerms: [msg] });
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     return busy(submit, async () => {
     clearErrors(form);
-    termsErr.hidden = true;
     const data = readForm(form);
-    const errors = v.collect({ name: signupName(data.name), email: signupEmail(data.email), password: v.password(form.elements.password.value) });
+    const errors = v.collect({
+      name: signupName(data.name), email: signupEmail(data.email), password: v.password(form.elements.password.value),
+      acceptTerms: terms.checked ? null : 'Para criar a conta, marque que você leu e aceita os Termos de uso e a Política de privacidade.',
+    });
     if (v.hasErrors(errors)) return showErrors(form, errors);
-    if (!terms.checked) {
-      termsErr.textContent = 'Para criar a conta, marque que você leu e aceita os termos.';
-      termsErr.hidden = false;
-      terms.setAttribute('aria-invalid', 'true');
-      terms.focus();
-      return;
+    let version;
+    try { version = await (termsVersion || loadTerms()); } catch {
+      return termsError('Não foi possível carregar a versão atual dos termos. Verifique sua conexão e tente de novo.');
     }
     announce('Criando sua conta…');
     try {
-      await register(data.name, data.email, form.elements.password.value);
+      await register(data.name, data.email, form.elements.password.value, { acceptTerms: true, termsVersion: version });
       draft = { name: '', email: '' };
       takeReturnRoute();
       try { sessionStorage.setItem('zyft.obChecked', '1'); } catch { /* ok */ }
       go('#/boas-vindas');
     } catch (err) {
-      if (err.status === 409) showErrors(form, { email: [err.message] });
-      else showErrors(form, err);
+      if (err.status === 409) return showErrors(form, { email: [err.message] });
+      const termsMsg = err.errors?.termsVersion;
+      if (termsMsg) {
+        // "Informe a versão" ou "termos atualizados": nos dois casos lemos a versão de novo e a pessoa aceita outra vez.
+        // Os termos mudaram enquanto a página estava aberta: a pessoa precisa ler e aceitar a versão nova.
+        terms.checked = false;
+        loadTerms().catch(() => {});
+        const { termsVersion: _, ...rest } = err.errors;
+        return showErrors(form, { ...rest, acceptTerms: ['Os termos foram atualizados enquanto esta página estava aberta. Abra os links acima, leia a versão atual e marque a caixa de novo.'] });
+      }
+      showErrors(form, err);
     }
     });
   });

@@ -54,7 +54,7 @@ const FIELD_LABELS = {
   completedAt: 'Concluído em', hours: 'Carga horária', isCurrent: 'Trabalho atual', question: 'Pergunta', text: 'Texto',
   value: 'Valor', label: 'Nome do campo', period: 'Período', scope: 'Opção', origin: 'Endereço do site', code: 'Código',
   file: 'Arquivo', content: 'Arquivo', fileName: 'Arquivo', granted: 'Consentimento', kind: 'Tipo de dado', maxLength: 'Limite de caracteres',
-  acceptTerms: 'Termos de uso', termsAccepted: 'Termos de uso',
+  acceptTerms: 'Termos de uso', termsAccepted: 'Termos de uso', termsVersion: 'Termos de uso', token: 'Link',
 };
 const SECTION_LABELS = {
   experiences: 'Experiência', educations: 'Formação', courses: 'Curso ou certificação', skills: 'Competência',
@@ -279,8 +279,16 @@ export async function login(email, password) {
   return r;
 }
 
-export async function register(name, email, password) {
-  const r = await api('/auth/register', { method: 'POST', body: { name, email, password }, auth: false });
+/** Versão vigente dos termos de uso e da política de privacidade (GET /auth/terms, público). */
+export async function getTermsVersion() {
+  const r = await api('/auth/terms', { auth: false });
+  if (!r?.version) throw new ApiError(502, { detail: 'Não foi possível carregar a versão dos termos. Tente de novo.' });
+  return r.version;
+}
+
+/** Cadastro com aceite explícito dos termos (`acceptTerms` + `termsVersion` vigente). */
+export async function register(name, email, password, { acceptTerms = false, termsVersion = null } = {}) {
+  const r = await api('/auth/register', { method: 'POST', body: { name, email, password, acceptTerms, termsVersion }, auth: false });
   if (r && r.accessToken) setTokens(r);
   else await login(email, password); // caso o cadastro não devolva tokens
   return r;
@@ -295,3 +303,8 @@ export async function logout() {
   takeReturnRoute();
   setTokens({});
 }
+
+/** Confirma o e-mail com o token do link (público: funciona com ou sem login). */
+export const verifyEmail = (token) => api('/auth/verify', { method: 'POST', body: { token }, auth: false });
+/** Pede um novo link de confirmação para o e-mail da conta (202). */
+export const resendVerification = () => api('/auth/verify/resend', { method: 'POST', body: {} });

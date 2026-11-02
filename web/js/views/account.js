@@ -1,10 +1,11 @@
 // Conta e privacidade: dados da conta, consentimentos (RF-07), exportar e excluir (RF-08). Sem anúncios.
 import { api, download, setTokens } from '../api.js';
-import { h, toast, confirmDialog, fmtDate, go, nextId, busy } from '../dom.js';
-import { Button, PageHead, ConsentRow } from '../ui.js';
+import { h, clear, toast, confirmDialog, fmtDate, go, nextId, busy } from '../dom.js';
+import { Button, PageHead, ConsentRow, StatusBadge } from '../ui.js';
 import { consentRows } from './consents.js';
+import { resendLink } from './verify.js';
 
-export async function render(main) {
+export async function render(main, { refreshMe } = {}) {
   const [me, rows] = await Promise.all([api('/me'), consentRows()]);
 
   const exportBtn = Button({ variant: 'secondary', icon: 'copy' }, 'Baixar meus dados (JSON)');
@@ -31,11 +32,34 @@ export async function render(main) {
     } catch (err) { if (!err.handled) toast(err.message, 'err'); }
   }));
 
+  // Confirmação do e-mail: só informativa, nunca bloqueia nada.
+  const verifyStatus = h('p', { class: 'muted', role: 'status', 'aria-live': 'polite', style: { fontSize: '14px', flexBasis: '100%' } });
+  const verifyCell = h('div', { class: 'verify-status' });
+  const paintVerify = (verified, at) => {
+    if (verified) {
+      clear(verifyCell, StatusBadge({ status: 'ready', label: 'Confirmado', size: 'sm' }), at ? h('span', { class: 'muted', style: { fontSize: '14px' } }, `em ${fmtDate(at)}`) : null, verifyStatus);
+      return;
+    }
+    const resend = Button({ variant: 'secondary', size: 'sm' }, 'Reenviar link de confirmação');
+    resend.addEventListener('click', () => busy(resend, async () => {
+      verifyStatus.textContent = '';
+      const r = await resendLink();
+      if (r.kind === 'verified') {
+        const fresh = await (refreshMe ? refreshMe() : api('/me')).catch(() => null);
+        paintVerify(true, fresh?.emailVerifiedAt);
+      }
+      verifyStatus.textContent = r.message;
+    }));
+    clear(verifyCell, StatusBadge({ status: 'needs', label: 'Não confirmado', size: 'sm' }), resend, verifyStatus);
+  };
+  paintVerify(me.emailVerified !== false, me.emailVerifiedAt);
+
   const info = (k, v) => h('div', { class: 'kv' }, h('span', { class: 'kv__k' }, k), h('span', { class: 'kv__v', style: { fontSize: '15px' } }, v || '—'));
   main.append(h('div', { class: 'content', style: { maxWidth: '820px' } },
     PageHead({ title: 'Conta e privacidade', lead: 'Seus dados são seus. Escolha o que o Zyft pode fazer, baixe tudo ou apague a conta.' }),
     h('section', { class: 'card', 'aria-label': 'Sua conta' }, h('div', { class: 'kv-grid' },
-      info('Nome', me.name), info('E-mail de acesso', me.email), info('Conta criada em', me.createdAt ? fmtDate(me.createdAt) : null))),
+      info('Nome', me.name), info('E-mail de acesso', me.email), info('Conta criada em', me.createdAt ? fmtDate(me.createdAt) : null),
+      h('div', { class: 'kv', style: { gridColumn: '1 / -1' } }, h('span', { class: 'kv__k' }, 'Confirmação do e-mail'), verifyCell))),
     h('section', { class: 'card consents-card', 'aria-labelledby': 'cons-title' },
       h('h2', { class: 'card__title', id: 'cons-title' }, 'Consentimentos'),
       ConsentRow({ title: 'Conta e Perfil Mestre', purpose: 'Guardar seu perfil e preencher formulários só com o que você aprovou.', basis: 'Base legal: execução de contrato (art. 7º, V)', required: true, checked: true }),

@@ -1,7 +1,7 @@
 // Shell da SPA: roteamento por hash, guarda de autenticação, menu lateral (AppNav) e foco acessível.
 import { api, asList, isLoggedIn, logout, onAuthChange, rememberRoute } from './api.js';
 import { $, h, clear, announce, errorBox, loading, busy, replaceRoute, closeModals, confirmDiscard, hasUnsavedModal, hasUnsavedPage, forgetPageGuards, routeNav } from './dom.js';
-import { AppNav, Logo, Button } from './ui.js';
+import { AppNav, Logo, Button, Icon } from './ui.js';
 import { getOnboarding, getBilling } from './store.js';
 import './billing.js'; // registra o diálogo do 402 para todas as telas
 import * as auth from './views/auth.js';
@@ -15,11 +15,14 @@ import * as audit from './views/audit.js';
 import * as account from './views/account.js';
 import * as plans from './views/plans.js';
 import * as notFound from './views/not-found.js';
+import * as verify from './views/verify.js';
 
 // layout: 'public' (entrar), 'full' (onboarding, tela cheia) ou 'app' (com menu lateral).
+// open: tela pública que também vale com login (links de e-mail), sem redirecionar para o perfil.
 const ROUTES = [
   { path: /^\/entrar$/, view: auth, title: 'Entrar', layout: 'public', params: () => ({ mode: 'login' }) },
   { path: /^\/cadastrar$/, view: auth, title: 'Criar conta', layout: 'public', params: () => ({ mode: 'register' }) },
+  { path: /^\/verificar$/, view: verify, title: 'Confirmar e-mail', layout: 'public', open: true },
   { path: /^\/boas-vindas(?:\/([\w-]+))?$/, view: onboarding, title: 'Monte seu passaporte', layout: 'full', params: (m) => ({ step: m[1] }) },
   { path: /^\/perfil$/, view: profile, title: 'Perfil Mestre', nav: 'perfil' },
   { path: /^\/importar$/, view: importer, title: 'Importar currículo', nav: 'importar' },
@@ -119,6 +122,52 @@ function renderSidebar(active) {
   if (focusedHref) sb.querySelector(`a[href="${focusedHref}"]`)?.focus();
 }
 
+// ---------- Aviso de e-mail não confirmado ----------
+// Só informa: nunca bloqueia rota nem ação. "Agora não" esconde até fechar a aba.
+const VERIFY_HIDDEN = 'zyft.verifyBannerHidden';
+const bannerHidden = () => { try { return sessionStorage.getItem(VERIFY_HIDDEN) === '1'; } catch { return false; } };
+
+/** Relê /me (ex.: depois de confirmar o e-mail) e atualiza o menu e o aviso. */
+async function refreshMe() {
+  const fresh = await loadMe(true);
+  if (!$('#sidebar').hidden) { repaintSidebar(); paintVerifyBanner(); }
+  return fresh;
+}
+
+function paintVerifyBanner() {
+  const main = $('#main');
+  const current = $('#verify-banner', main);
+  const show = me && me.emailVerified === false && !bannerHidden() && !$('#sidebar').hidden;
+  if (!show) { current?.remove(); return; }
+  if (current) { main.prepend(current); return; } // mantém o que a pessoa já viu (ex.: "link enviado")
+  const status = h('p', { class: 'verify-banner__status', role: 'status', 'aria-live': 'polite' });
+  const resend = Button({ variant: 'secondary', size: 'sm' }, 'Reenviar link');
+  const dismiss = Button({ variant: 'quiet', size: 'sm', 'aria-label': 'Agora não: esconder o aviso de confirmação de e-mail até fechar a aba' }, 'Agora não');
+  const banner = h('section', { id: 'verify-banner', class: 'notice notice--warm verify-banner', 'aria-label': 'Confirmação de e-mail' },
+    Icon('alert', { size: 16 }),
+    h('p', {}, h('strong', {}, 'Confirme seu e-mail. '),
+      'Enviamos um link para ', h('b', {}, me.email || 'o seu e-mail'), '. Você pode usar o Zyft normalmente enquanto isso; a confirmação ajuda a recuperar a conta se você esquecer a senha.'),
+    h('div', { class: 'verify-banner__actions' }, resend, dismiss),
+    status);
+  resend.addEventListener('click', () => busy(resend, async () => {
+    status.textContent = '';
+    const r = await verify.resendLink();
+    status.textContent = r.message;
+    if (r.kind === 'verified') {
+      await refreshMe().catch(() => {});
+      announce(r.message);
+    }
+  }));
+  dismiss.addEventListener('click', () => {
+    try { sessionStorage.setItem(VERIFY_HIDDEN, '1'); } catch { /* ok */ }
+    banner.remove();
+    const h1 = $('#main h1');
+    if (h1) { h1.setAttribute('tabindex', '-1'); h1.focus(); } else $('#main').focus();
+    announce('Aviso escondido. Você pode confirmar o e-mail depois em Conta e privacidade.');
+  });
+  main.prepend(banner);
+}
+
 export function go(hash) {
   if (location.hash === hash) route();
   else location.hash = hash;
@@ -139,7 +188,10 @@ async function needsOnboarding() {
 let renderSeq = 0;
 async function route() {
   const raw = location.hash.replace(/^#/, '');
-  const path = raw.replace(/\/+$/, '').toLowerCase() || '/perfil';
+  // "?token=…" fica fora da comparação de rota e nunca é convertido para minúsculas.
+  const qAt = raw.indexOf('?');
+  const query = new URLSearchParams(qAt >= 0 ? raw.slice(qAt + 1) : '');
+  const path = (qAt >= 0 ? raw.slice(0, qAt) : raw).replace(/\/+$/, '').toLowerCase() || '/perfil';
   // Rota desconhecida mostra o 404 no próprio endereço (com menu se houver login), sem redirecionar.
   const match = ROUTES.map((r) => ({ r, m: path.match(r.path) })).find((x) => x.m)
     || { r: { view: notFound, title: 'Página não encontrada', layout: isLoggedIn() ? 'app' : 'public', notFound: true }, m: [] };
@@ -150,7 +202,7 @@ async function route() {
     rememberRoute(location.hash);
     return replaceRoute('#/entrar');
   }
-  if (isPublic && isLoggedIn() && !r.notFound) return replaceRoute('#/perfil');
+  if (isPublic && isLoggedIn() && !r.notFound && !r.open) return replaceRoute('#/perfil');
 
   const seq = ++renderSeq;
   const main = $('#main');
@@ -166,7 +218,7 @@ async function route() {
   const stage = h('div', { class: 'route-stage' });
   const loader = withNav ? h('div', { class: 'content' }, loading()) : loading();
   clear(main, stage, loader);
-  if (withNav) renderSidebar(r.nav); // o menu e o Sair existem mesmo se /me falhar ou demorar
+  if (withNav) { renderSidebar(r.nav); paintVerifyBanner(); } // o menu e o Sair existem mesmo se /me falhar ou demorar
 
   let failed = false;
   try {
@@ -176,11 +228,12 @@ async function route() {
       if (seq !== renderSeq) return;
       if (withNav) {
         renderSidebar(r.nav);
+        paintVerifyBanner();
         loadShellData().then(() => { if (seq === renderSeq) renderSidebar(r.nav); });
       }
     }
     if (seq !== renderSeq) return;
-    await r.view.render(stage, { ...(r.params ? r.params(m) : {}), me, refreshShell });
+    await r.view.render(stage, { ...(r.params ? r.params(m) : {}), query, me, refreshShell, refreshMe });
     if (seq === renderSeq) loader.remove();
   } catch (err) {
     if (seq !== renderSeq) return;
@@ -238,6 +291,7 @@ onAuthChange((logged, reason) => {
   me = null; setAppCount(null); plan = null;
   try {
     sessionStorage.removeItem(OB_CHECK);
+    sessionStorage.removeItem(VERIFY_HIDDEN);
     // Sair não deixa dado pessoal no navegador (aba e localStorage, onde fica o rascunho do onboarding).
     // Em sessão expirada, o rascunho fica para a mesma pessoa retomar.
     if (reason !== 'expired') {

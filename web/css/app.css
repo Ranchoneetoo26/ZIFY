@@ -189,6 +189,9 @@ dialog.modal::backdrop { background: rgba(10, 24, 28, .55); }
 .auth .check input { margin-top: 1px; }
 .auth__note { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 18px; color: var(--ink-muted); }
 .auth__note svg { margin-top: 2px; }
+.auth__actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.auth__box > .logo-pic { align-self: flex-start; }
+.auth__link { font-size: 14px; align-self: flex-start; }
 /* Com as colunas empilhadas, o formulário precisa aparecer na primeira tela. */
 @media (max-width: 959px) {
   .auth { flex-direction: column; flex-wrap: nowrap; }
@@ -502,3 +505,11 @@ details.howto p { margin-top: 8px; }
 /* Espaços que ficam vazios (sem pendentes, sem anúncio) não abrem buraco no layout */
 .content > div:empty, .profile-aside > div:empty { display: none; }
 .sidebar__user .zy-btn { align-self: flex-start; padding-left: 0; }
+
+/* ---------- Aviso de e-mail não confirmado (só informativo, nunca bloqueia) ---------- */
+.verify-banner { max-width: 900px; margin-bottom: var(--space-5); }
+.verify-banner > p { flex: 1 1 220px; overflow-wrap: anywhere; }
+.verify-banner__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.verify-banner__status { flex-basis: 100%; margin: 0; }
+.verify-banner__status:empty { display: none; }
+.verify-status { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
