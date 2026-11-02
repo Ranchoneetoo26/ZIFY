@@ -398,6 +398,8 @@ export function closeModals() {
  * botões já montados. Devolve { dlg, close }. Esc e "Fechar" chamam onClose.
  * Com <form> no corpo, Esc, ✕ e o botão "Cancelar" perguntam antes de descartar o que mudou;
  * `confirmOnDiscard: false` desliga. `close()` chamado pela tela (ex.: depois de salvar) nunca pergunta.
+ * Enquanto um botão do modal está com aria-busy (pedido em andamento, ver `busy()`), Esc e ✕ não fecham:
+ * o resultado (sucesso ou erro no campo) precisa de onde aparecer.
  */
 export function modal({ title, body, actions = [], onClose, wide = false, label, confirmOnDiscard = true }) {
   const titleId = nextId('dlg');
@@ -424,8 +426,11 @@ export function modal({ title, body, actions = [], onClose, wide = false, label,
     onClose?.(v);
   };
   const entry = { dlg, close, isDirty };
+  const isBusy = () => Boolean(dlg.querySelector('[aria-busy="true"]'));
   const tryClose = async () => {
+    if (isBusy()) { toast('Aguarde: estamos salvando. Assim que terminar, você vê o resultado aqui.'); return; }
     if (isDirty() && !(await confirmDiscard())) return;
+    if (isBusy()) return; // a pessoa decidiu enquanto um pedido começou: espera ele terminar
     close(false);
   };
   closeBtn.addEventListener('click', tryClose);
@@ -433,7 +438,7 @@ export function modal({ title, body, actions = [], onClose, wide = false, label,
   // Sem gesto recente, o navegador fecha no segundo Esc sem disparar `cancel` cancelável.
   dlg.addEventListener('close', () => {
     if (closed) return;
-    if (isDirty()) { dlg.showModal(); tryClose(); } else close(false);
+    if (isDirty() || isBusy()) { dlg.showModal(); tryClose(); } else close(false);
   });
   actions.find((b) => b.textContent.trim() === 'Cancelar')?.addEventListener('click', (e) => {
     if (!isDirty()) return;

@@ -2,7 +2,7 @@
 // linha do tempo, competências com sugestões da área, idiomas, formação e cursos, informações da
 // área (campos personalizados), dados sensíveis trancados e um card de anúncio na coluna.
 import { api, asList } from '../api.js';
-import { h, clear, field, readForm, showErrors, clearErrors, toast, announce, confirmDialog, modal, nextId, fmtDate, fmtMoney, safeUrl } from '../dom.js';
+import { h, clear, field, readForm, showErrors, clearErrors, toast, announce, confirmDialog, modal, nextId, fmtDate, fmtMoney, safeUrl, busy } from '../dom.js';
 import { Button, LinkButton, Icon, Card, Chip, Stamp, SensitiveValue, PageHead, initials } from '../ui.js';
 import { adSlot, PLACEMENTS } from '../ads.js';
 import { loadAreas, findArea, areaOrOther, OTHER } from '../catalog.js';
@@ -32,6 +32,7 @@ const kindLabel = (k) => labelOf(SENSITIVE_KINDS, k) || String(k);
 const LOCKED = '••••••••'; // tamanho fixo: trancado não revela nem a primeira letra nem o comprimento
 const setSaving = (save, cancel, on) => {
   save.disabled = on;
+  if (on) save.setAttribute('aria-busy', 'true'); else save.removeAttribute('aria-busy'); // o modal não fecha por Esc ou ✕ enquanto salva (dom.js)
   cancel.disabled = on;
   if (on) { save.dataset.label = save.textContent; save.textContent = 'Salvando…'; } else if (save.dataset.label) save.textContent = save.dataset.label;
 };
@@ -322,10 +323,11 @@ export async function render(main) {
     const m = modal({ title: isNew ? `Adicionar ${s.singular}` : `Editar ${s.singular}`, body: form, actions: [save, cancel, del].filter(Boolean), wide: key === 'experiences' });
     cancel.addEventListener('click', () => m.close());
     del?.addEventListener('click', async () => {
+      if (del.getAttribute('aria-busy') === 'true') return; // exclusão já em andamento
       const title = s.summary(item).title;
       if (!(await confirmDialog({ title: `Excluir ${s.singular}?`, message: `“${title}” sai do seu Perfil Mestre.`, confirmText: 'Excluir', danger: true }))) return;
       try {
-        await api(`${s.endpoint}/${encodeURIComponent(item.id)}`, { method: 'DELETE' });
+        await busy(del, () => api(`${s.endpoint}/${encodeURIComponent(item.id)}`, { method: 'DELETE' }));
         m.close();
         toast('Item excluído do perfil.');
         await reload(`#${focusId}`);
@@ -574,8 +576,9 @@ export async function render(main) {
     const m = modal({ title: isNew ? 'Adicionar dado sensível' : 'Editar dado sensível', body: form, actions: [save, cancel, del].filter(Boolean) });
     cancel.addEventListener('click', () => m.close());
     del?.addEventListener('click', async () => {
+      if (del.getAttribute('aria-busy') === 'true') return; // exclusão já em andamento
       if (!(await confirmDialog({ title: 'Apagar este dado?', message: `${kindLabel(item.kind)} será apagado de vez.`, confirmText: 'Apagar', danger: true }))) return;
-      try { await api(`/sensitive-data/${item.id}`, { method: 'DELETE' }); m.close(); await loadSensitive(); paintMainCol('#sens-title'); toast('Dado sensível apagado.'); } catch (err) { if (!err.handled) showErrors(form, err); }
+      try { await busy(del, () => api(`/sensitive-data/${item.id}`, { method: 'DELETE' })); m.close(); await loadSensitive(); paintMainCol('#sens-title'); toast('Dado sensível apagado.'); } catch (err) { if (!err.handled) showErrors(form, err); }
     });
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
