@@ -513,3 +513,7 @@ details.howto p { margin-top: 8px; }
 .verify-banner__status { flex-basis: 100%; margin: 0; }
 .verify-banner__status:empty { display: none; }
 .verify-status { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+
+/* ---------- Senha (troca na Conta, redefinição) ---------- */
+.pw-form { max-width: 440px; }
+.pw-toggle { align-self: flex-start; }

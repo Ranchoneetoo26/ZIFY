@@ -54,7 +54,7 @@ const FIELD_LABELS = {
   completedAt: 'Concluído em', hours: 'Carga horária', isCurrent: 'Trabalho atual', question: 'Pergunta', text: 'Texto',
   value: 'Valor', label: 'Nome do campo', period: 'Período', scope: 'Opção', origin: 'Endereço do site', code: 'Código',
   file: 'Arquivo', content: 'Arquivo', fileName: 'Arquivo', granted: 'Consentimento', kind: 'Tipo de dado', maxLength: 'Limite de caracteres',
-  acceptTerms: 'Termos de uso', termsAccepted: 'Termos de uso', termsVersion: 'Termos de uso', token: 'Link',
+  acceptTerms: 'Termos de uso', termsAccepted: 'Termos de uso', termsVersion: 'Termos de uso', token: 'Link', confirmPassword: 'Confirme a nova senha',
 };
 const SECTION_LABELS = {
   experiences: 'Experiência', educations: 'Formação', courses: 'Curso ou certificação', skills: 'Competência',
@@ -308,3 +308,17 @@ export async function logout() {
 export const verifyEmail = (token) => api('/auth/verify', { method: 'POST', body: { token }, auth: false });
 /** Pede um novo link de confirmação para o e-mail da conta (202). */
 export const resendVerification = () => api('/auth/verify/resend', { method: 'POST', body: {} });
+
+/**
+ * Troca a senha (POST /auth/password). A API devolve um par de tokens NOVO e revoga todas as outras sessões
+ * (inclusive o refresh token antigo desta aba e as extensões pareadas): guardamos o par novo na hora.
+ */
+export async function changePassword(currentPassword, newPassword) {
+  const r = await api('/auth/password', { method: 'POST', body: { currentPassword, newPassword } });
+  if (r?.accessToken) setTokens(r);
+  return r;
+}
+/** Pede o link de redefinição. A API responde 202 exista ou não a conta (sem enumeração). */
+export const forgotPassword = (email) => api('/auth/password/forgot', { method: 'POST', body: { email }, auth: false });
+/** Redefine a senha com o token do link (204). Não faz login. */
+export const resetPassword = (token, newPassword) => api('/auth/password/reset', { method: 'POST', body: { token, newPassword }, auth: false });

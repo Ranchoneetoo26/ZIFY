@@ -57,14 +57,22 @@ export function render(main, { mode }) {
         h('p', { class: 'auth__note' }, Icon('shield', { size: 14 }), h('span', {}, 'O Zyft nunca pede a senha dos portais e nunca envia uma candidatura por você.'))))));
 }
 
+// Aviso de uma tela pública para o próximo Entrar (ex.: "Senha redefinida"), mostrado uma vez.
+let flash = '';
+export const flashLogin = (msg) => { flash = msg || ''; };
+
 function loginForm() {
   const submit = Button({ variant: 'primary', type: 'submit' }, 'Entrar');
   const notice = getSessionNotice();
+  const done = flash;
+  flash = '';
   const form = h('form', { novalidate: true, 'aria-labelledby': 'auth-title' },
     h('h1', { id: 'auth-title', class: 'auth__h2' }, 'Que bom ver você de novo'),
-    notice ? h('p', { class: 'notice notice--care', role: 'status' }, Icon('alert', { size: 14 }), h('span', {}, notice)) : null,
+    done ? h('p', { class: 'notice notice--warm', role: 'status' }, Icon('check', { size: 14 }), h('span', {}, done)) : null,
+    notice && !done ? h('p', { class: 'notice notice--care', role: 'status' }, Icon('alert', { size: 14 }), h('span', {}, notice)) : null,
     field({ name: 'email', label: 'E-mail', type: 'email', required: true, value: draft.email, attrs: { autocomplete: 'email', inputmode: 'email', maxlength: 254 } }),
     field({ name: 'password', label: 'Senha', type: 'password', required: true, attrs: { autocomplete: 'current-password' } }),
+    h('a', { href: '#/esqueci-senha', class: 'auth__link' }, 'Esqueci minha senha'),
     submit);
   form.addEventListener('submit', (e) => {
     e.preventDefault();

@@ -1,9 +1,11 @@
 // Conta e privacidade: dados da conta, consentimentos (RF-07), exportar e excluir (RF-08). Sem anúncios.
-import { api, download, setTokens } from '../api.js';
-import { h, clear, toast, confirmDialog, fmtDate, go, nextId, busy } from '../dom.js';
+import { api, download, setTokens, changePassword } from '../api.js';
+import { h, clear, toast, confirmDialog, fmtDate, go, nextId, busy, showErrors, clearErrors, guardPage, announce } from '../dom.js';
 import { Button, PageHead, ConsentRow, StatusBadge } from '../ui.js';
 import { consentRows } from './consents.js';
 import { resendLink } from './verify.js';
+import { passwordFields, checkNewPassword } from './password.js';
+import * as v from '../validate.js';
 
 export async function render(main, { refreshMe } = {}) {
   const [me, rows] = await Promise.all([api('/me'), consentRows()]);
@@ -54,12 +56,40 @@ export async function render(main, { refreshMe } = {}) {
   };
   paintVerify(me.emailVerified !== false, me.emailVerifiedAt);
 
+  // Alterar senha: a API devolve tokens novos (guardados por changePassword) e desconecta o resto.
+  const pw = passwordFields({ current: true });
+  const pwSubmit = Button({ variant: 'primary', type: 'submit' }, 'Alterar senha');
+  const pwForm = h('form', { novalidate: true, class: 'stack pw-form', 'aria-labelledby': 'pw-title' },
+    h('h2', { class: 'card__title', id: 'pw-title' }, 'Alterar senha'),
+    h('p', { class: 'card__sub' }, 'Ao alterar, as outras sessões abertas e a extensão são desconectadas. Esta aba continua conectada.'),
+    ...pw.nodes, h('div', {}, pwSubmit));
+  guardPage(pwForm, () => pw.inputs.some((i) => i.value));
+  pwForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    return busy(pwSubmit, async () => {
+      clearErrors(pwForm);
+      const errors = checkNewPassword(pwForm);
+      if (v.hasErrors(errors)) return showErrors(pwForm, errors);
+      try {
+        await changePassword(pwForm.elements.currentPassword.value, pwForm.elements.newPassword.value);
+        for (const i of pw.inputs) i.value = '';
+        pw.hide();
+        toast('Senha alterada. Outras sessões e a extensão foram desconectadas.', 'ok');
+        announce('Senha alterada. Outras sessões e a extensão foram desconectadas.');
+      } catch (err) {
+        if (err.status === 429) showErrors(pwForm, null, 'Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente de novo.');
+        else if (!err.handled) showErrors(pwForm, err);
+      }
+    });
+  });
+
   const info = (k, v) => h('div', { class: 'kv' }, h('span', { class: 'kv__k' }, k), h('span', { class: 'kv__v', style: { fontSize: '15px' } }, v || '—'));
   main.append(h('div', { class: 'content', style: { maxWidth: '820px' } },
     PageHead({ title: 'Conta e privacidade', lead: 'Seus dados são seus. Escolha o que o Zyft pode fazer, baixe tudo ou apague a conta.' }),
     h('section', { class: 'card', 'aria-label': 'Sua conta' }, h('div', { class: 'kv-grid' },
       info('Nome', me.name), info('E-mail de acesso', me.email), info('Conta criada em', me.createdAt ? fmtDate(me.createdAt) : null),
       h('div', { class: 'kv', style: { gridColumn: '1 / -1' } }, h('span', { class: 'kv__k' }, 'Confirmação do e-mail'), verifyCell))),
+    h('section', { class: 'card', 'aria-labelledby': 'pw-title' }, pwForm),
     h('section', { class: 'card consents-card', 'aria-labelledby': 'cons-title' },
       h('h2', { class: 'card__title', id: 'cons-title' }, 'Consentimentos'),
       ConsentRow({ title: 'Conta e Perfil Mestre', purpose: 'Guardar seu perfil e preencher formulários só com o que você aprovou.', basis: 'Base legal: execução de contrato (art. 7º, V)', required: true, checked: true }),

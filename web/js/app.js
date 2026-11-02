@@ -16,6 +16,7 @@ import * as account from './views/account.js';
 import * as plans from './views/plans.js';
 import * as notFound from './views/not-found.js';
 import * as verify from './views/verify.js';
+import * as password from './views/password.js';
 
 // layout: 'public' (entrar), 'full' (onboarding, tela cheia) ou 'app' (com menu lateral).
 // open: tela pública que também vale com login (links de e-mail), sem redirecionar para o perfil.
@@ -23,6 +24,8 @@ const ROUTES = [
   { path: /^\/entrar$/, view: auth, title: 'Entrar', layout: 'public', params: () => ({ mode: 'login' }) },
   { path: /^\/cadastrar$/, view: auth, title: 'Criar conta', layout: 'public', params: () => ({ mode: 'register' }) },
   { path: /^\/verificar$/, view: verify, title: 'Confirmar e-mail', layout: 'public', open: true },
+  { path: /^\/esqueci-senha$/, view: password, title: 'Esqueci minha senha', layout: 'public', params: () => ({ mode: 'forgot' }) },
+  { path: /^\/redefinir-senha$/, view: password, title: 'Redefinir senha', layout: 'public', open: true, params: () => ({ mode: 'reset' }) },
   { path: /^\/boas-vindas(?:\/([\w-]+))?$/, view: onboarding, title: 'Monte seu passaporte', layout: 'full', params: (m) => ({ step: m[1] }) },
   { path: /^\/perfil$/, view: profile, title: 'Perfil Mestre', nav: 'perfil' },
   { path: /^\/importar$/, view: importer, title: 'Importar currículo', nav: 'importar' },
