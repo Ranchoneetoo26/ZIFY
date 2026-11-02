@@ -51,33 +51,54 @@ async function rawFetch(method, path, body, token) {
   return { ok: false, status: res.status, problem };
 }
 
+// A conta desconectou esta extensão (senha alterada ou redefinida, navegador desconectado na plataforma, conta
+// excluída ou conexão expirada). O motivo fica guardado para o painel explicar mesmo se for aberto depois.
+const DISCONNECTED = {
+  title: 'Extensão desconectada',
+  detail: 'A sua conta desconectou esta extensão. Isso acontece quando a senha é alterada ou redefinida, quando este navegador é desconectado na plataforma ou quando a conexão expira. Para continuar, gere um código em "Conectar um navegador", na tela Extensão da plataforma, e conecte de novo.',
+};
+
 let refreshing = null;
+/**
+ * Renova o par de tokens. Resolve { ok: true } ou { ok: false, revoked, status, problem }.
+ * Só 401/403 (sessão revogada ou expirada) contam como desconexão; erro passageiro (rede, 5xx, 429) mantém os tokens.
+ */
 async function refresh() {
   // Uma renovação por vez (o refresh token é rotativo: reuso revoga a cadeia).
   if (!refreshing) {
     refreshing = (async () => {
       const rt = await getRefresh();
-      if (!rt) return false;
+      if (!rt) return { ok: false, revoked: true, status: 401 };
       const r = await rawFetch('POST', '/api/v1/auth/refresh', { refreshToken: rt });
-      if (!r.ok || !r.data) { await clearTokens(); return false; }
-      await saveTokens(r.data);
-      return true;
+      if (r.ok && r.data) { await saveTokens(r.data); return { ok: true }; }
+      return { ok: false, revoked: r.status === 401 || r.status === 403, status: r.status, problem: r.problem };
     })().finally(() => { refreshing = null; });
   }
   return refreshing;
 }
 
+async function disconnected() {
+  await clearTokens();
+  await chrome.storage.local.set({ disconnected: { at: Date.now() } });
+  return { ok: false, status: 401, paired: false, revoked: true, problem: { ...DISCONNECTED } };
+}
+
+/** Falha passageira na renovação: a extensão continua conectada e o painel oferece "Tentar de novo". */
+const transient = (rf) => ({ ok: false, status: rf.status || 0, problem: rf.problem || { title: 'Sem conexão', detail: 'Não foi possível renovar o acesso agora. Tente de novo em instantes.' } });
+
 async function callApi(method, path, body) {
   let token = await getAccess();
-  if (!token && (await getRefresh())) { if (await refresh()) token = await getAccess(); }
+  if (!token && (await getRefresh())) {
+    const rf = await refresh();
+    if (!rf.ok) return rf.revoked ? disconnected() : transient(rf);
+    token = await getAccess();
+  }
   let r = await rawFetch(method, path, body, token);
   if (r.status === 401) {
-    if (await refresh()) r = await rawFetch(method, path, body, await getAccess());
-    if (r.status === 401) {
-      await clearTokens();
-      r.paired = false;
-      r.problem = { title: 'Extensão desconectada', detail: 'A conexão com a sua conta expirou ou foi revogada. Conecte de novo com um código gerado na plataforma.' };
-    }
+    const rf = await refresh();
+    if (!rf.ok) return rf.revoked ? disconnected() : transient(rf);
+    r = await rawFetch(method, path, body, await getAccess());
+    if (r.status === 401) return disconnected();
   }
   return r;
 }
@@ -89,11 +110,14 @@ async function pair(code, deviceName) {
   await saveTokens(r.data?.tokens || r.data || {});
   const deviceId = r.data?.device?.id ?? r.data?.deviceId;
   if (deviceId) await chrome.storage.local.set({ deviceId });
+  await chrome.storage.local.remove('disconnected');
   return { ok: true, status: r.status, data: { paired: true } };
 }
 
 async function status() {
-  return { ok: true, data: { paired: !!(await getRefresh()) || !!(await getAccess()), apiBase: await apiBase() } };
+  const paired = !!(await getRefresh()) || !!(await getAccess());
+  const { disconnected: d } = await chrome.storage.local.get('disconnected');
+  return { ok: true, data: { paired, apiBase: await apiBase(), disconnected: !paired && d ? { ...DISCONNECTED, at: d.at } : null } };
 }
 
 async function unpair() {
@@ -102,6 +126,7 @@ async function unpair() {
   try { await rawFetch('DELETE', '/api/v1/extension/devices/current', undefined, await getAccess()); } catch { /* segue */ }
   if (rt) await rawFetch('POST', '/api/v1/auth/logout', { refreshToken: rt }, await getAccess());
   await clearTokens();
+  await chrome.storage.local.remove('disconnected'); // saída pedida pela pessoa: sem aviso de desconexão
   return { ok: true, data: { paired: false } };
 }
 

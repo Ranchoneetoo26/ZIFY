@@ -173,7 +173,8 @@ const bg = (msg) => chrome.runtime.sendMessage(msg);
 async function apiRaw(method, path, body) {
   const r = await bg({ type: 'api', method, path: `/api/v1${path}`, body });
   if (!r) return { ok: false, status: 0, problem: { title: 'Erro interno', detail: 'O serviço da extensão não respondeu.' } };
-  if (r.paired === false) showPair();
+  // Desconectada pela conta (ex.: senha alterada): a tela de pareamento explica o motivo e o caminho.
+  if (r.paired === false) showPair(r.revoked ? r.problem : null);
   return r;
 }
 async function api(method, path, body) {
@@ -306,7 +307,11 @@ function defaultDeviceName() {
   return `${browser} no ${os}`;
 }
 
-function showPair() {
+/** `notice`: { title, detail } quando a conta desconectou a extensão (senha alterada, navegador removido…). */
+function showPair(notice = null) {
+  const wasPairing = !$('#view-pair').hidden;
+  if (notice && wasPairing && $('#view-pair .pair-notice')) return; // já explicando: não redesenha o que a pessoa digita
+  if (notice) status(''); // o aviso abaixo substitui o erro genérico da chamada que falhou
   $('#view-main').hidden = true;
   $('#btn-settings').hidden = true;
   $('#settings').hidden = true;
@@ -353,9 +358,14 @@ function showPair() {
     status('Extensão conectada à sua conta.', 'ok');
     showMain();
   });
+  const noticeBox = notice ? h('div', { class: 'status err pair-notice', role: 'alert' },
+    h('p', { class: 'err-title' }, icon('alert', 14), notice.title || 'Extensão desconectada'),
+    h('p', { class: 'small' }, notice.detail),
+    h('button', { type: 'button', class: 'zy-link', onclick: () => openUrl(platformUrl('extensao')) }, 'Abrir "Conectar um navegador" na plataforma')) : null;
   v.append(
     h('div', { class: 'pad grow', style: 'padding:24px 16px; gap:16px' },
-      h('h1', { class: 'h1', id: 'pair-title' }, 'Conecte este navegador à sua conta'),
+      noticeBox,
+      h('h1', { class: 'h1', id: 'pair-title' }, notice ? 'Conecte este navegador de novo' : 'Conecte este navegador à sua conta'),
       h('p', { class: 'muted' }, 'Na plataforma, abra Extensão e gere um código de pareamento. Ele vale por 10 minutos.'),
       form,
       h('details', { class: 'adjust', style: 'margin-top:auto' }, h('summary', {}, 'Ajustes'), h('div', { class: 'stack' }, settingsForm({ withUnpair: false })))),
@@ -476,7 +486,8 @@ function usageBlock() {
     return wrap;
   }
   const bonus = a.bonus || 0;
-  const packs = (b.packs || []).reduce((s, p) => s + (p.assistedRemaining || 0), 0);
+  // packTotals: soma dos pacotes ativos calculada pela API (listas antigas sem o campo somam os pacotes).
+  const packs = b.packTotals?.assistedRemaining ?? (b.packs || []).reduce((s, p) => s + (p.assistedRemaining || 0), 0);
   const notes = [`O contador recomeça em 1º de ${next}.`];
   if (bonus) notes.push(`Inclui +${bonus} de bônus.`);
   if (packs) notes.push(`Pacote avulso: +${packs} disponíveis.`);
@@ -1359,5 +1370,5 @@ chrome.tabs.onUpdated.addListener((id, info) => { if (id === S.tab?.id && info.s
 (async function init() {
   const st = await bg({ type: 'status' });
   if (st?.data?.apiBase) S.apiBase = st.data.apiBase;
-  if (st?.data?.paired) showMain(); else showPair();
+  if (st?.data?.paired) showMain(); else showPair(st?.data?.disconnected || null);
 })();
