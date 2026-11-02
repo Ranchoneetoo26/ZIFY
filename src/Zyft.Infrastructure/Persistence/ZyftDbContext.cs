@@ -21,6 +21,7 @@ public sealed class ZyftDbContext(DbContextOptions<ZyftDbContext> options, ICloc
 {
     public DbSet<User> Users => Set<User>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<UserToken> UserTokens => Set<UserToken>();
     public DbSet<Consent> Consents => Set<Consent>();
     public DbSet<Profile> Profiles => Set<Profile>();
     public DbSet<Experience> Experiences => Set<Experience>();

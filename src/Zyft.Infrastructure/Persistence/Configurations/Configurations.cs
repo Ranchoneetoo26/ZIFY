@@ -44,6 +44,19 @@ internal sealed class RefreshTokenConfig : IEntityTypeConfiguration<RefreshToken
     }
 }
 
+internal sealed class UserTokenConfig : IEntityTypeConfiguration<UserToken>
+{
+    public void Configure(EntityTypeBuilder<UserToken> b)
+    {
+        b.ToTable("UserTokens");
+        b.Property(x => x.Purpose).HasConversion<string>().HasMaxLength(30);
+        b.Property(x => x.TokenHash).HasMaxLength(64).IsRequired();
+        b.HasIndex(x => x.TokenHash).IsUnique();
+        b.HasIndex(x => new { x.UserId, x.Purpose });
+        b.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
 internal sealed class ConsentConfig : IEntityTypeConfiguration<Consent>
 {
     public void Configure(EntityTypeBuilder<Consent> b)

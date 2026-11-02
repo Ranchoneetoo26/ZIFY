@@ -13,7 +13,10 @@ namespace Zyft.Application.Auth;
 
 // ------------------------------------------------------------------ cadastro
 
-/// <summary>Cria a conta, o Perfil Mestre vazio e os consentimentos padrão; já devolve tokens (scope=web).</summary>
+/// <summary>
+/// Cria a conta, o Perfil Mestre vazio e os consentimentos padrão; já devolve tokens (scope=web) e envia o link de
+/// confirmação de e-mail (o e-mail não verificado não bloqueia nenhuma rota).
+/// </summary>
 public sealed record RegisterCommand(string Name, string Email, string Password) : IRequest<AuthResult>;
 
 public sealed class RegisterValidator : AbstractValidator<RegisterCommand>
@@ -31,8 +34,11 @@ public sealed class RegisterHandler(
     IRepository<Consent> consents,
     IRepository<AuditEvent> audit,
     IProfileRepository profiles,
+    IRepository<UserToken> userTokens,
     IPasswordHasher hasher,
     IAuthTokenIssuer issuer,
+    ITokenService tokenService,
+    IEmailSender emailSender,
     IUnitOfWork uow,
     IClock clock) : IRequestHandler<RegisterCommand, AuthResult>
 {
@@ -47,8 +53,11 @@ public sealed class RegisterHandler(
         profiles.Add(Profile.CreateFor(user.Id, user.Name, user.Email));
         consents.AddRange(Consent.Defaults(user.Id));
         audit.Add(AuditEvent.Record(user.Id, AuditActions.AccountCreated, clock.UtcNow));
+        var verification = await UserTokens.IssueAsync(userTokens, tokenService, clock.UtcNow, user.Id, UserTokenPurpose.EmailVerification, UserTokens.EmailVerificationLifetime, ct);
         var result = issuer.Issue(user);
         await uow.SaveChangesAsync(ct);
+        // E-mail não verificado não bloqueia nada (só informativo): a conta já sai com tokens.
+        await emailSender.SendEmailVerificationAsync(user.Email, user.Name, verification, ct);
         return result;
     }
 }

@@ -100,3 +100,13 @@ public interface ILlmClient
 }
 
 public sealed class LlmUnavailableException(string message, Exception? inner = null) : Exception(message, inner);
+
+/// <summary>
+/// Envio de e-mails da conta. A implementação monta o link para a plataforma web (<c>App:WebBaseUrl</c>); o token
+/// vai aberto só no link. Nunca registre o endereço de e-mail em log (RNF-09).
+/// </summary>
+public interface IEmailSender
+{
+    /// <summary>Envia o link de confirmação de e-mail (<c>/#/verificar?token=...</c>).</summary>
+    Task SendEmailVerificationAsync(string toEmail, string name, string token, CancellationToken ct = default);
+}

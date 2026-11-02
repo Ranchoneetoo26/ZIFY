@@ -15,7 +15,9 @@ public static class DatabaseInitializer
 {
     /// <summary>
     /// PostgreSQL: aplica as migrations (<c>Database.Migrate</c>). SQLite: <c>EnsureCreated</c> — as migrations são
-    /// específicas do provedor (tipos, índices) e o SQLite serve só para desenvolvimento rápido e testes.
+    /// específicas do provedor (tipos, índices) e o SQLite serve só para desenvolvimento rápido e testes — seguido da
+    /// atualização aditiva (<see cref="SqliteSchemaUpgrader"/>), para um banco de desenvolvimento antigo ganhar as
+    /// tabelas e colunas novas sem precisar ser apagado.
     /// </summary>
     public static async Task InitializeAsync(IServiceProvider services, IConfiguration config, bool seedDemo, CancellationToken ct = default)
     {
@@ -23,7 +25,11 @@ public static class DatabaseInitializer
         var db = scope.ServiceProvider.GetRequiredService<ZyftDbContext>();
         var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Zyft.Database");
 
-        if (db.Database.IsSqlite()) await db.Database.EnsureCreatedAsync(ct);
+        if (db.Database.IsSqlite())
+        {
+            await db.Database.EnsureCreatedAsync(ct);
+            await SqliteSchemaUpgrader.UpgradeAsync(db, logger, ct);
+        }
         else await db.Database.MigrateAsync(ct);
         logger.LogInformation("Banco pronto ({Provider})", db.Database.ProviderName);
 

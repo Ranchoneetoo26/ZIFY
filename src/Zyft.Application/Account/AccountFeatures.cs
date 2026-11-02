@@ -13,7 +13,11 @@ using Zyft.Application.Profiles;
 
 namespace Zyft.Application.Account;
 
-public sealed record MeDto(Guid Id, string Email, string Name, DateTime CreatedAt, string? Scope);
+/// <summary>Dados da conta. <c>EmailVerified</c> é só informativo (não bloqueia nenhuma rota).</summary>
+public sealed record MeDto(Guid Id, string Email, string Name, DateTime CreatedAt, string? Scope, bool EmailVerified, DateTime? EmailVerifiedAt)
+{
+    public static MeDto From(User u, string? scope) => new(u.Id, u.Email, u.Name, u.CreatedAt, scope, u.IsEmailVerified, u.EmailVerifiedAt);
+}
 
 public sealed record GetMeQuery : IRequest<MeDto>;
 
@@ -23,7 +27,7 @@ public sealed class GetMeHandler(IRepository<User> users, ICurrentUser current) 
     {
         var id = current.UserId;
         var u = await users.FindAsync(x => x.Id == id, ct) ?? throw new UnauthorizedException("Conta não encontrada.");
-        return new MeDto(u.Id, u.Email, u.Name, u.CreatedAt, current.Scope);
+        return MeDto.From(u, current.Scope);
     }
 }
 
@@ -92,7 +96,7 @@ public sealed class ExportMeHandler(
         var profile = await profiles.GetByUserIdAsync(id, ct);
         return new AccountExport(
             clock.UtcNow,
-            new MeDto(u.Id, u.Email, u.Name, u.CreatedAt, null),
+            MeDto.From(u, null),
             profile is null ? null : ProfileDto.From(profile),
             (await consents.ListAsync(x => x.UserId == id, ct)).Select(c => (object)new { c.Purpose, c.Granted, c.UpdatedAt }).ToList(),
             (await answers.ListAsync(x => x.UserId == id, ct)).Select(a => (object)new { a.Id, a.Question, a.Text, a.ApprovedAt, a.LastUsedAt }).ToList(),

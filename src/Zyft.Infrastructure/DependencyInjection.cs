@@ -6,6 +6,7 @@ using Zyft.Application.Ads;
 using Zyft.Application.Common.Interfaces;
 using Zyft.Infrastructure.Ads;
 using Zyft.Infrastructure.Ai;
+using Zyft.Infrastructure.Email;
 using Zyft.Infrastructure.Files;
 using Zyft.Infrastructure.Persistence;
 using Zyft.Infrastructure.Security;
@@ -35,6 +36,8 @@ public static class DependencyInjection
         services.Configure<EncryptionOptions>(config.GetSection(EncryptionOptions.Section));
         services.Configure<LlmOptions>(config.GetSection(LlmOptions.Section));
         services.Configure<AdNetworkOptions>(config.GetSection(AdNetworkOptions.Section));
+        services.Configure<AppOptions>(config.GetSection(AppOptions.Section));
+        services.AddSingleton<IEmailSender, LoggingEmailSender>();
         services.AddSingleton<IAdNetwork, AdSenseNetwork>();
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();

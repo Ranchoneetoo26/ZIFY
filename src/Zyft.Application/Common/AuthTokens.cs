@@ -14,7 +14,7 @@ public sealed record AuthResult(
     string Scope,
     UserSummary User);
 
-public sealed record UserSummary(Guid Id, string Email, string Name);
+public sealed record UserSummary(Guid Id, string Email, string Name, bool EmailVerified);
 
 public interface IAuthTokenIssuer
 {
@@ -39,6 +39,6 @@ public sealed class AuthTokenIssuer(ITokenService tokens, IRepository<RefreshTok
             expires,
             "Bearer",
             scope,
-            new UserSummary(user.Id, user.Email, user.Name));
+            new UserSummary(user.Id, user.Email, user.Name, user.IsEmailVerified));
     }
 }

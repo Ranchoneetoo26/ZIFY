@@ -11,6 +11,11 @@ public sealed class User : Entity
     public string PasswordHash { get; private set; } = default!;
     public string Name { get; private set; } = default!;
 
+    /// <summary>Quando o e-mail foi confirmado pelo link enviado. Nulo = não verificado (só informativo, não bloqueia nada).</summary>
+    public DateTime? EmailVerifiedAt { get; private set; }
+
+    public bool IsEmailVerified => EmailVerifiedAt is not null;
+
     /// <summary>Reservado para exclusão lógica; o MVP 1 faz exclusão física (cascade).</summary>
     public DateTime? DeletedAt { get; private set; }
 
@@ -23,6 +28,9 @@ public sealed class User : Entity
 
     public static string NormalizeEmail(string email) =>
         Guard.Required(email, "user.email_required", "Informe o e-mail.").ToLowerInvariant();
+
+    /// <summary>Marca o e-mail como verificado. Idempotente: mantém a primeira data.</summary>
+    public void MarkEmailVerified(DateTime now) => EmailVerifiedAt ??= now;
 
     public void Rename(string name) => Name = Guard.Required(name, "user.name_required", "Informe o nome.");
 }

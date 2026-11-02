@@ -35,6 +35,9 @@ public class ZyftApiFactory : WebApplicationFactory<Program>
 
     public CapturingSink Logs { get; } = new();
 
+    /// <summary>E-mails "enviados" (o envio real de desenvolvimento, que só loga, continua rodando por baixo).</summary>
+    public RecordingEmailSender.Outbox Emails { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -49,6 +52,9 @@ public class ZyftApiFactory : WebApplicationFactory<Program>
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton<ILogEventSink>(Logs);
+            services.AddSingleton<Zyft.Infrastructure.Email.LoggingEmailSender>();
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(sp => new RecordingEmailSender(sp.GetRequiredService<Zyft.Infrastructure.Email.LoggingEmailSender>(), Emails));
             if (Llm is not null)
             {
                 services.RemoveAll<ILlmClient>();
@@ -61,6 +67,23 @@ public class ZyftApiFactory : WebApplicationFactory<Program>
     {
         base.Dispose(disposing);
         if (disposing) _keepAlive.Dispose();
+    }
+}
+
+public sealed class RecordingEmailSender(IEmailSender inner, RecordingEmailSender.Outbox outbox) : IEmailSender
+{
+    public sealed record Message(string To, string Kind, string Token);
+
+    public sealed class Outbox : ConcurrentQueue<Message>
+    {
+        /// <summary>Token do último e-mail do tipo para o destinatário.</summary>
+        public string LastToken(string to, string kind) => this.Last(m => m.To.Equals(to, StringComparison.OrdinalIgnoreCase) && m.Kind == kind).Token;
+    }
+
+    public Task SendEmailVerificationAsync(string toEmail, string name, string token, CancellationToken ct = default)
+    {
+        outbox.Enqueue(new Message(toEmail, "verify", token));
+        return inner.SendEmailVerificationAsync(toEmail, name, token, ct);
     }
 }
 

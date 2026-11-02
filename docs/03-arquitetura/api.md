@@ -356,6 +356,17 @@ Quando o espaço é preenchido pela rede, a resposta muda de forma:
 
 `GET /audit-events` passa a listar também `plan.changed`, `pack.purchased`, `ad.hidden`, `rewarded.claimed`, `onboarding.completed` e `custom_field.changed`. Como os anteriores, registram **o que** aconteceu, nunca conteúdo pessoal (sem rótulo, valor, anúncio clicado com dados da pessoa ou URL).
 
+### 4.8 Verificação de e-mail
+
+O cadastro gera um token de uso único (só o hash SHA-256 fica no banco, tabela `UserTokens` com `Purpose = EmailVerification`, validade de 24 h) e envia o link `{App:WebBaseUrl}/#/verificar?token=...` por `IEmailSender`. Em desenvolvimento o envio só registra o link no log, nunca o endereço. **E-mail não verificado não bloqueia nenhuma rota**: é só informativo.
+
+| Rota | Acesso | Corpo | Resposta |
+|---|---|---|---|
+| `POST /auth/verify` | público, limite `auth` | `{ "token": "..." }` | `204`; `400` com `errors.token` ("O link de verificação é inválido ou expirou. Peça um novo link.") se inválido, expirado ou já usado |
+| `POST /auth/verify/resend` | W, limite `auth` | — | `202`; `409` `email.already_verified`; `429` |
+
+`GET /me` e `user` da resposta de autenticação ganham `emailVerified` (bool); `GET /me` também `emailVerifiedAt` (omitido quando nulo). Reenviar invalida o link anterior. Auditoria: `email.verificado`.
+
 ## 5. Códigos de erro
 
 | HTTP | `code` | Quando |
