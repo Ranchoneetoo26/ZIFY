@@ -517,3 +517,8 @@ details.howto p { margin-top: 8px; }
 /* ---------- Senha (troca na Conta, redefinição) ---------- */
 .pw-form { max-width: 440px; }
 .pw-toggle { align-self: flex-start; }
+
+/* ---------- Troca de período do Plus (rateio simulado) ---------- */
+.proration { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+.kv--row { flex-direction: row; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; }
+.kv--row .kv__k { font-size: 13px; font-weight: 500; color: var(--ink); flex: 1 1 160px; }

@@ -1,12 +1,56 @@
 // Planos (contrato v2): GET /billing; assinar Plus (simulado), cancelar, comprar pacote avulso,
 // mensal/anual, medidor de uso e tabela comparativa só com os limites do contrato. Sem anúncios.
 import { api } from '../api.js';
-import { h, clear, toast, announce, confirmDialog, fmtDate, errorBox, loading, busy } from '../dom.js';
+import { h, clear, toast, announce, confirmDialog, modal, fmtDate, errorBox, loading, busy } from '../dom.js';
 import { Button, Icon, PageHead, Card, UsageMeter } from '../ui.js';
 import { getBilling, invalidateBilling } from '../store.js';
 import { DEMO_NOTE, money, resetNote, isPlus, buyPack, RESOURCES, trialAvailable, trialDays } from '../billing.js';
 
 const DEFAULT_PRICES = { plusMonthly: 9.9, plusYearly: 99, pack: 4.9 };
+const PERIOD_NAME = { monthly: 'mensal', yearly: 'anual' };
+
+// Pacote comprado no Plus: regra do produto, dita sem promessa.
+const PACK_ON_PLUS = 'Você assina o Plus: enquanto ele estiver ativo, os créditos do pacote ficam guardados e não são usados. Eles só entram em uso se você voltar ao plano gratuito, e cada pacote vence 60 dias depois da compra, usado ou não.';
+
+/** "+15 candidaturas e +10 sugestões" a partir de packTotals (soma dos pacotes ativos). */
+const packTotalsText = (t) => `${t.assistedRemaining ?? 0} candidaturas assistidas e ${t.aiRemaining ?? 0} sugestões de texto com IA`;
+
+/**
+ * Estimativa do rateio antes de confirmar, com a mesma regra da API (BillingFeatures/Subscription.ChangePeriod):
+ * crédito = preço atual × fração que falta do ciclo; a pagar = preço novo − crédito. O valor que vale é o da resposta.
+ */
+function estimateProration(b, to, prices) {
+  const now = new Date();
+  if (b?.trialEndsAt && new Date(b.trialEndsAt) > now) return { duringTrial: true };
+  const from = b?.period === 'yearly' ? 'yearly' : 'monthly';
+  const price = (p) => (p === 'yearly' ? prices.plusYearly : prices.plusMonthly);
+  let credit = 0;
+  if (b?.renewsAt) {
+    const end = new Date(b.renewsAt);
+    const start = new Date(end);
+    if (from === 'yearly') start.setFullYear(start.getFullYear() - 1); else start.setMonth(start.getMonth() - 1);
+    const total = end - start;
+    const fraction = total > 0 ? Math.min(Math.max((end - now) / total, 0), 1) : 0;
+    credit = Math.round(price(from) * fraction * 100) / 100;
+  }
+  const newPrice = price(to);
+  return { duringTrial: false, unusedCredit: credit, newPrice, amount: Math.round((newPrice - credit) * 100) / 100 };
+}
+
+/** Linhas do rateio (estimado ou real). */
+function prorationRows(r, to, { estimate = false, trialEndsAt } = {}) {
+  if (r.duringTrial) {
+    return h('p', {}, `Você está no teste grátis: só o período muda, nada é cobrado agora.${trialEndsAt ? ` A primeira cobrança ${estimate ? 'será' : 'fica'} no fim do teste, em ${fmtDate(trialEndsAt)}, já no plano ${PERIOD_NAME[to]}.` : ''}`);
+  }
+  const amount = Number(r.amount || 0);
+  const line = (k, v, strong) => h('div', { class: 'kv kv--row' }, h('span', { class: 'kv__k' }, k), strong ? h('b', { class: 'kv__v' }, v) : h('span', { class: 'kv__v' }, v));
+  return h('div', { class: 'proration' },
+    line('Crédito do tempo que falta no plano atual', `− ${money(r.unusedCredit)}`),
+    line(`Plus ${PERIOD_NAME[to]}`, money(r.newPrice)),
+    amount >= 0
+      ? line(estimate ? 'A pagar agora (estimativa)' : 'Cobrado agora (simulado)', money(amount), true)
+      : line(estimate ? 'Crédito a seu favor (estimativa)' : 'Crédito a seu favor (simulado)', money(-amount), true));
+}
 
 const FREE_LIST = [
   'Perfil Mestre completo e onboarding em passos',
@@ -96,6 +140,48 @@ export async function render(main, { refreshShell } = {}) {
     if (e.code === 'billing.already_subscribed' || e.code === 'billing.not_subscribed') await reload().catch(() => {});
   };
 
+  /** Troca mensal ⇄ anual do Plus: estimativa antes, confirmação, e o rateio real da API depois. */
+  const changePeriod = async (btn, to, prices) => {
+    const estimate = estimateProration(b, to, prices);
+    const ok = await confirmDialog({
+      title: to === 'yearly' ? 'Mudar para o Plus anual?' : 'Mudar para o Plus mensal?',
+      message: h('div', { class: 'stack' },
+        h('p', {}, `A troca vale na hora. Novo período: ${PERIOD_NAME[to]} (${money(to === 'yearly' ? prices.plusYearly : prices.plusMonthly)} por ${to === 'yearly' ? 'ano' : 'mês'}).`),
+        prorationRows(estimate, to, { estimate: true, trialEndsAt: b?.trialEndsAt }),
+        estimate.duringTrial ? null : h('p', { class: 'small muted' }, 'Valores estimados agora; o valor final é calculado no momento da troca e mostrado em seguida.'),
+        h('p', { class: 'demo-note' }, Icon('shield', { size: 14 }), DEMO_NOTE)),
+      confirmText: to === 'yearly' ? 'Mudar para anual' : 'Mudar para mensal',
+    });
+    if (!ok) return;
+    await busy(btn, async () => {
+      let r;
+      try {
+        r = await api('/billing/subscription/period', { method: 'POST', body: { period: to } });
+      } catch (e) {
+        if (e.handled) return;
+        if (e.code === 'billing.same_period') { toast(`Seu Plus já está no plano ${PERIOD_NAME[to]}. Atualizamos a tela.`, 'err'); await reload().catch(() => {}); return; }
+        if (e.code === 'billing.not_subscribed') { toast('Seu Plus não está mais ativo (ele pode ter sido cancelado em outra aba). Atualizamos a tela.', 'err'); await reload().catch(() => {}); return; }
+        toast(e.message, 'err');
+        return;
+      }
+      const pr = r?.proration || {};
+      if (r?.billing) { invalidateBilling(); refreshShell?.({ billing: true }); b = r.billing; period = b?.period === 'yearly' ? 'yearly' : 'monthly'; paint(); }
+      else await reload();
+      const done = Button({ variant: 'primary' }, 'Entendi');
+      const m = modal({
+        title: `Pronto: seu Plus agora é ${PERIOD_NAME[pr.to || to]}`,
+        body: h('div', { class: 'stack' },
+          prorationRows(pr, pr.to || to, { trialEndsAt: b?.trialEndsAt }),
+          b?.renewsAt ? h('p', {}, `Próxima renovação: ${fmtDate(b.renewsAt)}.`) : null,
+          h('p', { class: 'demo-note' }, Icon('shield', { size: 14 }), DEMO_NOTE)),
+        actions: [done],
+        onClose: () => focusTitle(),
+      });
+      done.addEventListener('click', () => m.close());
+      announce(`Período alterado para ${PERIOD_NAME[pr.to || to]}.`);
+    });
+  };
+
   const check = (t) => h('li', {}, Icon('check'), h('span', {}, t));
 
   function paint() {
@@ -134,8 +220,13 @@ export async function render(main, { refreshShell } = {}) {
           try { await api('/billing/cancel', { method: 'POST', body: {} }); toast('Assinatura cancelada. Você está no plano gratuito.'); await reload('Plano gratuito.'); } catch (e) { await failed(e); }
         });
       });
+      const current = b?.period === 'yearly' ? 'yearly' : 'monthly';
+      const target = current === 'yearly' ? 'monthly' : 'yearly';
+      const switchBtn = Button({ variant: 'secondary' }, target === 'yearly' ? 'Mudar para o plano anual' : 'Mudar para o plano mensal');
+      switchBtn.addEventListener('click', () => changePeriod(switchBtn, target, prices));
       plusFoot.append(
         h('span', { class: 'plan__fine' }, [inTrial ? `Teste grátis até ${fmtDate(b.trialEndsAt)}` : null, b?.renewsAt ? `Renova em ${fmtDate(b.renewsAt)}` : null, b?.period === 'yearly' ? 'Plano anual' : b?.period === 'monthly' ? 'Plano mensal' : null].filter(Boolean).join(' · ')),
+        switchBtn,
         cancel);
     } else {
       const sub = Button({ variant: 'primary' }, trial ? `Testar ${days} dias grátis` : 'Assinar o Plus');
@@ -161,9 +252,10 @@ export async function render(main, { refreshShell } = {}) {
 
     // Pacote avulso
     const packs = (b?.packs || []).filter((p) => !p.expiresAt || new Date(p.expiresAt) > new Date());
+    const totals = b?.packTotals;
     const buy = Button({ variant: 'quiet' }, 'Comprar pacote');
     buy.addEventListener('click', async () => {
-      const ok = await confirmDialog({ title: `Comprar pacote por ${money(prices.pack)}?`, message: h('div', { class: 'stack' }, h('p', {}, '+15 candidaturas assistidas e +10 sugestões de texto com IA, válidos por 60 dias. Pagamento único, sem assinatura.'), h('p', { class: 'demo-note' }, Icon('shield', { size: 14 }), DEMO_NOTE)), confirmText: 'Comprar pacote' });
+      const ok = await confirmDialog({ title: `Comprar pacote por ${money(prices.pack)}?`, message: h('div', { class: 'stack' }, h('p', {}, '+15 candidaturas assistidas e +10 sugestões de texto com IA, válidos por 60 dias. Pagamento único, sem assinatura.'), plus ? h('p', { class: 'notice notice--care' }, Icon('alert', { size: 14 }), h('span', {}, PACK_ON_PLUS)) : null, h('p', { class: 'demo-note' }, Icon('shield', { size: 14 }), DEMO_NOTE)), confirmText: 'Comprar pacote' });
       if (!ok) return;
       await busy(buy, async () => {
         try { await buyPack(); await reload('Pacote ativado.'); } catch (e) { await failed(e); }
@@ -174,8 +266,9 @@ export async function render(main, { refreshShell } = {}) {
       h('div', {}, h('div', { class: 'plan__price' }, money(prices.pack)), h('div', { class: 'plan__note' }, 'Pagamento único, sem assinatura')),
       h('ul', { class: 'plan__list' }, ['+15 candidaturas assistidas', '+10 sugestões de texto com IA', 'Vale por 60 dias'].map(check)),
       packs.length ? h('div', { class: 'stack', style: { gap: '4px' } }, h('span', { class: 'caption' }, 'Seus pacotes ativos'),
+        totals && packs.length > 1 ? h('span', { class: 'small' }, h('b', {}, `Total: ${packTotalsText(totals)}`)) : null,
         packs.map((p) => h('span', { class: 'small' }, `${p.assistedRemaining ?? 0} candidaturas e ${p.aiRemaining ?? 0} sugestões · até ${fmtDate(p.expiresAt)}`))) : null,
-      h('div', { class: 'plan__foot' }, buy));
+      h('div', { class: 'plan__foot' }, plus ? h('span', { class: 'plan__fine' }, PACK_ON_PLUS) : null, buy));
 
     // Uso do mês
     const usage = b?.usage;
@@ -189,6 +282,11 @@ export async function render(main, { refreshShell } = {}) {
         h('div', { class: 'usage-grid' }, meters,
           b.answersLimit != null ? h('p', { class: 'small muted' }, `Banco de respostas: até ${b.answersLimit} respostas.`) : null,
           b.devicesLimit != null ? h('p', { class: 'small muted' }, `Navegadores conectados: até ${b.devicesLimit}.`) : null),
+        totals && (totals.assistedRemaining || totals.aiRemaining)
+          ? h('p', { class: 'small muted' }, plus
+            ? `Pacotes avulsos guardados: ${packTotalsText(totals)}. No Plus eles não são usados; só entram em uso se você voltar ao plano gratuito, antes de vencerem.`
+            : `Pacotes avulsos: ${packTotalsText(totals)} disponíveis, usados depois do limite do mês.`)
+          : null,
         !plus && rw ? h('p', { class: 'small muted' }, `Ofertas patrocinadas vistas neste mês: ${rw.claimedThisMonth ?? 0} de ${rw.maxPerMonth ?? 3} (+${rw.creditsPerClaim ?? 3} candidaturas cada). Ganhe pela extensão, junto do contador.`) : null,
         h('p', { class: 'small muted' }, plus ? 'No Plus não há limite mensal.' : resetNote('Os limites mensais recomeçam')),
       ]);
