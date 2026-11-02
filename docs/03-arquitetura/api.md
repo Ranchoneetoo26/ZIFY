@@ -392,6 +392,17 @@ O perfil tem `Version` (inteiro, coluna `Profiles.Version`, token de concorrênc
 
 O link enviado é `{App:WebBaseUrl}/#/redefinir-senha?token=...` (token de uso único, só o hash no banco, `UserTokens` com `Purpose = PasswordReset`, validade de 30 min; pedir de novo invalida o link anterior). Redefinir encerra todas as sessões (refresh tokens e extensões pareadas), invalida os links de redefinição em aberto e marca o e-mail como verificado (o link prova acesso à caixa). Não faz login: a pessoa entra com a senha nova. Auditoria: `senha.redefinida`.
 
+### 4.13 Troca de período do Plus e pacote no Plus
+
+`POST /billing/subscription/period` (W) com `{ "period": "monthly" | "yearly" }` troca o período do Plus ativo **na hora** e responde `200` com `{ "billing": <BillingDto>, "proration": { "from", "to", "unusedCredit", "newPrice", "amount", "duringTrial", "changedAt", "demo": true } }`. Rateio simulado (nenhuma cobrança real):
+
+- no teste grátis: só troca o período; `amount = 0`, `duringTrial = true`, renovação continua no fim do teste;
+- pago: `unusedCredit = preço do período atual × (tempo que falta do ciclo ÷ duração do ciclo)`, `newPrice` = preço do período novo, `amount = newPrice − unusedCredit` (positivo = cobrado agora; negativo = crédito a favor da pessoa, por exemplo anual → mensal). O ciclo novo começa na troca. Arredondamento a 2 casas.
+
+Erros: `400` período inválido; `422` `billing.not_subscribed` (sem Plus ativo) ou `billing.same_period`. A troca fica em `SubscriptionPeriodChanges` (também na exportação, `billing.periodChanges`) e no registro como `plan.period_changed`.
+
+**Pacote no Plus:** `POST /billing/packs` vale também para quem assina o Plus. Os pacotes se somam: `GET /billing` (e as demais respostas de billing) trazem `packTotals: { assistedRemaining, aiRemaining }` com a soma dos pacotes ativos, além da lista `packs`. No Plus o uso sai do plano (sem limite) e os créditos do pacote ficam guardados; voltando ao Gratuito, são usados depois do limite do mês, até vencerem (60 dias após cada compra).
+
 ## 5. Códigos de erro
 
 | HTTP | `code` | Quando |

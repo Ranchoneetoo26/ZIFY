@@ -41,6 +41,7 @@ public sealed class ZyftDbContext(DbContextOptions<ZyftDbContext> options, ICloc
     public DbSet<CustomField> CustomFields => Set<CustomField>();
     public DbSet<OnboardingProgress> OnboardingProgress => Set<OnboardingProgress>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
+    public DbSet<SubscriptionPeriodChange> SubscriptionPeriodChanges => Set<SubscriptionPeriodChange>();
     public DbSet<MonthlyUsage> MonthlyUsages => Set<MonthlyUsage>();
     public DbSet<UsagePack> UsagePacks => Set<UsagePack>();
     public DbSet<UsageMark> UsageMarks => Set<UsageMark>();

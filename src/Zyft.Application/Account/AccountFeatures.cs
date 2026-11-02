@@ -83,6 +83,7 @@ public sealed class ExportMeHandler(
     IRepository<Domain.Billing.Subscription> subscriptions,
     IRepository<Domain.Billing.UsagePack> packs,
     IRepository<Domain.Billing.MonthlyUsage> usages,
+    IRepository<Domain.Billing.SubscriptionPeriodChange> periodChanges,
     IRepository<Domain.Onboarding.OnboardingProgress> onboarding,
     IRepository<Domain.Ads.AdHide> adHides,
     ISensitiveDataProtector protector,
@@ -115,6 +116,8 @@ public sealed class ExportMeHandler(
                 Subscription = (await subscriptions.FindAsync(x => x.UserId == id, ct)) is { } sub
                     ? new { sub.Plan, sub.Period, sub.StartedAt, sub.TrialEndsAt, sub.RenewsAt, sub.CanceledAt } : null,
                 Packs = (await packs.ListAsync(x => x.UserId == id, ct)).Select(p => new { p.AssistedRemaining, p.AiRemaining, p.PurchasedAt, p.ExpiresAt }).ToList(),
+                PeriodChanges = (await periodChanges.ListAsync(x => x.UserId == id, ct)).OrderBy(c => c.ChangedAt)
+                    .Select(c => new { c.FromPeriod, c.ToPeriod, c.ChangedAt, c.UnusedCredit, c.NewPrice, c.Amount, c.DuringTrial }).ToList(),
                 Usage = (await usages.ListAsync(x => x.UserId == id, ct)).Select(u => new { u.Month, u.AssistedUsed, u.AiUsed, u.JobAnalysesUsed, u.ResumeImportsUsed, u.BonusGranted, u.BonusUsed, u.RewardedClaims }).ToList(),
             },
             (await onboarding.FindAsync(x => x.UserId == id, ct)) is { } ob ? new { Answered = ob.AnsweredSteps, Skipped = ob.SkippedSteps, ob.LastStep, ob.CompletedAt } : null,

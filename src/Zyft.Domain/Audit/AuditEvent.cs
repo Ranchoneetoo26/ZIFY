@@ -48,6 +48,7 @@ public static class AuditActions
 
     // v2 (planos, anúncios, onboarding e campos personalizados) — nomes definidos no contrato v2.
     public const string PlanChanged = "plan.changed";
+    public const string PlanPeriodChanged = "plan.period_changed";
     public const string PackPurchased = "pack.purchased";
     public const string AdHidden = "ad.hidden";
     public const string RewardedClaimed = "rewarded.claimed";
