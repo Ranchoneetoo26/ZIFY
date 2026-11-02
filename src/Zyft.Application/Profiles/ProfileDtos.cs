@@ -60,6 +60,9 @@ public sealed record ProfileDto
     public string? ProfessionalRegistration { get; init; }
     public string? SalaryType { get; init; }
     public DateTime UpdatedAt { get; init; }
+
+    /// <summary>Versão do documento; a mesma do cabeçalho <c>ETag</c>. Envie em <c>If-Match</c> para não sobrescrever outra sessão.</summary>
+    public int Version { get; init; }
     public IReadOnlyList<ExperienceDto> Experiences { get; init; } = Array.Empty<ExperienceDto>();
     public IReadOnlyList<EducationDto> Educations { get; init; } = Array.Empty<EducationDto>();
     public IReadOnlyList<CourseDto> Courses { get; init; } = Array.Empty<CourseDto>();
@@ -99,6 +102,7 @@ public sealed record ProfileDto
         ProfessionalRegistration = p.ProfessionalRegistration,
         SalaryType = p.SalaryType,
         UpdatedAt = p.UpdatedAt,
+        Version = p.Version,
         Experiences = ProfileFacts.OrderedExperiences(p).Select(ExperienceDto.From).ToList(),
         Educations = ProfileFacts.OrderedEducations(p).Select(EducationDto.From).ToList(),
         Courses = p.Courses.OrderBy(c => c.Type).ThenByDescending(c => c.CompletedAt ?? DateOnly.MinValue).Select(CourseDto.From).ToList(),

@@ -371,6 +371,14 @@ O cadastro gera um token de uso único (só o hash SHA-256 fica no banco, tabela
 
 `POST /auth/register` passa a exigir `"acceptTerms": true` e `"termsVersion"` igual à versão vigente, que `GET /auth/terms` (público) devolve como `{ "version": "2026-10-22" }`. Erros `400`: `errors.acceptTerms` "Aceite os termos de uso e a política de privacidade."; `errors.termsVersion` "Informe a versão dos termos aceita." ou "Os termos foram atualizados. Recarregue a página e aceite a versão atual.". A conta guarda `TermsVersion` e `TermsAcceptedAt` (colunas em `Users`) e o registro ganha `termos.aceitos`. `GET /me` expõe `termsVersion` e `termsAcceptedAt` (omitidos em contas antigas, sem aceite registrado).
 
+### 4.10 Concorrência otimista do Perfil Mestre
+
+O perfil tem `Version` (inteiro, coluna `Profiles.Version`, token de concorrência do EF), que sobe a cada alteração dos dados básicos ou de qualquer item (experiências, formação, cursos, competências, idiomas, campos personalizados e aplicação de currículo).
+
+- `GET /profile` devolve o cabeçalho `ETag: "7"` e `version: 7` no corpo. `PUT /profile` devolve o perfil novo com `ETag` e `version` atualizados; `POST`/`PUT`/`DELETE` de itens devolvem `ETag` com a versão nova. O CORS expõe `ETag`.
+- Todas as rotas de alteração em `/profile` aceitam `If-Match: "7"` (também `W/"7"` ou `7`). Se o perfil já estiver em outra versão: `409` `profile.conflict`, `detail` "Seu perfil foi alterado em outra sessão. Recarregue a página para ver a versão mais recente antes de salvar." e `currentVersion` (inteiro) no corpo; nada é gravado. `If-Match` mal formado: `400` `bad_request`. `If-Match: *` ou sem cabeçalho: comportamento de antes (a extensão não precisa mudar).
+- A verificação vai no próprio `UPDATE ... WHERE Version = esperada`; duas gravações simultâneas sem `If-Match` também não se sobrescrevem em silêncio (a segunda recebe o mesmo `409`).
+
 ## 5. Códigos de erro
 
 | HTTP | `code` | Quando |

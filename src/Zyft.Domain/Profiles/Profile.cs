@@ -55,6 +55,12 @@ public sealed class Profile : Entity
     public string? ProfessionalRegistration { get; private set; }
     public string? SalaryType { get; private set; }
 
+    /// <summary>
+    /// Versão do documento (controle de concorrência otimista): sobe a cada alteração dos dados básicos ou de qualquer
+    /// item. A API expõe como <c>ETag</c> e aceita <c>If-Match</c>; o EF usa como token de concorrência.
+    /// </summary>
+    public int Version { get; private set; }
+
     public IReadOnlyCollection<Experience> Experiences => _experiences.AsReadOnly();
     public IReadOnlyCollection<Education> Educations => _educations.AsReadOnly();
     public IReadOnlyCollection<Course> Courses => _courses.AsReadOnly();
@@ -121,11 +127,21 @@ public sealed class Profile : Entity
         WorkArea = Guard.Optional(d.WorkArea);
         ProfessionalRegistration = Guard.Optional(d.ProfessionalRegistration);
         SalaryType = salaryType;
+        BumpVersion();
+    }
+
+    private void BumpVersion() => Version++;
+
+    private bool Changed(bool changed)
+    {
+        if (changed) BumpVersion();
+        return changed;
     }
 
     // ---------- Campos personalizados (nome único por perfil; rótulos sensíveis bloqueados) ----------
     public CustomField AddCustomField(string label, string value)
     {
+        BumpVersion();
         if (_customFields.Count >= MaxCustomFields)
             throw new DomainException("profile.custom_field_limit", $"Você pode ter até {MaxCustomFields} campos personalizados.");
         EnsureUniqueCustomField(label, null);
@@ -136,6 +152,7 @@ public sealed class Profile : Entity
 
     public CustomField? UpdateCustomField(Guid id, string label, string value)
     {
+        BumpVersion();
         var f = _customFields.FirstOrDefault(x => x.Id == id);
         if (f is null) return null;
         EnsureUniqueCustomField(label, id);
@@ -143,7 +160,7 @@ public sealed class Profile : Entity
         return f;
     }
 
-    public bool RemoveCustomField(Guid id) => _customFields.RemoveAll(x => x.Id == id) > 0;
+    public bool RemoveCustomField(Guid id) => Changed(_customFields.RemoveAll(x => x.Id == id) > 0);
 
     private void EnsureUniqueCustomField(string label, Guid? ignoreId)
     {
@@ -154,6 +171,7 @@ public sealed class Profile : Entity
     // ---------- Experiências ----------
     public Experience AddExperience(ExperienceData data)
     {
+        BumpVersion();
         var e = Experience.Create(Id, data);
         _experiences.Add(e);
         return e;
@@ -161,16 +179,18 @@ public sealed class Profile : Entity
 
     public Experience? UpdateExperience(Guid id, ExperienceData data)
     {
+        BumpVersion();
         var e = _experiences.FirstOrDefault(x => x.Id == id);
         e?.Update(data);
         return e;
     }
 
-    public bool RemoveExperience(Guid id) => _experiences.RemoveAll(x => x.Id == id) > 0;
+    public bool RemoveExperience(Guid id) => Changed(_experiences.RemoveAll(x => x.Id == id) > 0);
 
     // ---------- Formação ----------
     public Education AddEducation(EducationData data)
     {
+        BumpVersion();
         var e = Education.Create(Id, data);
         _educations.Add(e);
         return e;
@@ -178,16 +198,18 @@ public sealed class Profile : Entity
 
     public Education? UpdateEducation(Guid id, EducationData data)
     {
+        BumpVersion();
         var e = _educations.FirstOrDefault(x => x.Id == id);
         e?.Update(data);
         return e;
     }
 
-    public bool RemoveEducation(Guid id) => _educations.RemoveAll(x => x.Id == id) > 0;
+    public bool RemoveEducation(Guid id) => Changed(_educations.RemoveAll(x => x.Id == id) > 0);
 
     // ---------- Cursos e certificações ----------
     public Course AddCourse(CourseData data)
     {
+        BumpVersion();
         var c = Course.Create(Id, data);
         _courses.Add(c);
         return c;
@@ -195,16 +217,18 @@ public sealed class Profile : Entity
 
     public Course? UpdateCourse(Guid id, CourseData data)
     {
+        BumpVersion();
         var c = _courses.FirstOrDefault(x => x.Id == id);
         c?.Update(data);
         return c;
     }
 
-    public bool RemoveCourse(Guid id) => _courses.RemoveAll(x => x.Id == id) > 0;
+    public bool RemoveCourse(Guid id) => Changed(_courses.RemoveAll(x => x.Id == id) > 0);
 
     // ---------- Competências (nome único por perfil) ----------
     public Skill AddSkill(string name, SkillLevel? level)
     {
+        BumpVersion();
         EnsureUniqueSkill(name, null);
         var s = Skill.Create(Id, name, level);
         _skills.Add(s);
@@ -213,6 +237,7 @@ public sealed class Profile : Entity
 
     public Skill? UpdateSkill(Guid id, string name, SkillLevel? level)
     {
+        BumpVersion();
         var s = _skills.FirstOrDefault(x => x.Id == id);
         if (s is null) return null;
         EnsureUniqueSkill(name, id);
@@ -220,7 +245,7 @@ public sealed class Profile : Entity
         return s;
     }
 
-    public bool RemoveSkill(Guid id) => _skills.RemoveAll(x => x.Id == id) > 0;
+    public bool RemoveSkill(Guid id) => Changed(_skills.RemoveAll(x => x.Id == id) > 0);
 
     public bool HasSkill(string name) =>
         _skills.Any(s => string.Equals(s.Name, name?.Trim(), StringComparison.OrdinalIgnoreCase));
@@ -234,6 +259,7 @@ public sealed class Profile : Entity
     // ---------- Idiomas (um por nome) ----------
     public Language AddLanguage(string name, LanguageProficiency proficiency)
     {
+        BumpVersion();
         EnsureUniqueLanguage(name, null);
         var l = Language.Create(Id, name, proficiency);
         _languages.Add(l);
@@ -242,6 +268,7 @@ public sealed class Profile : Entity
 
     public Language? UpdateLanguage(Guid id, string name, LanguageProficiency proficiency)
     {
+        BumpVersion();
         var l = _languages.FirstOrDefault(x => x.Id == id);
         if (l is null) return null;
         EnsureUniqueLanguage(name, id);
@@ -249,7 +276,7 @@ public sealed class Profile : Entity
         return l;
     }
 
-    public bool RemoveLanguage(Guid id) => _languages.RemoveAll(x => x.Id == id) > 0;
+    public bool RemoveLanguage(Guid id) => Changed(_languages.RemoveAll(x => x.Id == id) > 0);
 
     private void EnsureUniqueLanguage(string name, Guid? ignoreId)
     {

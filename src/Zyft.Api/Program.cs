@@ -140,7 +140,7 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
     })
     .AllowAnyHeader()
     .AllowAnyMethod()
-    .WithExposedHeaders("Content-Disposition", "Retry-After")));
+    .WithExposedHeaders("Content-Disposition", "Retry-After", "ETag")));
 
 // ---------------------------------------------------------------- Swagger
 builder.Services.AddEndpointsApiExplorer();

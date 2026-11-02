@@ -31,6 +31,7 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<ZyftDbContext>());
         services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
         services.AddScoped<IProfileRepository, ProfileRepository>();
+        services.AddScoped<IProfileConcurrency, ProfileConcurrency>();
 
         services.Configure<JwtOptions>(config.GetSection(JwtOptions.Section));
         services.Configure<EncryptionOptions>(config.GetSection(EncryptionOptions.Section));

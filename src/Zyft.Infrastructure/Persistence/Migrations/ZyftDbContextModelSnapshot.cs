@@ -904,6 +904,10 @@ namespace Zyft.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
                     b.Property<string>("WorkArea")
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");

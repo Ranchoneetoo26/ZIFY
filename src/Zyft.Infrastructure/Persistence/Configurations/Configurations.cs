@@ -75,6 +75,7 @@ internal sealed class ProfileConfig : IEntityTypeConfiguration<Profile>
     {
         b.ToTable("Profiles");
         b.HasIndex(x => x.UserId).IsUnique(); // 1:1 com User
+        b.Property(x => x.Version).IsConcurrencyToken(); // UPDATE ... WHERE Version = original (SQLite e PostgreSQL)
         b.HasOne<User>().WithOne().HasForeignKey<Profile>(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         b.Property(x => x.FullName).HasMaxLength(160);
         b.Property(x => x.Email).HasMaxLength(254);

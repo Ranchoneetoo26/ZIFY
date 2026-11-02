@@ -110,3 +110,31 @@ public interface IEmailSender
     /// <summary>Envia o link de confirmação de e-mail (<c>/#/verificar?token=...</c>).</summary>
     Task SendEmailVerificationAsync(string toEmail, string name, string token, CancellationToken ct = default);
 }
+
+/// <summary>
+/// Pré-condição de concorrência da requisição atual (cabeçalho <c>If-Match</c>). Quando há versão esperada, a
+/// persistência só grava o Perfil Mestre se a versão no banco for essa; senão lança
+/// <see cref="ProfileVersionConflictException"/> (HTTP 409 <c>profile.conflict</c>). Sem versão, nada muda.
+/// </summary>
+public interface IProfileConcurrency
+{
+    int? ExpectedVersion { get; set; }
+
+    /// <summary>Versão gravada pela última alteração do perfil nesta requisição (para o <c>ETag</c> da resposta).</summary>
+    int? SavedVersion { get; set; }
+}
+
+public sealed class ProfileConcurrency : IProfileConcurrency
+{
+    public int? ExpectedVersion { get; set; }
+    public int? SavedVersion { get; set; }
+}
+
+/// <summary>O perfil mudou em outra sessão depois da versão que o cliente tinha (HTTP 409 <c>profile.conflict</c>).</summary>
+public sealed class ProfileVersionConflictException(int currentVersion)
+    : Exception("Seu perfil foi alterado em outra sessão. Recarregue a página para ver a versão mais recente antes de salvar.")
+{
+    public const string Code = "profile.conflict";
+
+    public int CurrentVersion { get; } = currentVersion;
+}
