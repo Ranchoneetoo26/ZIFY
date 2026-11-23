@@ -189,7 +189,7 @@ export const onAuthChange = (fn) => listeners.add(fn);
 
 async function rawFetch(path, { method = 'GET', body, headers = {}, auth = true, timeout, keepalive } = {}) {
   const isForm = body instanceof FormData;
-  const h = { Accept: 'application/json, application/problem+json', ...headers };
+  const h = { Accept: 'application/json, application/problem+json', 'ngrok-skip-browser-warning': '1', ...headers }; // evita o aviso do ngrok gratuito quando acessado por túnel
   if (body !== undefined && !isForm) h['Content-Type'] = 'application/json';
   if (auth && accessToken) h.Authorization = `Bearer ${accessToken}`;
   const abort = new AbortController();

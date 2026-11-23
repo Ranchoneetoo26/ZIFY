@@ -32,7 +32,8 @@ async function clearTokens() {
 
 async function rawFetch(method, path, body, token) {
   const base = await apiBase();
-  const headers = { 'X-Zyft-Extension-Version': VERSION, Accept: 'application/json' };
+  // ngrok-skip-browser-warning: evita a página de aviso do ngrok gratuito quando a API é acessada por túnel.
+  const headers = { 'X-Zyft-Extension-Version': VERSION, Accept: 'application/json', 'ngrok-skip-browser-warning': '1' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = `Bearer ${token}`;
   let res;
