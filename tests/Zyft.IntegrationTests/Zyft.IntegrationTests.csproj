@@ -26,6 +26,10 @@
     <Using Include="FluentAssertions" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Servidor SMTP falso em processo, compartilhado com os testes de unidade. -->
+    <Compile Include="..\Zyft.UnitTests\Support\SmtpStub.cs" Link="Support\SmtpStub.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Zyft.Api\Zyft.Api.csproj" />
   </ItemGroup>
 </Project>

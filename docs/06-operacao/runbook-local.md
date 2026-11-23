@@ -6,7 +6,7 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Runbook local (API .NET, plataforma web, extensão e portal demo) |
-| Versão | 3.4 |
+| Versão | 3.5 |
 | Status | Vigente |
 | Dono | Dev backend |
 | Documentos relacionados | [Ambientes](ambientes.md), [ADR-0017](../03-arquitetura/adr/0017-backend-em-csharp-dotnet-clean-architecture.md), [Entrega 3](../entregas/entrega-3-desenvolvimento-e-validacao.md), [Guia do usuário](guia-do-usuario.md), [Monetização](../01-produto/monetizacao.md) |
@@ -22,6 +22,7 @@
 | 3.2 | 21/10/2026 | 230 testes (140 + 78 + 12); "Desconectar extensão" no painel libera a vaga de navegador. |
 | 3.3 | 21/10/2026 | 252 testes (156 + 84 + 12), com as correções da gravação do tour. |
 | 3.4 | 02/11/2026 | SQLite atualiza um banco antigo na subida (`SqliteSchemaUpgrader`): apagar `zyft-dev.db` só para zerar os dados. Links de verificação de e-mail e de redefinição de senha saem no log da API em Development (`Email:LogLinks`, §2.2), com `App:WebBaseUrl`; endereço sem hash mantém a query (`/redefinir-senha?token=…` → `/#/redefinir-senha?token=…`). Extensão 0.4.1. Problemas comuns: e-mail que não chega, extensão desconectada depois de trocar a senha, conflito ao salvar o perfil. |
+| 3.5 | 23/11/2026 | Envio real de e-mail por SMTP quando `Email:Smtp:Host` está configurado; como testar com o Mailpit em Docker (§2.3). 397 testes (236 + 149 + 12). |
 
 > O protótipo Node (`server/`, porta 4317) **não é mais a forma de rodar o Zyft**. A lógica dele foi portada para a API .NET ([ADR-0017](../03-arquitetura/adr/0017-backend-em-csharp-dotnet-clean-architecture.md)) e ele fica só como referência histórica.
 
@@ -73,13 +74,35 @@ Para não criar os usuários de demonstração: `Seed__DemoUser=false dotnet run
 
 ### 2.2 Links de e-mail no desenvolvimento
 
-Não há envio real de e-mail: o `LoggingEmailSender` só escreve o link no log da API, sem o endereço nem o nome da pessoa. O link (com o token) só aparece com `Email:LogLinks=true`, que vem ligado em `appsettings.Development.json`; em outro ambiente o log diz só `E-mail de verificação gerado (envio não configurado).` ou `E-mail de redefinição de senha gerado (envio não configurado).`. Para ver o link rodando fora de Development, ligue só na sua máquina: `Email__LogLinks=true` (nunca em Staging ou Production). Para testar:
+Sem SMTP configurado (o padrão; para enviar de verdade, veja a seção 2.3), não há envio real de e-mail: o `LoggingEmailSender` só escreve o link no log da API, sem o endereço nem o nome da pessoa. O link (com o token) só aparece com `Email:LogLinks=true`, que vem ligado em `appsettings.Development.json`; em outro ambiente o log diz só `E-mail de verificação gerado (envio não configurado).` ou `E-mail de redefinição de senha gerado (envio não configurado).`. Para ver o link rodando fora de Development, ligue só na sua máquina: `Email__LogLinks=true` (nunca em Staging ou Production). Para testar:
 
 1. Crie uma conta (ou, logado, use **Reenviar link** no aviso do topo ou em **Conta e privacidade**). No terminal da API aparece `Link de verificação gerado: http://localhost:5080/#/verificar?token=…`. Abra o link: vale 24 horas e uma vez.
 2. Em `#/entrar`, **Esqueci minha senha**, informe o e-mail. No log: `Link de redefinição de senha gerado: http://localhost:5080/#/redefinir-senha?token=…`. Vale 30 minutos e uma vez; pedir de novo invalida o anterior.
 3. O começo do link vem de `App:WebBaseUrl` (padrão `http://localhost:5080`). Se a web estiver em outro endereço: `App__WebBaseUrl=http://127.0.0.1:5080 dotnet run --project src/Zyft.Api`.
 
 Confirmar o e-mail é só informativo: sem confirmar, tudo funciona. Trocar ou redefinir a senha desconecta as outras sessões e **todas as extensões pareadas** (é preciso parear de novo).
+
+### 2.3 Envio real de e-mail com o Mailpit
+
+Com `Email:Smtp:Host` preenchido, a API envia os e-mails por SMTP (`SmtpEmailSender`) em vez de só registrar o link. Para ver as mensagens sem mandar nada para fora da máquina, use o [Mailpit](https://mailpit.axllent.org/), que recebe tudo e mostra numa caixa de entrada local:
+
+```bash
+docker run -d --rm --name zyft-mailpit -p 1025:1025 -p 8025:8025 axllent/mailpit
+
+Email__Smtp__Host=localhost Email__Smtp__Port=1025 Email__Smtp__EnableSsl=false \
+Email__Smtp__FromAddress=nao-responda@zyft.local \
+dotnet run --project src/Zyft.Api
+```
+
+1. Crie uma conta fictícia em `http://localhost:5080/#/cadastrar` e peça **Esqueci minha senha** em `#/entrar`.
+2. Abra `http://localhost:8025`: chegam "Confirme seu e-mail no Zyft" e "Redefinir sua senha do Zyft", com texto e HTML. Os links levam a `App:WebBaseUrl`. Pela API do Mailpit: `curl http://localhost:8025/api/v1/messages`.
+3. O log da API diz só `E-mail de verificação enviado.` ou `E-mail de redefinição de senha enviado.`, sem endereço, nome ou link (`Email:LogLinks` não vale com SMTP ligado).
+4. Com o Mailpit parado, o cadastro e o "Esqueci minha senha" continuam respondendo como sempre, e o log mostra `Falha ao enviar o e-mail de … por SMTP (…)`.
+5. Ao terminar: `docker stop zyft-mailpit` e encerre a API (`fuser -k 5080/tcp`).
+
+Se as portas 1025 ou 8025 já estiverem em uso (outro Mailpit, por exemplo), troque o lado esquerdo do `-p` (`-p 1026:1025 -p 8026:8025`) e use `Email__Smtp__Port=1026`.
+
+Opções de `Email:Smtp` (variáveis `Email__Smtp__…`): `Host`, `Port` (padrão 587), `Username`, `Password`, `EnableSsl` (padrão `true`), `FromAddress` (obrigatório com o host), `FromName` (padrão `Zyft`) e `TimeoutSeconds` (padrão 15). Sem `FromAddress`, ou com usuário sem senha, a API não sobe e diz qual chave falta. A senha só vai em variável de ambiente, nunca em `appsettings*.json`. Os testes automatizados não precisam do Mailpit: usam um servidor SMTP falso dentro do próprio teste.
 
 ## 3. Rodar com Docker (PostgreSQL 16)
 
@@ -134,7 +157,7 @@ dotnet test                         # unidade, integração e aceitação
 dotnet test tests/Zyft.UnitTests    # só unidade
 ```
 
-A última contagem registrada foi de 252 testes (156 de unidade, 84 de integração e 12 cenários de aceitação, em 21/10/2026); os QAs de 01/11/2026 e a rodada de 02/11/2026 (19 casos de unidade e 22 de integração novos) aumentaram a suíte, e o total deve ser conferido na saída do `dotnet test`. Os testes de integração e aceitação usam SQLite em memória e IA desligada ou simulada. Não precisam de Docker nem de Ollama.
+A última contagem registrada foi de 397 testes (236 de unidade, 149 de integração e 12 cenários de aceitação, em 23/11/2026). Os testes de integração e aceitação usam SQLite em memória e IA desligada ou simulada; os de e-mail usam um servidor SMTP falso em processo (`SmtpStub`). Não precisam de Docker, Mailpit nem Ollama.
 
 ## 5. Carregar a extensão
 
@@ -164,7 +187,7 @@ Para usar a extensão em outros sites, ela pede permissão para o site no primei
 | Primeira chamada com IA demora ~40 s | O Ollama está carregando o modelo | Esperado; as seguintes levam segundos |
 | Painel mostra 403 em Analisar vaga ou Sugerir texto | Consentimento desligado | Ligue em **Conta** (ou na tela de boas-vindas) |
 | Painel pede pareamento de novo, com o aviso "Extensão desconectada" | Dispositivo revogado, senha trocada ou redefinida na plataforma, conta excluída ou refresh expirado (7 dias) | Gere outro código na plataforma. API fora do ar ou erro 5xx **não** desconectam (desde a 0.4.1): use "Tentar de novo" |
-| Não chegou o e-mail de confirmação ou de redefinição | Não há envio real de e-mail | Copie o link do log da API (seção 2.2). Se o log só diz "envio não configurado", a API não está em Development: rode com `ASPNETCORE_ENVIRONMENT=Development` ou `Email__LogLinks=true` |
+| Não chegou o e-mail de confirmação ou de redefinição | Sem SMTP configurado não há envio real; com SMTP, o servidor pode ter recusado ou estar fora do ar | Sem SMTP: copie o link do log da API (seção 2.2); se o log só diz "envio não configurado", a API não está em Development: rode com `ASPNETCORE_ENVIRONMENT=Development` ou `Email__LogLinks=true`. Com SMTP: procure `Falha ao enviar o e-mail` no log e confira `Email__Smtp__*` (seção 2.3) |
 | "Seu perfil foi alterado em outra sessão" ao salvar | Outra aba, outro aparelho ou a extensão salvou o perfil depois que a tela abriu (409 `profile.conflict`) | Esperado: **Recarregar dados mais recentes**, **Sobrescrever mesmo assim** ou **Cancelar** |
 | Extensão não reage após editar o código | Extensão em cache | Recarregue em `chrome://extensions` e recarregue a página |
 | API no WSL e navegador no Windows | `localhost` não encaminhado | Confira o encaminhamento de portas do WSL; use `127.0.0.1` |

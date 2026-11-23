@@ -36,9 +36,12 @@ public class ZyftApiFactory : WebApplicationFactory<Program>
     /// <summary>Registra o link com token no log do envio de desenvolvimento (<c>Email:LogLinks</c>).</summary>
     public bool LogEmailLinks { get; init; } = true;
 
+    /// <summary>Configurações extras (ex.: <c>Email:Smtp:*</c> para subir com o envio por SMTP).</summary>
+    public IReadOnlyDictionary<string, string?> Settings { get; init; } = new Dictionary<string, string?>();
+
     public CapturingSink Logs { get; } = new();
 
-    /// <summary>E-mails "enviados" (o envio real de desenvolvimento, que só loga, continua rodando por baixo).</summary>
+    /// <summary>E-mails "enviados" (o envio escolhido pela configuração continua rodando por baixo: o que só loga ou o SMTP).</summary>
     public RecordingEmailSender.Outbox Emails { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -53,12 +56,15 @@ public class ZyftApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("RateLimiting:AiPermitPerMinute", AiPermitPerMinute.ToString());
         builder.UseSetting("Email:LogLinks", LogEmailLinks ? "true" : "false");
         builder.UseSetting("Cors:AllowedOrigins:0", "http://localhost:5080");
+        foreach (var (key, value) in Settings) builder.UseSetting(key, value);
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton<ILogEventSink>(Logs);
-            services.AddSingleton<Zyft.Infrastructure.Email.LoggingEmailSender>();
+            // Embrulha a implementação que a configuração escolheu (LoggingEmailSender ou SmtpEmailSender).
+            var chosen = services.Last(d => d.ServiceType == typeof(IEmailSender)).ImplementationType!;
+            services.AddSingleton(chosen);
             services.RemoveAll<IEmailSender>();
-            services.AddSingleton<IEmailSender>(sp => new RecordingEmailSender(sp.GetRequiredService<Zyft.Infrastructure.Email.LoggingEmailSender>(), Emails));
+            services.AddSingleton<IEmailSender>(sp => new RecordingEmailSender((IEmailSender)sp.GetRequiredService(chosen), Emails));
             if (Llm is not null)
             {
                 services.RemoveAll<ILlmClient>();

@@ -19,13 +19,13 @@ public sealed class EmailOptions
     /// <summary>
     /// Registra no log o link completo (com o token) dos e-mails gerados. Só para desenvolvimento local, onde não há
     /// envio real: o token dá acesso à conta (redefinir senha). Padrão <c>false</c>; <c>true</c> só em
-    /// <c>appsettings.Development.json</c>.
+    /// <c>appsettings.Development.json</c>. Ignorado quando o envio por SMTP está ligado (<see cref="SmtpOptions"/>).
     /// </summary>
     public bool LogLinks { get; set; }
 }
 
 /// <summary>
-/// Envio de e-mail enquanto não há provedor configurado: não envia nada. Com <see cref="EmailOptions.LogLinks"/>
+/// Envio de e-mail quando o SMTP não está configurado (<c>Email:Smtp:Host</c> vazio): não envia nada. Com <see cref="EmailOptions.LogLinks"/>
 /// (só desenvolvimento) registra o link com o token; fora disso registra apenas que o e-mail foi gerado, sem token.
 /// Nunca registra o endereço nem o nome da pessoa (RNF-09).
 /// </summary>
@@ -34,7 +34,7 @@ public sealed class LoggingEmailSender(IOptions<AppOptions> options, IOptions<Em
     public Task SendEmailVerificationAsync(string toEmail, string name, string token, CancellationToken ct = default)
     {
         if (emailOptions.Value.LogLinks)
-            logger.LogInformation("Link de verificação gerado: {Link}", Link("/#/verificar", token));
+            logger.LogInformation("Link de verificação gerado: {Link}", Link(EmailMessages.VerificationPath, token));
         else
             logger.LogInformation("E-mail de verificação gerado (envio não configurado).");
         return Task.CompletedTask;
@@ -43,12 +43,11 @@ public sealed class LoggingEmailSender(IOptions<AppOptions> options, IOptions<Em
     public Task SendPasswordResetAsync(string toEmail, string name, string token, CancellationToken ct = default)
     {
         if (emailOptions.Value.LogLinks)
-            logger.LogInformation("Link de redefinição de senha gerado: {Link}", Link("/#/redefinir-senha", token));
+            logger.LogInformation("Link de redefinição de senha gerado: {Link}", Link(EmailMessages.PasswordResetPath, token));
         else
             logger.LogInformation("E-mail de redefinição de senha gerado (envio não configurado).");
         return Task.CompletedTask;
     }
 
-    internal string Link(string path, string token) =>
-        $"{options.Value.WebBaseUrl.TrimEnd('/')}{path}?token={Uri.EscapeDataString(token)}";
+    private string Link(string path, string token) => EmailMessages.Link(options.Value.WebBaseUrl, path, token);
 }

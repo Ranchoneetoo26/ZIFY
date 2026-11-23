@@ -6,7 +6,7 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Contrato REST da API v1 |
-| Versão | 2.5 |
+| Versão | 2.6 |
 | Status | Em revisão. Todas as rotas descritas aqui estão implementadas e cobertas por testes de integração: **84 operações** em `/api/v1`, mais `GET /health`. As rotas da versão 2 seguem os [ADR-0018](adr/0018-onboarding-em-passos-com-perguntas-adiaveis.md), [ADR-0019](adr/0019-area-profissional-dinamica-e-campos-personalizados.md) e [ADR-0020](adr/0020-monetizacao-com-anuncios-e-planos.md), todos ainda propostos. |
 | Dono | Arquitetura de software, com o time de backend |
 | Documentos relacionados | [Backend](backend.md), [Modelo de dados](modelo-de-dados.md), [Segurança](seguranca.md), [Extensão](extensao.md), [DRP](../01-produto/drp.md), [Monetização](../01-produto/monetizacao.md), [Entrega 2 §3](../entregas/entrega-2-projeto-e-arquitetura.md#3-definição-da-api) |
@@ -22,6 +22,7 @@
 | 2.3 | 21/10/2026 | `GET /billing` (e as respostas de assinar, cancelar, pacote e recompensado) ganham `trialAvailable` e `trialDays`. Erro de formato (model binding) aponta o campo e não a chave do parâmetro (`cmd`). `type` de curso ausente ou nulo vira `Course`. Proposta de importação marca itens incompletos em `missingFields` (sem inventar valor) e o `apply` responde 400 com mensagem que nomeia o item. `open-answers` nunca devolve `value` vazio: texto vazio da IA vira `kind: "missing"` com nota padrão. |
 | 2.4 | 22/10/2026 | `GET /ads` pode devolver `format: "network"` (Google AdSense **simulado**, [ADR-0021](adr/0021-rede-de-anuncios-google-adsense.md)) com o objeto `network`; id `adsense-<slot>` aceito em `hide` (30 dias) e `click` (não contado). Sem rota nova: continuam 77 operações. |
 | 2.5 | 02/11/2026 | 84 operações (+7): verificação de e-mail (`POST /auth/verify`, `/auth/verify/resend`, §4.8), versão dos termos (`GET /auth/terms`) e aceite obrigatório no cadastro (§4.9), troca de senha (`POST /auth/password`, §4.11), recuperação de senha (`POST /auth/password/forgot` e `/reset`, §4.12) e troca de período do Plus (`POST /billing/subscription/period`, §4.13). Concorrência otimista do Perfil Mestre com `ETag`/`If-Match` e 409 `profile.conflict` (§4.10). `POST /auth/verify` é idempotente para o link que já confirmou a conta. `BillingDto` ganha `packTotals`; pacote também no Plus. `GET /me` ganha `emailVerified`, `emailVerifiedAt`, `termsVersion` e `termsAcceptedAt`. Mapa de rotas, rate limit, códigos de erro e compatibilidade (§6) atualizados. |
+| 2.6 | 23/11/2026 | Sem mudança de contrato: os e-mails de verificação e de redefinição passam a ser enviados de verdade quando o SMTP está configurado (§4.8). Falha de envio não muda a resposta de `register`, `verify/resend` nem `password/forgot`. |
 
 ## 1. Convenções
 
@@ -366,7 +367,7 @@ Quando o espaço é preenchido pela rede, a resposta muda de forma:
 
 ### 4.8 Verificação de e-mail (RF-01)
 
-O cadastro gera um token de uso único (só o hash SHA-256 fica no banco, tabela `UserTokens` com `Purpose = EmailVerification`, validade de 24 h) e envia o link `{App:WebBaseUrl}/#/verificar?token=...` por `IEmailSender`. Enquanto não há provedor de e-mail, o envio não manda nada: com `Email:LogLinks=true` (só em `appsettings.Development.json`) registra o link no log; nos outros ambientes registra só que o e-mail foi gerado, sem token. Nunca o endereço. **E-mail não verificado não bloqueia nenhuma rota**: é só informativo.
+O cadastro gera um token de uso único (só o hash SHA-256 fica no banco, tabela `UserTokens` com `Purpose = EmailVerification`, validade de 24 h) e envia o link `{App:WebBaseUrl}/#/verificar?token=...` por `IEmailSender`. Com `Email:Smtp:Host` configurado, o e-mail é enviado por SMTP ("Confirme seu e-mail no Zyft"); sem ele, o envio não manda nada: com `Email:LogLinks=true` (só em `appsettings.Development.json`) registra o link no log; nos outros ambientes registra só que o e-mail foi gerado, sem token. Nunca o endereço. Falha de envio não muda a resposta de `register`, `verify/resend` nem `password/forgot` (o `forgot` continua `202` igual para todos; ver [backend §4.1](backend.md)). **E-mail não verificado não bloqueia nenhuma rota**: é só informativo.
 
 | Rota | Acesso | Corpo | Resposta |
 |---|---|---|---|
