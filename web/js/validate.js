@@ -88,8 +88,10 @@ const MONEY_HINT = 'Informe só o valor, por exemplo 4.500,00.';
  * Devolve { value, error }. Vazio apaga (value null, sem erro); nada inválido vira null em silêncio.
  */
 export function parseMoney(input) {
-  const t = String(input ?? '').trim().replace(/^R\$/i, '').replace(/\s/g, '');
-  if (t === '') return { value: null, error: null };
+  const raw = String(input ?? '').trim();
+  if (raw === '') return { value: null, error: null };
+  const t = raw.replace(/^R\$/i, '').replace(/\s/g, '');
+  if (t === '') return { value: null, error: MONEY_HINT }; // só "R$": falta o valor
   if (/^-/.test(t)) return { value: null, error: 'O valor não pode ser negativo.' };
   let normal = null;
   if (/^\d+$/.test(t)) normal = t;

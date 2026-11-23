@@ -293,7 +293,7 @@ export async function render(main, { refreshShell } = {}) {
 
     // Tabela
     const table = Card({ title: 'Compare', titleId: 'compare-title', className: 'card--flush' },
-      h('div', { class: 'table-wrap' }, h('table', { class: 'table compare' },
+      h('div', { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': 'Comparação dos planos (role para os lados)' }, h('table', { class: 'table compare' },
         h('caption', { class: 'sr-only' }, 'Comparação entre o plano Gratuito e o Plus'),
         h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Recurso'), h('th', { scope: 'col' }, 'Gratuito'), h('th', { scope: 'col' }, 'Plus'))),
         h('tbody', {}, TABLE.map((r) => (r.section
