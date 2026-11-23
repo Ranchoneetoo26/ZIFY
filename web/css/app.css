@@ -2,7 +2,7 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; font-family: var(--font-sans); font-size: 15px; line-height: 22px; background: var(--surface); color: var(--ink); -webkit-font-smoothing: antialiased; }
+body { margin: 0; font-family: var(--font-sans); font-size: 15px; line-height: 22px; background: var(--surface); color: var(--ink); -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; }
 img, svg { max-width: 100%; }
 a { color: var(--link); text-underline-offset: 2px; }
 a:hover { color: var(--ink-muted); }
@@ -39,6 +39,9 @@ a.zy-btn:hover { color: inherit; }
 a.zy-btn--primary:hover { color: var(--on-zyft); }
 a.zy-btn--secondary:hover { color: var(--on-petrol); }
 .zy-btn--lg { height: 48px; padding: 0 var(--space-5); font-size: 16px; }
+.zy-btn[aria-busy="true"] { cursor: progress; opacity: .75; }
+.zy-btn[aria-busy="true"]::before { content: ""; flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; }
+.zy-switch[aria-busy="true"] { cursor: progress; opacity: .6; }
 select.zy-tf__input { appearance: auto; }
 .zy-tf--check .check { display: flex; gap: var(--space-2); align-items: center; font-size: 15px; cursor: pointer; }
 .zy-tf--check input, input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--petrol); flex: none; }
@@ -51,6 +54,8 @@ select.zy-tf__input { appearance: auto; }
 .zy-nav__item { min-height: 40px; height: auto; }
 
 /* ---------- Shell ---------- */
+/* Palco da rota (app.js): só isola a tela; não entra no layout. */
+.route-stage { display: contents; }
 .app { display: flex; flex-wrap: wrap; min-height: 100vh; }
 .sidebar { flex: 0 1 240px; background: var(--surface-sunken); display: flex; flex-direction: column; min-width: 220px; }
 .sidebar__top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: 20px 20px 0; }
@@ -68,6 +73,8 @@ select.zy-tf__input { appearance: auto; }
 .app--public .main { padding: 0; }
 
 @media (max-width: 820px) {
+  /* Tela curta (404, erro, carregando): a sobra de altura vai para o conteúdo, não para a faixa do menu. */
+  .app { align-content: flex-start; }
   .sidebar { flex: 1 1 100%; min-width: 0; }
   .sidebar__top { padding: 12px 16px; }
   .sidebar__menu { display: inline-flex; }
@@ -108,9 +115,9 @@ select.zy-tf__input { appearance: auto; }
 /* Chips e pílulas */
 .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .chip { font: inherit; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; border-radius: var(--radius-pill); border: 1.5px solid var(--line-strong); background: var(--surface-raised); color: var(--ink); cursor: pointer; }
-.chip--md { height: 32px; padding: 0 12px; font-size: 14px; }
-.chip--sm { height: 30px; padding: 0 10px; font-size: 13px; }
-.chip--lg { height: 44px; padding: 0 18px; font-size: 15px; border-width: 2px; }
+.chip--md { min-height: 32px; padding: 3px 12px; font-size: 14px; }
+.chip--sm { min-height: 30px; padding: 2px 10px; font-size: 13px; }
+.chip--lg { min-height: 44px; padding: 8px 18px; font-size: 15px; border-width: 2px; }
 .chip.is-on { background: var(--zyft-soft); border-color: var(--petrol); }
 .chip--lg.is-on { background: var(--zyft); color: var(--on-zyft); }
 .chip.is-dashed { border-style: dashed; }
@@ -127,7 +134,8 @@ select.zy-tf__input { appearance: auto; }
 .dl-grid dd.is-empty { color: var(--ink-muted); font-weight: 400; font-style: italic; }
 
 /* Tabelas */
-.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* position: relative segura a <caption class="sr-only"> (absoluta) dentro da rolagem; sem isso ela alarga a página. */
+.table-wrap { position: relative; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .table { width: 100%; border-collapse: collapse; font-size: 14px; line-height: 20px; min-width: 640px; }
 .table th { text-align: left; color: var(--ink-muted); font-size: 12px; font-weight: 600; padding: 10px 12px; }
 .table td { padding: 12px; border-top: 1px solid var(--line); vertical-align: middle; }
@@ -138,8 +146,9 @@ select.zy-tf__input { appearance: auto; }
 .empty { padding: var(--space-5); color: var(--ink-muted); text-align: center; }
 
 /* Toast, carregando */
-#toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); opacity: 0; pointer-events: none; z-index: 200; max-width: min(560px, calc(100vw - 32px)); background: var(--petrol); color: var(--on-petrol); padding: 12px 16px; border-radius: var(--radius-md); box-shadow: var(--shadow-pop); font-size: 14px; font-weight: 600; transition: opacity .15s, transform .15s; }
-#toast.show { opacity: 1; transform: translateX(-50%); }
+/* left + right + margin auto: a largura vem da tela, não de metade dela. */
+#toast { position: fixed; left: 16px; right: 16px; bottom: 24px; width: fit-content; max-width: min(560px, calc(100vw - 32px)); margin-inline: auto; transform: translateY(20px); opacity: 0; pointer-events: none; z-index: 200; background: var(--petrol); color: var(--on-petrol); padding: 12px 16px; border-radius: var(--radius-md); box-shadow: var(--shadow-pop); font-size: 14px; font-weight: 600; transition: opacity .15s, transform .15s; }
+#toast.show { opacity: 1; transform: none; }
 #toast.err { background: var(--blocked); color: #fff; }
 .loading { display: flex; gap: var(--space-3); align-items: center; padding: var(--space-6) 0; color: var(--ink-muted); }
 .spinner { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid var(--line); border-top-color: var(--petrol); animation: spin .8s linear infinite; }
@@ -155,6 +164,16 @@ dialog.modal::backdrop { background: rgba(10, 24, 28, .55); }
 .modal__x { flex: none; width: 32px; padding: 0; }
 .modal__body { padding: 16px 24px; display: flex; flex-direction: column; gap: var(--space-3); }
 .modal__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: 0 24px 24px; }
+/* Botão de ação com texto longo nunca é cortado: quebra a linha dentro do próprio botão. No celular estreito as
+   ações empilham, cada uma na largura toda (vale para todos os diálogos). */
+.modal__actions > .zy-btn { max-width: 100%; white-space: normal; height: auto; min-height: 40px; padding-block: 8px; text-align: center; }
+.modal__actions > .zy-btn--sm { min-height: 32px; padding-block: 6px; }
+@media (max-width: 480px) {
+  .modal__head { padding: 16px 16px 0; }
+  .modal__body { padding: 12px 16px; }
+  .modal__actions { flex-direction: column; align-items: stretch; padding: 0 16px 16px; }
+  .modal__actions > * { width: 100%; }
+}
 .limit-options { display: flex; flex-direction: column; gap: var(--space-2); }
 .limit-option { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; justify-content: space-between; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
 .limit-option > div { flex: 1 1 240px; }
@@ -180,10 +199,17 @@ dialog.modal::backdrop { background: rgba(10, 24, 28, .55); }
 .auth .check input { margin-top: 1px; }
 .auth__note { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 18px; color: var(--ink-muted); }
 .auth__note svg { margin-top: 2px; }
-@media (max-width: 640px) {
-  .auth__brand { padding: 32px 20px; gap: 24px; }
-  .auth__title { font-size: 40px; line-height: 42px; }
-  .auth__panel { padding: 32px 16px 48px; }
+.auth__actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.auth__box > .logo-pic { align-self: flex-start; }
+.auth__link { font-size: 14px; align-self: flex-start; }
+/* Com as colunas empilhadas, o formulário precisa aparecer na primeira tela. */
+@media (max-width: 959px) {
+  .auth { flex-direction: column; flex-wrap: nowrap; }
+  .auth__brand { flex: none; padding: 16px 20px; gap: 4px; }
+  .auth__hero { gap: 0; max-width: none; }
+  .auth__title { font-size: 20px; line-height: 26px; letter-spacing: -.01em; }
+  .auth__lead, .auth__points, .auth__foot { display: none; }
+  .auth__panel { flex: 1 0 auto; padding: 24px 16px 48px; align-items: flex-start; }
 }
 
 /* ---------- Onboarding (passaporte) ---------- */
@@ -299,10 +325,10 @@ dialog.modal::backdrop { background: rgba(10, 24, 28, .55); }
 .timeline__meta { font-size: 14px; line-height: 20px; color: var(--ink-muted); }
 .timeline__text { font-size: 14px; line-height: 21px; white-space: pre-line; }
 
-.skill { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: var(--radius-pill); border: 1.5px solid var(--line-strong); font-size: 14px; font-weight: 600; background: var(--surface-raised); color: var(--ink); cursor: pointer; }
+.skill { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 3px 12px; border-radius: var(--radius-pill); border: 1.5px solid var(--line-strong); font-size: 14px; font-weight: 600; background: var(--surface-raised); color: var(--ink); cursor: pointer; }
 .skill:hover { border-color: var(--ink); }
 .skill.is-new { border-color: var(--petrol); background: var(--zyft-soft); }
-.dots { display: inline-flex; gap: 2px; }
+.dots { flex: none; display: inline-flex; gap: 2px; }
 .dots > span { width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
 .dots > span.on { background: var(--petrol); }
 .suggest { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
@@ -356,6 +382,7 @@ dialog.modal::backdrop { background: rgba(10, 24, 28, .55); }
 .ad__media { flex: 0 0 160px; align-self: stretch; min-height: 90px; background: var(--surface-sunken); display: grid; place-items: center; font-size: 28px; font-weight: 800; color: var(--ink-muted); overflow: hidden; }
 .ad__media img { width: 100%; height: 100%; object-fit: cover; }
 .ad--banner .ad__body { flex: 1 1 280px; padding: 12px 0; gap: 2px; }
+.ad .zy-btn { height: auto; min-height: 32px; max-width: 100%; white-space: normal; padding-block: 6px; }
 .ad__x { width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--ink-muted); cursor: pointer; }
 .ad__x:hover { background: var(--surface-sunken); color: var(--ink); }
 .ad__hidden { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-muted); padding: 10px 14px; border: 1px dashed var(--line-strong); border-radius: var(--radius-md); }
@@ -381,7 +408,8 @@ dialog.modal::backdrop { background: rgba(10, 24, 28, .55); }
 /* ---------- Importar ---------- */
 .upload { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; padding: 16px 20px; border: 1.5px dashed var(--line-strong); border-radius: var(--radius-lg); background: var(--surface-raised); }
 .upload.is-over { border-color: var(--petrol); background: var(--zyft-soft); }
-.upload__info { display: flex; gap: 12px; align-items: center; }
+.upload__info { display: flex; gap: 12px; align-items: center; min-width: 0; }
+.upload__info > .stack { min-width: 0; }
 .upload__info b { display: block; }
 .upload input[type="file"] { font: inherit; font-size: 14px; max-width: 100%; }
 .conflict { background: var(--surface-raised); border: 1px solid var(--needs); border-radius: var(--radius-lg); overflow: hidden; }
@@ -409,6 +437,9 @@ details.howto summary { font-weight: 700; cursor: pointer; }
 details.howto p { margin-top: 8px; }
 .pair-start { background: var(--surface-raised); border: 1.5px solid var(--petrol); border-radius: var(--radius-lg); box-shadow: var(--shadow-hard); padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-3); max-width: 420px; }
 .site { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.zy-pair { grid-template-columns: minmax(0, 1fr); }
+.zy-pair__code { min-width: 0; }
+.zy-pair__char { flex: 0 1 40px; min-width: 0; }
 .site__origin { flex: 1 1 200px; font-family: var(--font-mono); font-size: 13px; overflow-wrap: anywhere; }
 
 /* ---------- Candidaturas ---------- */
@@ -478,6 +509,26 @@ details.howto p { margin-top: 8px; }
 .free-forever { background: var(--surface-sunken); border-radius: var(--radius-lg); padding: 20px 24px; display: flex; gap: 12px; align-items: flex-start; }
 .free-forever svg { margin-top: 3px; }
 
+/* O corpo quebra palavra longa (acima); estes filhos de flex e grid não podem exigir a largura do conteúdo. */
+.page-head__text, .pending__text, .profile-aside, .detail-cols > aside, .ob__progress, .passport, .me-card__who > div, .timeline__top > div { min-width: 0; }
+
 /* Espaços que ficam vazios (sem pendentes, sem anúncio) não abrem buraco no layout */
 .content > div:empty, .profile-aside > div:empty { display: none; }
 .sidebar__user .zy-btn { align-self: flex-start; padding-left: 0; }
+
+/* ---------- Aviso de e-mail não confirmado (só informativo, nunca bloqueia) ---------- */
+.verify-banner { max-width: 900px; margin-bottom: var(--space-5); }
+.verify-banner > p { flex: 1 1 220px; overflow-wrap: anywhere; }
+.verify-banner__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.verify-banner__status { flex-basis: 100%; margin: 0; }
+.verify-banner__status:empty { display: none; }
+.verify-status { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+
+/* ---------- Senha (troca na Conta, redefinição) ---------- */
+.pw-form { max-width: 440px; }
+.pw-toggle { align-self: flex-start; }
+
+/* ---------- Troca de período do Plus (rateio simulado) ---------- */
+.proration { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+.kv--row { flex-direction: row; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; }
+.kv--row .kv__k { font-size: 13px; font-weight: 500; color: var(--ink); flex: 1 1 160px; }

@@ -32,6 +32,8 @@ public static class PlanRules
     public const decimal PlusYearlyPrice = 99.00m;
     public const decimal PackPrice = 4.90m;
 
+    public static decimal PlusPrice(BillingPeriod period) => period == BillingPeriod.Yearly ? PlusYearlyPrice : PlusMonthlyPrice;
+
     public const int TrialDays = 7;
 
     public const int PackAssisted = 15;

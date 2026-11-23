@@ -13,9 +13,9 @@ O produto não é exclusivo de nenhuma área, nível de experiência, modalidade
 | Item | Situação |
 |---|---|
 | MVP 1 (v1) | **Implementado** em C#/.NET 8 (Clean Architecture): API, plataforma web, extensão MV3 e portal demo. 157 testes automatizados passando na Entrega 3 ([ADR-0017](docs/03-arquitetura/adr/0017-backend-em-csharp-dotnet-clean-architecture.md), em status Proposta; [Entrega 3](docs/entregas/entrega-3-desenvolvimento-e-validacao.md)) |
-| MVP 1 (v2) | **Implementado** a partir da pesquisa v2 (15 respostas válidas): onboarding em passos com perguntas adiáveis, área profissional dinâmica e campos personalizados, planos (Gratuito, Plus, pacote avulso) e anúncios rotulados sem dados pessoais (catálogo de demonstração), com pagamento **simulado**. API com 77 operações em `/api/v1`, 25 tabelas, plataforma web redesenhada e extensão 0.4.0. Rede de anúncios Google AdSense **simulada** para preencher o inventário ([ADR-0021](docs/03-arquitetura/adr/0021-rede-de-anuncios-google-adsense.md), Proposta). **263 testes automatizados passando** (160 de unidade, 91 de integração, 12 de aceitação). O porquê está em [Por que o Zyft](docs/00-contexto/por-que-o-zyft.md); as decisões nos ADRs [0018](docs/03-arquitetura/adr/0018-onboarding-em-passos-com-perguntas-adiaveis.md), [0019](docs/03-arquitetura/adr/0019-area-profissional-dinamica-e-campos-personalizados.md) e [0020](docs/03-arquitetura/adr/0020-monetizacao-com-anuncios-e-planos.md) (Proposta) |
+| MVP 1 (v2) | **Implementado** a partir da pesquisa v2 (15 respostas válidas): onboarding em passos com perguntas adiáveis, área profissional dinâmica e campos personalizados, planos (Gratuito, Plus, pacote avulso) e anúncios rotulados sem dados pessoais (catálogo de demonstração), com pagamento **simulado**. API com 84 operações em `/api/v1`, 27 tabelas, plataforma web redesenhada e extensão 0.4.1. Rede de anúncios Google AdSense **simulada** para preencher o inventário ([ADR-0021](docs/03-arquitetura/adr/0021-rede-de-anuncios-google-adsense.md), Proposta). **397 testes automatizados passando** (236 de unidade, 149 de integração, 12 de aceitação). Desde 02/11/2026: confirmação de e-mail (só aviso), aceite dos termos com versão, troca e recuperação de senha, envio de e-mail por SMTP quando configurado, aviso de conflito entre sessões no perfil e troca de período do Plus. O porquê está em [Por que o Zyft](docs/00-contexto/por-que-o-zyft.md); as decisões nos ADRs [0018](docs/03-arquitetura/adr/0018-onboarding-em-passos-com-perguntas-adiaveis.md), [0019](docs/03-arquitetura/adr/0019-area-profissional-dinamica-e-campos-personalizados.md) e [0020](docs/03-arquitetura/adr/0020-monetizacao-com-anuncios-e-planos.md) (Proposta) |
 | Protótipo Node | Virou **referência**: a lógica de de-para, análise de vaga, redação e importação foi portada para a API .NET; o [ADR-0003](docs/03-arquitetura/adr/0003-monorepo-typescript-node.md) foi substituído pelo ADR-0017 |
-| Pendências | Verificação de e-mail e login com Google (Entrega 4), decisão sobre `Users.DeletedAt`, decisão do ADR-0012 (a implementação guarda status e anotações da candidatura; ver a nota de divergência no ADR), revisão de conformidade dos anúncios na extensão antes de publicar na Chrome Web Store, "ocultar este tema" no painel da extensão, confirmação de exibição e rate limit dedicado no anúncio recompensado, evals de IA (ainda não existem no código), ADR-0017 e outros ADRs ainda em status Proposta, CI rodando no GitHub ([Entrega 3, §14](docs/entregas/entrega-3-desenvolvimento-e-validacao.md#14-pendências-e-limitações-conhecidas)) |
+| Pendências | Revisão jurídica dos termos e da política ([pendências](docs/07-legal/pendencias-de-revisao.md)), provedor de e-mail de produção, decisão sobre `Users.DeletedAt`, decisão do ADR-0012 (a implementação guarda status e anotações da candidatura; ver a nota de divergência no ADR), revisão de conformidade dos anúncios na extensão antes de publicar na Chrome Web Store, "ocultar este tema" no painel da extensão, confirmação de exibição e rate limit dedicado no anúncio recompensado, evals de IA (ainda não existem no código), ADR-0017 e outros ADRs ainda em status Proposta, CI rodando no GitHub ([Entrega 3, §14](docs/entregas/entrega-3-desenvolvimento-e-validacao.md#14-pendências-e-limitações-conhecidas)) |
 | MVP 2 | Marketplace de TI (PJ/CLT), painel central com lembretes, outros portais, versões do perfil por tipo de vaga ([histórico](docs/00-contexto/historico-e-reposicionamento.md), [roadmap](docs/01-produto/roadmap.md)) |
 
 ## Como executar
@@ -45,10 +45,10 @@ Segredos em `.env` (fora do Git): `ZYFT_JWT_SECRET`, `ZYFT_ENCRYPTION_KEY`, `ZYF
 **Testes:**
 
 ```bash
-dotnet test        # 263 testes: unidade, integração e aceitação (Reqnroll); não precisa de Docker nem de Ollama
+dotnet test        # 397 testes: unidade, integração e aceitação (Reqnroll); não precisa de Docker nem de Ollama
 ```
 
-**Extensão (0.4.0):** em `chrome://extensions` (ou `edge://extensions`), ligue o Modo do desenvolvedor, clique em **Carregar sem compactação** e escolha `extension/`. Na plataforma, gere o código em **Extensão → Gerar código de pareamento** e digite no painel lateral. Teste em `http://localhost:5080/demo/`. No plano gratuito, só um navegador pode ficar conectado; **Ajustes → Desconectar extensão** no painel libera a vaga.
+**Extensão (0.4.1):** em `chrome://extensions` (ou `edge://extensions`), ligue o Modo do desenvolvedor, clique em **Carregar sem compactação** e escolha `extension/`. Na plataforma, gere o código em **Extensão → Gerar código de pareamento** e digite no painel lateral. Teste em `http://localhost:5080/demo/`. No plano gratuito, só um navegador pode ficar conectado; **Ajustes → Desconectar extensão** no painel libera a vaga.
 
 ## Como funciona (MVP 1)
 
@@ -124,7 +124,7 @@ O time trabalha com agentes do Claude Code definidos em [`.claude/agents/`](.cla
 │   ├── Zyft.IntegrationTests/ WebApplicationFactory + SQLite em memória
 │   └── Zyft.AcceptanceTests/  Reqnroll (Gherkin em português)
 ├── web/                       plataforma web (servida em /): css/ (tokens, componentes, telas), js/ (views/ por tela) e portal demo (web/demo, servido em /demo/)
-├── extension/                 extensão Chrome/Edge (Manifest V3, 0.4.0): service worker, content script, painel lateral, icons/ e fonts/ (OFL)
+├── extension/                 extensão Chrome/Edge (Manifest V3, 0.4.1): service worker, content script, painel lateral, icons/ e fonts/ (OFL)
 ├── docs/
 │   ├── 00-contexto/ … 08-time/  produto, viabilidade, arquitetura (adr/), qualidade, pesquisa, operação, legal, time
 │   ├── entregas/              documentos das entregas da disciplina (img/ com diagramas e capturas)

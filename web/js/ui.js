@@ -1,7 +1,7 @@
 // Componentes do design system Zyft em JavaScript puro (mesma marcação e classes zy-* do bundle).
 // Cada função devolve um nó do DOM. Ver ref. design-system: Button, StatusBadge, Stamp, TextField,
 // Switch, ConsentRow, PairingCode, AppNav, SensitiveValue, WhyThis, UsageMeter, ReviewItem, Icon.
-import { h, nextId, clear } from './dom.js';
+import { h, nextId, clear, confirmDialog } from './dom.js';
 
 const PATHS = {
   check: 'M3.5 8.5l3 3 6-7',
@@ -94,13 +94,31 @@ export function Switch({ checked = false, label, disabled = false, onChange } = 
   const btn = h('button', { type: 'button', role: 'switch', 'aria-checked': String(Boolean(checked)), 'aria-label': label, disabled, class: cx('zy-switch', checked && 'is-on') },
     h('span', { class: 'zy-switch__thumb' }));
   btn.setChecked = (v) => { btn.setAttribute('aria-checked', String(Boolean(v))); btn.classList.toggle('is-on', Boolean(v)); };
-  btn.addEventListener('click', () => { if (!btn.disabled) onChange?.(btn.getAttribute('aria-checked') !== 'true', btn); });
+  btn.addEventListener('click', () => { if (!btn.disabled && btn.getAttribute('aria-busy') !== 'true') onChange?.(btn.getAttribute('aria-checked') !== 'true', btn); });
   return btn;
 }
 
+// Desligar apaga dados (RF-07): vale em toda tela que mostra este consentimento.
+const CONSENT_OFF_WARNINGS = {
+  'Dados sensíveis': {
+    title: 'Desligar e apagar seus dados sensíveis?',
+    message: 'Ao desligar, o Zyft apaga de vez todos os dados sensíveis que você guardou. Não dá para desfazer. Se ligar de novo, será preciso cadastrar tudo outra vez.',
+    confirmText: 'Desligar e apagar',
+    cancelText: 'Manter ligado',
+    danger: true,
+  },
+};
+
 export function ConsentRow({ title, purpose, basis, updatedAt, checked, required, onChange, className } = {}) {
   const meta = h('p', { class: 'zy-consent__meta' }, [basis, updatedAt].filter(Boolean).join(' · '));
-  const sw = Switch({ checked, disabled: required, label: title, onChange: (next, el) => onChange?.(next, el, meta) });
+  const warning = CONSENT_OFF_WARNINGS[title];
+  const sw = Switch({
+    checked, disabled: required, label: title,
+    onChange: async (next, el) => {
+      if (!next && warning && !(await confirmDialog(warning))) return;
+      await onChange?.(next, el, meta);
+    },
+  });
   return h('div', { class: cx('zy-consent', className) },
     h('div', { class: 'zy-consent__text' },
       h('div', { class: 'zy-consent__title' }, title, required ? h('span', { class: 'zy-consent__req' }, 'Necessário') : null),

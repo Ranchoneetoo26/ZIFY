@@ -26,12 +26,29 @@ public sealed class BillingController : ApiControllerBase
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     public Task<BillingDto> Subscribe(SubscribeCommand cmd, CancellationToken ct) => Sender.Send(cmd, ct);
 
+    /// <summary>
+    /// Troca o período do Plus ativo (period = monthly | yearly) com efeito imediato. Rateio simulado: crédito do que
+    /// falta do ciclo atual abatido do preço do período novo (<c>proration.amount</c> negativo = crédito). No teste
+    /// grátis só troca o período, sem valor.
+    /// </summary>
+    /// <response code="400">Período inválido.</response>
+    /// <response code="422"><c>billing.not_subscribed</c> (sem Plus ativo) ou <c>billing.same_period</c>.</response>
+    [HttpPost("subscription/period")]
+    [Authorize(Policy = Policies.WebUser)]
+    [ProducesResponseType(typeof(PeriodChangeDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    public Task<PeriodChangeDto> ChangePeriod(ChangePeriodCommand cmd, CancellationToken ct) => Sender.Send(cmd, ct);
+
     /// <summary>Cancela o Plus. Na demonstração volta ao Gratuito na hora.</summary>
     [HttpPost("cancel")]
     [Authorize(Policy = Policies.WebUser)]
     public Task<BillingDto> Cancel(CancellationToken ct) => Sender.Send(new CancelSubscriptionCommand(), ct);
 
-    /// <summary>Compra (simulada) um pacote avulso: +15 candidaturas assistidas e +10 sugestões de IA, válido por 60 dias.</summary>
+    /// <summary>
+    /// Compra (simulada) um pacote avulso: +15 candidaturas assistidas e +10 sugestões de IA, válido por 60 dias. Também
+    /// no Plus; os pacotes se somam (<c>packTotals</c>).
+    /// </summary>
     [HttpPost("packs")]
     [Authorize(Policy = Policies.WebUser)]
     [ProducesResponseType(typeof(BillingDto), StatusCodes.Status201Created)]

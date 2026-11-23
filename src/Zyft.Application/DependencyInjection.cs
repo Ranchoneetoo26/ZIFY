@@ -14,6 +14,7 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
+        ValidationLocalization.Configure();
         var assembly = typeof(DependencyInjection).Assembly;
         services.AddMediatR(cfg =>
         {

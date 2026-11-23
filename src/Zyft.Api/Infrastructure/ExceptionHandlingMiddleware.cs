@@ -2,6 +2,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Zyft.Application.Common.Exceptions;
+using Zyft.Application.Common.Interfaces;
 using Zyft.Domain.Billing;
 using Zyft.Domain.Common;
 
@@ -46,6 +47,10 @@ public sealed class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Ex
                 break;
             case ConflictException ce:
                 await Problems.WriteAsync(ctx, 409, ce.Message, ce.Code);
+                break;
+            case ProfileVersionConflictException pc:
+                await Problems.WriteAsync(ctx, 409, pc.Message, ProfileVersionConflictException.Code,
+                    extra: new Dictionary<string, object?> { ["currentVersion"] = pc.CurrentVersion });
                 break;
             case DbUpdateException:
                 logger.LogWarning("Conflito de persistência em {Path}", ctx.Request.Path);

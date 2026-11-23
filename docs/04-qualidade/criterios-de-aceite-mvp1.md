@@ -6,7 +6,7 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Critérios de aceite (CA) do MVP 1 |
-| Versão | 2.0 |
+| Versão | 2.1 |
 | Status | Aprovado para refinamento |
 | Dono | Product Owner (com QA) |
 | Documentos relacionados | [DRP](../01-produto/drp.md), [Fluxos](../01-produto/fluxos.md), [Estratégia de testes](estrategia-de-testes.md), [Monetização](../01-produto/monetizacao.md), ADRs [0018](../03-arquitetura/adr/0018-onboarding-em-passos-com-perguntas-adiaveis.md), [0019](../03-arquitetura/adr/0019-area-profissional-dinamica-e-campos-personalizados.md) e [0020](../03-arquitetura/adr/0020-monetizacao-com-anuncios-e-planos.md) |
@@ -17,6 +17,7 @@
 |---|---|---|
 | 1.0 | 12/10/2026 | CA-01 a CA-22, um por requisito funcional do DRP (mesma numeração). |
 | 2.0 | 21/10/2026 | CA-09 ajustado ao pareamento implementado (código de 6 dígitos gerado na plataforma; PKCE ficou para depois, [ADR-0017](../03-arquitetura/adr/0017-backend-em-csharp-dotnet-clean-architecture.md)). CA-19 ajustado ao registro de conclusão implementado. Novos CA-23 a CA-29 para onboarding em passos, área e catálogo, campos personalizados, planos e limites, pacote avulso, anúncio recompensado e anúncios (RF-23 a RF-29). |
+| 2.1 | 02/11/2026 | CA-01 ajustado ao implementado: a conta fica ativa sem confirmar o e-mail (a confirmação é só informativa e **não** bloqueia o pareamento, ao contrário do antigo 01.4), aceite dos termos com versão; login Google marcado como não implementado. Novos CA-02.5 (conflito de versão do perfil, RNF-18), CA-27.6 (pacote no Plus), **CA-30** (alterar e recuperar a senha, RF-30) e **CA-31** (troca de período do Plus, RF-31). |
 
 ## Convenções
 
@@ -28,10 +29,12 @@
 
 | # | Dado | Quando | Então |
 |---|---|---|---|
-| 01.1 | uma pessoa sem conta | ela se cadastra com e-mail e confirma o link de verificação | a conta fica ativa e ela entra na plataforma |
-| 01.2 | uma pessoa sem conta | ela escolhe "Entrar com Google" e autoriza | a conta é criada com o e-mail do Google |
+| 01.1 | uma pessoa sem conta | ela se cadastra com nome, e-mail, senha e o aceite dos termos | a conta fica ativa, ela entra na plataforma e recebe um link de confirmação do e-mail (24 h, uso único); abrir o link marca o e-mail como confirmado |
+| 01.2 | uma pessoa sem conta | ela escolhe "Entrar com Google" e autoriza | a conta é criada com o e-mail do Google. **Não implementado** (não há login Google no MVP 1 atual) |
 | 01.3 (negativo) | qualquer tela de cadastro ou configuração | a pessoa percorre a plataforma | não existe campo para senha de portal de vagas |
-| 01.4 (negativo) | uma conta com e-mail não verificado | a pessoa tenta parear a extensão | o pareamento é recusado com a instrução de verificar o e-mail |
+| 01.4 | uma conta com e-mail não confirmado | a pessoa usa a plataforma e pareia a extensão | tudo funciona; a plataforma mostra o aviso "Confirme seu e-mail" com **Reenviar link** e **Agora não**. *(Até a versão 2.0 deste documento o pareamento era recusado; a implementação de 02/11/2026 tornou a confirmação só informativa.)* |
+| 01.5 (negativo) | o formulário de cadastro | a pessoa não marca o aceite dos termos, ou envia uma versão dos termos diferente da vigente | a conta não é criada (400 com `errors.acceptTerms` ou `errors.termsVersion`) e a tela pede para ler e aceitar a versão atual |
+| 01.6 | uma conta criada com aceite | a pessoa baixa os dados | a exportação mostra a versão e a data do aceite dos termos |
 
 ## CA-02 — Perfil Mestre (RF-02)
 
@@ -41,6 +44,7 @@
 | 02.2 | um perfil | a pessoa adiciona três experiências com organização, cargo, período, atividades, ferramentas e resultados | as três ficam salvas na ordem escolhida e podem ser reordenadas, editadas e excluídas |
 | 02.3 | uma experiência marcada como "atual" | a pessoa salva | o fim do período fica vazio e aparece como "Atual" |
 | 02.4 | a tela do perfil | a pessoa navega só pelo teclado | todas as seções e ações são alcançáveis e têm rótulo acessível |
+| 02.5 (negativo) | o perfil aberto em duas abas | a pessoa salva na primeira e depois na segunda, sem recarregar | a segunda gravação não apaga a primeira em silêncio: a API responde 409 `profile.conflict` e a tela oferece **Recarregar dados mais recentes**, **Sobrescrever mesmo assim** ou **Cancelar** (RNF-18) |
 
 ## CA-03 — Importação de currículo (RF-03)
 
@@ -286,6 +290,7 @@ Implementação atual: depois de enviar no portal, a pessoa clica em "Concluí a
 | 27.3 | dois pacotes com validades diferentes | o limite do mês acaba | é consumido primeiro o pacote que vence antes |
 | 27.4 (negativo) | um pacote vencido | o limite do mês acaba | o pacote vencido não é usado e a API responde 402 |
 | 27.5 (negativo) | o pacote comprado | — | nenhuma cobrança real acontece e nenhum dado de pagamento é guardado (RN-13) |
+| 27.6 | o plano Plus | a pessoa compra um pacote | antes de confirmar, a tela avisa que no Plus os créditos ficam guardados e só são usados se ela voltar ao Gratuito antes de vencerem; depois, `packTotals` soma os pacotes ativos e o uso do Plus não gasta o pacote |
 
 ## CA-28 — Anúncio recompensado (RF-28, Could)
 
@@ -313,3 +318,23 @@ Implementação atual: depois de enviar no portal, a pessoa clica em "Concluí a
 | 29.11 (negativo) | a API de anúncios fora do ar ou lenta (mais de 1,5 s) | a tela carrega | o espaço do anúncio some e a tela funciona normalmente (RNF-15) |
 | 29.12 (negativo) | o catálogo de anúncios | — | todo anunciante é marcado como "Anunciante de demonstração" e nenhum anúncio promete contratação ou candidatura em massa (RN-06, RN-10) |
 
+## CA-30 — Alterar e recuperar a senha (RF-30)
+
+| # | Dado | Quando | Então |
+|---|---|---|---|
+| 30.1 | uma pessoa logada, com outra sessão aberta e uma extensão pareada | ela altera a senha em **Conta** informando a senha atual | a aba atual continua conectada (com um par de tokens novo); a outra sessão não renova mais e a extensão é desconectada e mostra "Extensão desconectada" |
+| 30.2 (negativo) | o formulário de alterar senha | a senha atual está errada ou a nova é igual à atual | a senha não muda e o erro aparece no campo |
+| 30.3 (negativo) | qualquer e-mail, cadastrado ou não | alguém pede "Esqueci minha senha" | a resposta é a mesma nos dois casos (202) e não revela se a conta existe |
+| 30.4 | um link de redefinição com menos de 30 minutos | a pessoa define uma senha nova | a senha muda, todas as sessões e extensões são encerradas, o e-mail fica confirmado e ela entra de novo com a senha nova |
+| 30.5 (negativo) | um link de redefinição já usado, vencido ou um link de confirmação de e-mail | a pessoa tenta redefinir com ele | a API recusa (400 `errors.token`) e a tela oferece pedir um novo link |
+| 30.6 (negativo) | muitos pedidos seguidos do mesmo endereço | alguém tenta adivinhar ou abusar | a API responde 429 com `Retry-After` |
+
+## CA-31 — Troca de período do Plus (RF-31, Could)
+
+| # | Dado | Quando | Então |
+|---|---|---|---|
+| 31.1 | o Plus mensal pago, no meio do ciclo | a pessoa escolhe **Mudar para o plano anual** e confirma | a tela mostrou antes uma estimativa; a troca vale na hora e o resultado mostra o crédito do que faltava do mês, o preço anual e o valor (simulado); o ciclo novo começa na troca e o registro ganha `plan.period_changed` |
+| 31.2 | o Plus anual pago | a pessoa muda para mensal | o valor sai negativo e aparece como "Crédito a seu favor (simulado)" |
+| 31.3 | o Plus no teste grátis | a pessoa troca o período | só o período muda, sem valor, e a renovação continua no fim do teste |
+| 31.4 (negativo) | o plano Gratuito, ou o Plus já no período escolhido | a pessoa (ou um cliente) pede a troca | a API responde 422 (`billing.not_subscribed` ou `billing.same_period`) e nada muda |
+| 31.5 (negativo) | qualquer troca | — | nenhuma cobrança real acontece e nenhum dado de cartão é pedido (RN-13) |

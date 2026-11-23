@@ -19,7 +19,17 @@ public sealed record PatchApplicationCommand : IRequest<ApplicationDto>
 {
     [JsonIgnore] public Guid Id { get; init; }
     public ApplicationStatus? Status { get; init; }
-    public string? Notes { get; init; }
+
+    /// <summary>Ausente: não muda. Presente, mesmo nulo ou vazio: substitui, e vazio limpa as anotações.</summary>
+    public string? Notes
+    {
+        get => _notes;
+        init { _notes = value; NotesProvided = true; }
+    }
+
+    [JsonIgnore] public bool NotesProvided { get; private init; }
+
+    private readonly string? _notes;
 }
 
 public sealed record DeleteApplicationCommand(Guid Id) : IRequest<Unit>;
@@ -30,7 +40,7 @@ public sealed class PatchApplicationValidator : AbstractValidator<PatchApplicati
     {
         RuleFor(x => x.Status).IsInEnum().WithMessage("Status inválido.");
         RuleFor(x => x.Notes).MaximumLength(2000);
-        RuleFor(x => x).Must(x => x.Status is not null || x.Notes is not null).WithName("body").WithMessage("Informe status e/ou notes.");
+        RuleFor(x => x).Must(x => x.Status is not null || x.NotesProvided).WithName("body").WithMessage("Informe o status ou as anotações.");
     }
 }
 
@@ -51,7 +61,7 @@ public sealed class ApplicationHandlers(IRepository<JobApplication> repo, ICurre
     public async Task<ApplicationDto> Handle(PatchApplicationCommand cmd, CancellationToken ct)
     {
         var a = await Load(cmd.Id, ct);
-        a.Update(cmd.Status, cmd.Notes);
+        a.Update(cmd.Status, cmd.NotesProvided ? cmd.Notes ?? string.Empty : null);
         await uow.SaveChangesAsync(ct);
         return ApplicationDto.From(a);
     }

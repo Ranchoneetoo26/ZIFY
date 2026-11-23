@@ -112,11 +112,28 @@ public sealed class GetResumeImportHandler(IRepository<ResumeImport> imports, IC
     }
 }
 
+// ------------------------------------------------------------------ GET /resume-imports/pending
+
+/// <summary>Importação pendente mais recente da pessoa, para retomar a revisão sem gastar outra importação. Nula se não houver.</summary>
+public sealed record GetPendingResumeImportQuery : IRequest<ResumeImportDto?>;
+
+public sealed class GetPendingResumeImportHandler(IRepository<ResumeImport> imports, ICurrentUser current) : IRequestHandler<GetPendingResumeImportQuery, ResumeImportDto?>
+{
+    public async Task<ResumeImportDto?> Handle(GetPendingResumeImportQuery q, CancellationToken ct)
+    {
+        var uid = current.UserId;
+        var pending = await imports.ListAsync(x => x.UserId == uid && x.Status == ResumeImportStatus.Pending, ct);
+        var latest = pending.OrderByDescending(x => x.CreatedAt).FirstOrDefault();
+        return latest is null ? null : ProposalJson.ToDto(latest);
+    }
+}
+
 // ------------------------------------------------------------------ POST /resume-imports/{id}/apply
 
 /// <summary>
 /// Aplica SÓ os itens aceitos/editados pela pessoa (RF-04). O corpo tem o mesmo formato da proposta, já filtrado:
-/// campos pessoais nulos não mudam o perfil; itens de lista são acrescentados (duplicatas são ignoradas).
+/// campos pessoais nulos ou vazios não mudam o perfil, e os demais dados básicos ficam como estão; itens de lista são
+/// acrescentados (duplicatas são ignoradas e contadas em <c>skipped</c>). Valem as mesmas regras e limites de <c>PUT /profile</c>.
 /// </summary>
 public sealed record ApplyResumeImportCommand : IRequest<ApplyResumeImportResult>
 {
@@ -131,41 +148,72 @@ public sealed record ApplyResumeImportCommand : IRequest<ApplyResumeImportResult
     public List<ProposalLanguage> Languages { get; init; } = new();
 }
 
-public sealed record ApplyResumeImportResult(ProfileDto Profile, IReadOnlyList<MissingItem> Missing);
+/// <param name="Profile">Perfil depois de aplicar.</param>
+/// <param name="Missing">O que ainda falta no perfil.</param>
+/// <param name="Added">Itens de lista gravados ou alterados.</param>
+/// <param name="Skipped">Itens de lista ignorados porque já estavam no perfil.</param>
+public sealed record ApplyResumeImportResult(ProfileDto Profile, IReadOnlyList<MissingItem> Missing, int Added, int Skipped);
+
+public sealed class ProposalProfileValidator : AbstractValidator<ProposalProfile>
+{
+    public ProposalProfileValidator()
+    {
+        Include(new ProfileContactRules<ProposalProfile>(completeUrls: true));
+        RuleFor(x => x.FullName).Visible().When(x => x.FullName is not null).WithMessage("Informe o nome completo.");
+    }
+}
 
 public sealed class ApplyResumeImportValidator : AbstractValidator<ApplyResumeImportCommand>
 {
     public ApplyResumeImportValidator()
     {
+        RuleFor(x => x.Profile!).SetValidator(new ProposalProfileValidator()).When(x => x.Profile is not null);
         RuleForEach(x => x.Experiences).ChildRules(e =>
         {
-            e.RuleFor(x => x.Company).NotEmpty().WithMessage("Informe a organização.");
-            e.RuleFor(x => x.Role).NotEmpty().WithMessage("Informe o cargo.");
+            e.RuleFor(x => x.Company).Visible().WithMessage("Informe a organização.").MaximumLength(ProfileLimits.Organization);
+            e.RuleFor(x => x.Role).Visible().WithMessage("Informe o cargo.").MaximumLength(ProfileLimits.Organization);
             e.RuleFor(x => x.StartDate).Must(BeDate).WithMessage("Informe a data de início (AAAA-MM).");
-            e.RuleFor(x => x.EndDate).Must(d => d is null || BeDate(d)).WithMessage("Data de término inválida (AAAA-MM).");
+            e.RuleFor(x => x.EndDate).Must(BeOptionalDate).WithMessage("Data de término inválida (AAAA-MM).")
+                .Must((x, end) => x.IsCurrent || NotBefore(x.StartDate, end)).WithMessage("A data de término não pode ser anterior à data de início.");
+            e.RuleFor(x => x.Activities).MaximumLength(ProfileLimits.LongText);
+            e.RuleFor(x => x.Tools).MaximumLength(ProfileLimits.Tools);
+            e.RuleFor(x => x.Results).MaximumLength(ProfileLimits.LongText);
         });
         // Mensagens dizem QUAL item está incompleto (ex.: a formação sem situação que a IA propôs). Nada é inventado.
         RuleForEach(x => x.Educations).ChildRules(e =>
         {
-            e.RuleFor(x => x.Institution).NotEmpty().WithMessage(x => $"Formação {Name(x.Course, x.Institution)}: informe a instituição.");
-            e.RuleFor(x => x.Course).NotEmpty().WithMessage(x => $"Formação {Name(x.Course, x.Institution)}: informe o curso.");
+            e.RuleFor(x => x.Institution).Visible().WithMessage(x => $"Formação {Name(x.Course, x.Institution)}: informe a instituição.").MaximumLength(ProfileLimits.Organization);
+            e.RuleFor(x => x.Course).Visible().WithMessage(x => $"Formação {Name(x.Course, x.Institution)}: informe o curso.").MaximumLength(ProfileLimits.Organization);
             e.RuleFor(x => x.Level).Must(l => DisplayNames.TryParse<EducationLevel>(l, out _))
                 .WithMessage(x => $"Formação {Name(x.Course, x.Institution)}: escolha o nível (ex.: Graduação, Técnico).");
             e.RuleFor(x => x.Status).Must(s => DisplayNames.TryParse<EducationStatus>(s, out _))
                 .WithMessage(x => $"Formação {Name(x.Course, x.Institution)}: escolha a situação (Cursando, Concluído, Trancado ou Incompleto). O currículo não dizia.");
             e.RuleFor(x => x.StartDate).Must(BeDate).WithMessage(x => $"Formação {Name(x.Course, x.Institution)}: informe o mês de início (AAAA-MM).");
+            e.RuleFor(x => x.EndDate).Must(BeOptionalDate).WithMessage(x => $"Formação {Name(x.Course, x.Institution)}: data de conclusão inválida (AAAA-MM).")
+                .Must((x, end) => NotBefore(x.StartDate, end)).WithMessage("A data de conclusão não pode ser anterior à data de início.");
         });
-        RuleForEach(x => x.Courses).ChildRules(c => c.RuleFor(x => x.Name).NotEmpty().WithMessage("Informe o nome do curso."));
-        RuleForEach(x => x.Skills).ChildRules(k => k.RuleFor(x => x.Name).NotEmpty().WithMessage("Informe a competência.").MaximumLength(100));
+        RuleForEach(x => x.Courses).ChildRules(c =>
+        {
+            c.RuleFor(x => x.Name).Visible().WithMessage("Informe o nome do curso.").MaximumLength(ProfileLimits.Organization);
+            c.RuleFor(x => x.Institution).MaximumLength(ProfileLimits.Organization);
+            c.RuleFor(x => x.Hours).GreaterThan(0).WithMessage("Informe um número de horas maior que zero.")
+                .LessThanOrEqualTo(ProfileLimits.MaxHours).WithMessage("Carga horária muito alta.");
+            c.RuleFor(x => x.CompletedAt).Must(BeOptionalDate).WithMessage("Data de conclusão inválida (AAAA-MM).");
+        });
+        RuleForEach(x => x.Skills).ChildRules(k => k.RuleFor(x => x.Name).Visible().WithMessage("Informe a competência.").MaximumLength(ProfileLimits.SkillName));
         RuleForEach(x => x.Languages).ChildRules(l =>
         {
-            l.RuleFor(x => x.Name).NotEmpty().WithMessage("Informe o idioma.");
+            l.RuleFor(x => x.Name).Visible().WithMessage("Informe o idioma.").MaximumLength(ProfileLimits.LanguageName);
             l.RuleFor(x => x.Proficiency).Must(p => DisplayNames.TryParse<LanguageProficiency>(p, out _)).WithMessage(x => $"Idioma {Name(x.Name, null)}: escolha o nível (ex.: Básico, Fluente).");
         });
-        RuleFor(x => x.Profile!.Email).EmailAddress().When(x => !string.IsNullOrWhiteSpace(x.Profile?.Email)).WithMessage("E-mail inválido.");
     }
 
     private static bool BeDate(string? s) => Dates.TryParseLoose(s, out _);
+
+    private static bool BeOptionalDate(string? s) => string.IsNullOrWhiteSpace(s) || BeDate(s);
+
+    private static bool NotBefore(string? start, string? end) =>
+        !Dates.TryParseLoose(start, out var s) || !Dates.TryParseLoose(end, out var e) || e >= s;
 
     /// <summary>"“Administração – UEM”" para identificar o item na mensagem.</summary>
     private static string Name(string? a, string? b)
@@ -192,18 +240,20 @@ public sealed class ApplyResumeImportHandler(
         import.MarkApplied();
         if (cmd.Profile is { } pe)
         {
-            var d = ProfileDto.From(profile);
-            profile.UpdateBasics(new ProfileBasicData
+            // Parte dos dados atuais: o que a proposta não traz, inclusive campo novo do perfil, continua como está.
+            var d = profile.ToBasicData();
+            profile.UpdateBasics(d with
             {
-                FullName = pe.FullName ?? d.FullName, Email = pe.Email ?? d.Email, Phone = pe.Phone ?? d.Phone, BirthDate = d.BirthDate,
-                City = pe.City ?? d.City, State = pe.State ?? d.State, Country = d.Country, ZipCode = d.ZipCode,
-                LinkedinUrl = pe.LinkedinUrl ?? d.LinkedinUrl, GithubUrl = pe.GithubUrl ?? d.GithubUrl, PortfolioUrl = pe.PortfolioUrl ?? d.PortfolioUrl,
-                Headline = pe.Headline ?? d.Headline, Summary = pe.Summary ?? d.Summary, DesiredRoles = pe.DesiredRoles ?? d.DesiredRoles,
-                Areas = d.Areas, Seniority = d.Seniority, WorkModel = d.WorkModel, LocationPreference = d.LocationPreference, Availability = d.Availability,
-                SalaryExpectation = d.SalaryExpectation, AvailableToTravel = d.AvailableToTravel, AvailableToRelocate = d.AvailableToRelocate,
-                ContractTypes = d.ContractTypes, HasDriverLicense = d.HasDriverLicense, DriverLicenseCategory = d.DriverLicenseCategory,
+                FullName = Keep(pe.FullName, d.FullName), Email = Keep(pe.Email, d.Email), Phone = Keep(pe.Phone, d.Phone),
+                City = Keep(pe.City, d.City), State = Keep(pe.State, d.State),
+                LinkedinUrl = Keep(Urls.Complete(pe.LinkedinUrl), d.LinkedinUrl), GithubUrl = Keep(Urls.Complete(pe.GithubUrl), d.GithubUrl),
+                PortfolioUrl = Keep(Urls.Complete(pe.PortfolioUrl), d.PortfolioUrl),
+                Headline = Keep(pe.Headline, d.Headline), Summary = Keep(pe.Summary, d.Summary), DesiredRoles = Keep(pe.DesiredRoles, d.DesiredRoles),
             });
         }
+
+        int added = 0, skipped = 0;
+        void Tally(bool isNew) { if (isNew) added++; else skipped++; }
 
         foreach (var e in cmd.Experiences)
         {
@@ -212,6 +262,7 @@ public sealed class ApplyResumeImportHandler(
             var dup = profile.Experiences.Any(x => string.Equals(x.Company, e.Company?.Trim(), StringComparison.OrdinalIgnoreCase)
                                                   && string.Equals(x.Role, e.Role?.Trim(), StringComparison.OrdinalIgnoreCase) && x.StartDate == start);
             if (!dup) profile.AddExperience(new ExperienceData(e.Company!, e.Role!, start, e.IsCurrent ? null : end, e.IsCurrent, e.Activities, e.Tools, e.Results));
+            Tally(!dup);
         }
 
         foreach (var e in cmd.Educations)
@@ -223,34 +274,46 @@ public sealed class ApplyResumeImportHandler(
             var dup = profile.Educations.Any(x => string.Equals(x.Institution, e.Institution?.Trim(), StringComparison.OrdinalIgnoreCase)
                                                  && string.Equals(x.Course, e.Course?.Trim(), StringComparison.OrdinalIgnoreCase));
             if (!dup) profile.AddEducation(new EducationData(e.Institution!, e.Course!, level, status, start, end));
+            Tally(!dup);
         }
 
         foreach (var c in cmd.Courses)
         {
             DateOnly? done = c.CompletedAt is not null && Dates.TryParseLoose(c.CompletedAt, out var cd) ? cd : null;
-            if (!profile.Courses.Any(x => string.Equals(x.Name, c.Name?.Trim(), StringComparison.OrdinalIgnoreCase)))
+            var dup = profile.Courses.Any(x => string.Equals(x.Name, c.Name?.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (!dup)
                 profile.AddCourse(new CourseData(c.Name!, c.Institution, c.Hours, done,
                     string.Equals(c.Type, "Certification", StringComparison.OrdinalIgnoreCase) || c.Type == "2" ? CourseType.Certification : CourseType.Course));
+            Tally(!dup);
         }
 
-        foreach (var s in cmd.Skills.Where(s => !string.IsNullOrWhiteSpace(s.Name)).DistinctBy(s => s.Name!.Trim().ToLowerInvariant()))
+        var named = cmd.Skills.Where(s => !VisibleText.IsBlank(s.Name)).ToList();
+        var skills = named.DistinctBy(s => s.Name!.Trim().ToLowerInvariant()).ToList();
+        skipped += named.Count - skills.Count;
+        foreach (var s in skills)
         {
             SkillLevel? level = DisplayNames.TryParse<SkillLevel>(s.Level, out var lv) ? lv : null;
-            if (!profile.HasSkill(s.Name!)) profile.AddSkill(s.Name!, level);
+            var isNew = !profile.HasSkill(s.Name!);
+            if (isNew) profile.AddSkill(s.Name!, level);
+            Tally(isNew);
         }
 
         foreach (var l in cmd.Languages)
         {
             DisplayNames.TryParse<LanguageProficiency>(l.Proficiency, out var prof);
             var existing = profile.Languages.FirstOrDefault(x => string.Equals(x.Name, l.Name?.Trim(), StringComparison.OrdinalIgnoreCase));
+            var changes = existing is null || existing.Proficiency != prof;
             if (existing is null) profile.AddLanguage(l.Name!, prof);
-            else profile.UpdateLanguage(existing.Id, existing.Name, prof);
+            else if (changes) profile.UpdateLanguage(existing.Id, existing.Name, prof);
+            Tally(changes);
         }
 
         audit.Add(AuditEvent.Record(uid, AuditActions.ResumeApplied, clock.UtcNow));
         await uow.SaveChangesAsync(ct);
-        return new ApplyResumeImportResult(ProfileDto.From(profile), GetMissingHandler.Compute(profile));
+        return new ApplyResumeImportResult(ProfileDto.From(profile), GetMissingHandler.Compute(profile), added, skipped);
     }
+
+    private static string? Keep(string? proposed, string? current) => VisibleText.IsBlank(proposed) ? current : proposed;
 }
 
 // ------------------------------------------------------------------ POST /resume-imports/{id}/discard

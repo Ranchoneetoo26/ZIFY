@@ -11,7 +11,7 @@ public class AuthTests(ZyftApiFactory factory) : IClassFixture<ZyftApiFactory>
     public async Task Cadastro_devolve_201_com_tokens_e_scope_web()
     {
         var c = factory.CreateClient();
-        var res = await c.PostAsJsonAsync("/api/v1/auth/register", new { name = "Ana", email = $"ana{Guid.NewGuid():N}@x.com", password = "Senha123" });
+        var res = await c.PostAsJsonAsync("/api/v1/auth/register", new { name = "Ana", email = $"ana{Guid.NewGuid():N}@x.com", password = "Senha123", acceptTerms = true, termsVersion = TestApi.TermsVersion });
         res.StatusCode.Should().Be(HttpStatusCode.Created);
         var j = await res.JsonAsync();
         j.GetProperty("scope").GetString().Should().Be("web");
@@ -24,7 +24,7 @@ public class AuthTests(ZyftApiFactory factory) : IClassFixture<ZyftApiFactory>
     {
         var c = factory.CreateClient();
         var s = await TestApi.RegisterAsync(c);
-        var res = await c.PostAsJsonAsync("/api/v1/auth/register", new { name = "Outra", email = s.Email.ToUpperInvariant(), password = "Senha123" });
+        var res = await c.PostAsJsonAsync("/api/v1/auth/register", new { name = "Outra", email = s.Email.ToUpperInvariant(), password = "Senha123", acceptTerms = true, termsVersion = TestApi.TermsVersion });
         res.StatusCode.Should().Be(HttpStatusCode.Conflict);
         res.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
         var j = await res.JsonAsync();

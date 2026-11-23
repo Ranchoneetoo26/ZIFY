@@ -6,7 +6,7 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Arquitetura Técnica (DAT) |
-| Versão | 2.3 (substitui o DAT do marketplace, arquivado em `docs/arquivo/marketplace-v1/dat.md`) |
+| Versão | 2.4 (substitui o DAT do marketplace, arquivado em `docs/arquivo/marketplace-v1/dat.md`) |
 | Status | Em revisão. A arquitetura-alvo depende dos ADRs marcados como "Proposta". |
 | Dono | Arquitetura de software |
 | Documentos relacionados | [DRP](../01-produto/drp.md), [Backend](backend.md), [Extensão](extensao.md), [Frontend web](frontend-web.md), [IA](ia.md), [Modelo de dados](modelo-de-dados.md), [API](api.md), [Segurança](seguranca.md), [ADRs](adr/) |
@@ -20,6 +20,7 @@
 | 2.1 | 21/10/2026 | Nova seção "Versão 2 (21/10/2026)": o estado real é a API .NET 8 ([ADR-0017](adr/0017-backend-em-csharp-dotnet-clean-architecture.md)) e entram os componentes da versão 2 do produto. Tabela de evolução atualizada (planos do assistente no MVP 1; assinaturas do marketplace continuam MVP 2). |
 | 2.2 | 21/10/2026 | Seções 3 a 6 reescritas para o sistema real, consistentes com o [backend](backend.md) e o ADR-0017: contexto sem e-mail nem login social; contêineres .NET 8 (Clean Architecture, MediatR/CQRS, FluentValidation, EF Core com PostgreSQL ou SQLite), Ollama atrás de `ILlmClient`, SPA em JavaScript puro servida pela API e extensão MV3 sem build; componentes da API e da extensão; estrutura real do repositório; fluxos com as rotas `/api/v1`, a cota de uso e o pareamento por código, incluindo a desconexão (`DELETE /extension/devices/current`). As seções 2 (protótipo) e 7 a 12 não mudaram. |
 | 2.3 | 21/10/2026 | Contagem de testes atualizada: 252 (156 + 84 + 12). |
+| 2.4 | 02/11/2026 | §3: a conta passa a ter verificação de e-mail (só informativa) e recuperação de senha por link, com envio por `IEmailSender` ainda simulado (só log); login com Google continua fora. §4: extensão 0.4.1, 84 operações, 27 tabelas. |
 
 ## Versão 2 (21/10/2026)
 
@@ -129,7 +130,7 @@ flowchart LR
 
 O Zyft **não** se integra a portais por API, **não** faz requisições ao portal (RNF-13) e **não** conhece a senha do portal (RNF-01). Toda interação com o portal acontece no DOM da aba que a pessoa abriu.
 
-Não há sistema externo de e-mail nem de login social no MVP 1 implementado: a conta é por e-mail e senha (BCrypt), sem verificação de e-mail. Verificação de e-mail e login com Google estão previstos para a Entrega 4. O serviço de IA (Ollama) roda ao lado da API e é opcional: sem ele, o de-para segue só com regras (RNF-12).
+Não há sistema externo de e-mail nem de login social no MVP 1 implementado: a conta é por e-mail e senha (BCrypt). Desde 02/11/2026 a API gera links de verificação de e-mail (só informativa, nunca bloqueia o uso) e de redefinição de senha, mas o envio passa pela porta `IEmailSender`, cuja única implementação (`LoggingEmailSender`) apenas registra o link no log; um provedor de e-mail transacional real é pendência (ver [segurança §3.3](seguranca.md)). Login com Google continua não implementado. O serviço de IA (Ollama) roda ao lado da API e é opcional: sem ele, o de-para segue só com regras (RNF-12).
 
 ## 4. Visão de contêineres (C4 nível 2)
 
@@ -137,7 +138,7 @@ Não há sistema externo de e-mail nem de login social no MVP 1 implementado: a 
 flowchart TB
   P([Pessoa candidata])
   subgraph Navegador da pessoa
-    EXT[Extensão MV3 0.4.0<br/>JavaScript sem build<br/>painel lateral + service worker]
+    EXT[Extensão MV3 0.4.1<br/>JavaScript sem build<br/>painel lateral + service worker]
     CS[Content script<br/>injetado sob demanda]
     WEB[Plataforma web<br/>HTML, CSS e JavaScript puro<br/>SPA com rotas por hash]
     PG[(Página do portal)]
@@ -162,8 +163,8 @@ flowchart TB
 |---|---|---|---|
 | Plataforma web | HTML, CSS e JavaScript puro (módulos ES, sem build), rotas por hash (`#/perfil`, `#/planos`…), servida pela própria API a partir de `web/` | Conta, onboarding em passos, Perfil Mestre, importação com revisão, banco de respostas, consentimentos, dados sensíveis, pareamento e navegadores conectados, sites autorizados, candidaturas, registro de ações, planos e anúncios, exportar e excluir | [frontend-web.md](frontend-web.md) |
 | Extensão | Manifest V3, JavaScript sem build: `background.js` (service worker, único que guarda tokens e fala com a API), `content.js` (lê e preenche a página), `sidepanel.{html,js,css}` (painel lateral) | Reconhecer o site, ler campos e a vaga, mostrar o de-para para revisão, preencher só o aprovado, registrar a conclusão; medidor de uso e anúncios do painel | [extensao.md](extensao.md) |
-| API | C#/.NET 8, ASP.NET Core, Clean Architecture em quatro projetos (`Zyft.Domain`, `Zyft.Application`, `Zyft.Infrastructure`, `Zyft.Api`), MediatR (CQRS), FluentValidation, Serilog, Swagger, rate limiting, health checks | Regras de negócio, autenticação (JWT + refresh rotativo), pareamento, de-para, orquestração da IA, cota de uso, anúncios, auditoria; 77 operações em `/api/v1` | [backend.md](backend.md), [api.md](api.md) |
-| Banco | EF Core 8. PostgreSQL 16 (Npgsql, migrations) em Docker; SQLite (`EnsureCreated`) no desenvolvimento local e nos testes | Conta, Perfil Mestre **relacional** (uma tabela por seção), consentimentos, sensíveis cifrados (AES-256-GCM), dispositivos, candidaturas, auditoria, planos e uso; 25 tabelas | [modelo-de-dados.md](modelo-de-dados.md) |
+| API | C#/.NET 8, ASP.NET Core, Clean Architecture em quatro projetos (`Zyft.Domain`, `Zyft.Application`, `Zyft.Infrastructure`, `Zyft.Api`), MediatR (CQRS), FluentValidation, Serilog, Swagger, rate limiting, health checks | Regras de negócio, autenticação (JWT + refresh rotativo), pareamento, de-para, orquestração da IA, cota de uso, anúncios, auditoria; 84 operações em `/api/v1` | [backend.md](backend.md), [api.md](api.md) |
+| Banco | EF Core 8. PostgreSQL 16 (Npgsql, migrations) em Docker; SQLite (`EnsureCreated`) no desenvolvimento local e nos testes | Conta, Perfil Mestre **relacional** (uma tabela por seção), consentimentos, sensíveis cifrados (AES-256-GCM), dispositivos, candidaturas, auditoria, planos e uso; 27 tabelas | [modelo-de-dados.md](modelo-de-dados.md) |
 | Serviço de IA | Ollama com modelo open-weight (`qwen2.5:7b`), atrás da porta `ILlmClient` (`OllamaLlmClient`; `NullLlmClient` quando desligado) | De-para residual (só aponta chave), texto livre com fatos, extração de currículo, extração e avaliação de requisitos da vaga | [ia.md](ia.md) |
 
 Não há worker nem fila: as chamadas de IA são síncronas, com tempo limite e queda para as regras quando a IA não responde (RNF-12). A escolha está no [ADR-0017](adr/0017-backend-em-csharp-dotnet-clean-architecture.md) (Proposta), que substitui o [ADR-0003](adr/0003-monorepo-typescript-node.md); a porta de IA segue o [ADR-0005](adr/0005-modelo-open-weight-self-hosted-atras-de-porta-llm.md). O ADR-0017 ajusta o [ADR-0008](adr/0008-postgresql-com-perfil-em-jsonb.md): o perfil é relacional, não JSONB.

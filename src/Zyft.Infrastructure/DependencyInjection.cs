@@ -6,6 +6,7 @@ using Zyft.Application.Ads;
 using Zyft.Application.Common.Interfaces;
 using Zyft.Infrastructure.Ads;
 using Zyft.Infrastructure.Ai;
+using Zyft.Infrastructure.Email;
 using Zyft.Infrastructure.Files;
 using Zyft.Infrastructure.Persistence;
 using Zyft.Infrastructure.Security;
@@ -30,11 +31,15 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<ZyftDbContext>());
         services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
         services.AddScoped<IProfileRepository, ProfileRepository>();
+        services.AddScoped<IProfileConcurrency, ProfileConcurrency>();
 
         services.Configure<JwtOptions>(config.GetSection(JwtOptions.Section));
         services.Configure<EncryptionOptions>(config.GetSection(EncryptionOptions.Section));
         services.Configure<LlmOptions>(config.GetSection(LlmOptions.Section));
         services.Configure<AdNetworkOptions>(config.GetSection(AdNetworkOptions.Section));
+        services.Configure<AppOptions>(config.GetSection(AppOptions.Section));
+        services.Configure<EmailOptions>(config.GetSection(EmailOptions.Section));
+        AddEmail(services, config);
         services.AddSingleton<IAdNetwork, AdSenseNetwork>();
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
@@ -58,5 +63,23 @@ public static class DependencyInjection
         }
 
         return services;
+    }
+
+    /// <summary>
+    /// E-mail: com <c>Email:Smtp:Host</c> preenchido, envio real por SMTP (<see cref="SmtpEmailSender"/>), com as
+    /// opções validadas na subida; sem ele, <see cref="LoggingEmailSender"/> (não envia; em desenvolvimento registra o
+    /// link com <c>Email:LogLinks</c>).
+    /// </summary>
+    private static void AddEmail(IServiceCollection services, IConfiguration config)
+    {
+        var smtp = services.AddOptions<SmtpOptions>().Bind(config.GetSection(SmtpOptions.Section));
+        if (string.IsNullOrWhiteSpace(config[$"{SmtpOptions.Section}:Host"]))
+        {
+            services.AddSingleton<IEmailSender, LoggingEmailSender>();
+            return;
+        }
+        services.AddSingleton<IValidateOptions<SmtpOptions>, SmtpOptionsValidator>();
+        smtp.ValidateOnStart();
+        services.AddSingleton<IEmailSender, SmtpEmailSender>();
     }
 }

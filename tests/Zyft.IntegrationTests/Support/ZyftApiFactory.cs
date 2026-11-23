@@ -33,7 +33,16 @@ public class ZyftApiFactory : WebApplicationFactory<Program>
     /// <summary>IA substituta (null = IA desligada).</summary>
     public ILlmClient? Llm { get; init; }
 
+    /// <summary>Registra o link com token no log do envio de desenvolvimento (<c>Email:LogLinks</c>).</summary>
+    public bool LogEmailLinks { get; init; } = true;
+
+    /// <summary>Configurações extras (ex.: <c>Email:Smtp:*</c> para subir com o envio por SMTP).</summary>
+    public IReadOnlyDictionary<string, string?> Settings { get; init; } = new Dictionary<string, string?>();
+
     public CapturingSink Logs { get; } = new();
+
+    /// <summary>E-mails "enviados" (o envio escolhido pela configuração continua rodando por baixo: o que só loga ou o SMTP).</summary>
+    public RecordingEmailSender.Outbox Emails { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -45,10 +54,17 @@ public class ZyftApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Llm:Provider", "None");
         builder.UseSetting("RateLimiting:AuthPermitLimit", AuthPermitLimit.ToString());
         builder.UseSetting("RateLimiting:AiPermitPerMinute", AiPermitPerMinute.ToString());
+        builder.UseSetting("Email:LogLinks", LogEmailLinks ? "true" : "false");
         builder.UseSetting("Cors:AllowedOrigins:0", "http://localhost:5080");
+        foreach (var (key, value) in Settings) builder.UseSetting(key, value);
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton<ILogEventSink>(Logs);
+            // Embrulha a implementação que a configuração escolheu (LoggingEmailSender ou SmtpEmailSender).
+            var chosen = services.Last(d => d.ServiceType == typeof(IEmailSender)).ImplementationType!;
+            services.AddSingleton(chosen);
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(sp => new RecordingEmailSender((IEmailSender)sp.GetRequiredService(chosen), Emails));
             if (Llm is not null)
             {
                 services.RemoveAll<ILlmClient>();
@@ -61,6 +77,29 @@ public class ZyftApiFactory : WebApplicationFactory<Program>
     {
         base.Dispose(disposing);
         if (disposing) _keepAlive.Dispose();
+    }
+}
+
+public sealed class RecordingEmailSender(IEmailSender inner, RecordingEmailSender.Outbox outbox) : IEmailSender
+{
+    public sealed record Message(string To, string Kind, string Token);
+
+    public sealed class Outbox : ConcurrentQueue<Message>
+    {
+        /// <summary>Token do último e-mail do tipo para o destinatário.</summary>
+        public string LastToken(string to, string kind) => this.Last(m => m.To.Equals(to, StringComparison.OrdinalIgnoreCase) && m.Kind == kind).Token;
+    }
+
+    public Task SendEmailVerificationAsync(string toEmail, string name, string token, CancellationToken ct = default)
+    {
+        outbox.Enqueue(new Message(toEmail, "verify", token));
+        return inner.SendEmailVerificationAsync(toEmail, name, token, ct);
+    }
+
+    public Task SendPasswordResetAsync(string toEmail, string name, string token, CancellationToken ct = default)
+    {
+        outbox.Enqueue(new Message(toEmail, "reset", token));
+        return inner.SendPasswordResetAsync(toEmail, name, token, ct);
     }
 }
 
@@ -82,12 +121,15 @@ public static class TestApi
 {
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
+    /// <summary>Versão vigente dos termos (o cadastro exige aceite).</summary>
+    public const string TermsVersion = Zyft.Domain.Users.Terms.CurrentVersion;
+
     public sealed record Session(string AccessToken, string RefreshToken, Guid UserId, string Email);
 
     public static async Task<Session> RegisterAsync(HttpClient c, string? email = null, string password = "Senha123")
     {
         email ??= $"pessoa{Guid.NewGuid():N}@exemplo.com";
-        var res = await c.PostAsJsonAsync("/api/v1/auth/register", new { name = "Pessoa Teste", email, password });
+        var res = await c.PostAsJsonAsync("/api/v1/auth/register", new { name = "Pessoa Teste", email, password, acceptTerms = true, termsVersion = TermsVersion });
         res.EnsureSuccessStatusCode();
         var j = await res.Content.ReadFromJsonAsync<JsonElement>();
         return new Session(j.GetProperty("accessToken").GetString()!, j.GetProperty("refreshToken").GetString()!, j.GetProperty("user").GetProperty("id").GetGuid(), email);

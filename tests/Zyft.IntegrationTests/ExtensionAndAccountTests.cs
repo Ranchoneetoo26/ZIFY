@@ -133,6 +133,6 @@ public class ExtensionAndAccountTests(ZyftApiFactory factory) : IClassFixture<Zy
         (await c.PostAsJsonAsync("/api/v1/auth/login", new { email = s.Email, password = "Senha123" })).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         (await c.PostAsJsonAsync("/api/v1/auth/refresh", new { refreshToken = s.RefreshToken })).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         // Mesmo e-mail pode criar conta nova (nada sobrou).
-        (await c.PostAsJsonAsync("/api/v1/auth/register", new { name = "De novo", email = s.Email, password = "Senha123" })).StatusCode.Should().Be(HttpStatusCode.Created);
+        (await c.PostAsJsonAsync("/api/v1/auth/register", new { name = "De novo", email = s.Email, password = "Senha123", acceptTerms = true, termsVersion = TestApi.TermsVersion })).StatusCode.Should().Be(HttpStatusCode.Created);
     }
 }

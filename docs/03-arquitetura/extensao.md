@@ -6,7 +6,7 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Arquitetura da extensão |
-| Versão | 2.3 |
+| Versão | 2.5 |
 | Status | Vigente para a v2 do MVP 1. O primeiro portal real depende do [ADR-0011](adr/0011-primeiro-portal-e-conectores-por-portal.md); anúncios e limites dependem do [ADR-0020](adr/0020-monetizacao-com-anuncios-e-planos.md) (ambos propostos). |
 | Dono | Arquitetura de software, com o dev frontend (painel) |
 | Documentos relacionados | [Design system](design-system.md), [API](api.md), [Frontend web](frontend-web.md), [Segurança](seguranca.md), [ADR-0002](adr/0002-extensao-de-navegador-mv3-com-painel-lateral.md), [ADR-0007](adr/0007-autenticacao-e-pareamento-da-extensao.md), [ADR-0009](adr/0009-nunca-enviar-confirmacao-explicita.md), [ADR-0010](adr/0010-sem-credenciais-sem-contorno-de-seguranca-campos-bloqueados.md), [ADR-0017](adr/0017-backend-em-csharp-dotnet-clean-architecture.md) |
@@ -21,6 +21,7 @@
 | 2.2 | 21/10/2026 | Correções conferidas no código: "Desconectar extensão" revoga o próprio dispositivo (`DELETE /extension/devices/current`) e libera a vaga de navegador; timeout de 1,5 s no pedido de anúncio (RNF-15); `personal.birthDate` entra em `SENSITIVE_KEYS`; regras de LinkedIn e GitHub voltaram a casar ([IA](ia.md)); `POST /billing/packs` recusa o token da extensão (403). Pendências resolvidas saíram do §14. |
 | 2.3 | 21/10/2026 | Rascunho da IA: todo 200 de `/forms/open-answers` aparece no cartão (rascunho, resposta aprovada reaproveitada ou aviso "A IA não conseguiu escrever um rascunho…" com a caixa já aberta); aceita `value`, `text`, `answer` ou `draft` e ignora texto só com espaços. Anúncios: **Não tenho interesse no tema** (`scope: "topic"`) ao lado de **Ocultar**; a pendência "Ocultar assunto" saiu do §14. |
 | 2.4 | 22/10/2026 | Rede de anúncios Google AdSense **simulada** ([ADR-0021](adr/0021-rede-de-anuncios-google-adsense.md)) no banner do rodapé e no cartão pós-conclusão: bloco `<ins class="adsbygoogle">` com arte neutra, sem script remoto (MV3) (§10.1). Para produção, a extensão fica só com anúncios diretos. |
+| 2.5 | 02/11/2026 | Extensão 0.4.1: na renovação, só 401/403 contam como desconexão (guarda a marca `disconnected` e o painel explica o motivo e como reconectar); erro de rede, 5xx ou 429 não apaga mais os tokens. Trocar ou redefinir a senha na plataforma desconecta a extensão (RF-30). O medidor usa `packTotals.assistedRemaining` (§11). |
 
 ## 1. Papel da extensão
 
@@ -33,12 +34,12 @@ A extensão é a única parte do Zyft que toca a página do portal. Ela:
 
 Ela **não** decide nada sozinha, **não** envia, **não** faz requisições ao portal e **não** guarda o Perfil Mestre.
 
-## 2. Componentes (Manifest V3, versão 0.4.0)
+## 2. Componentes (Manifest V3, versão 0.4.1)
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `extension/manifest.json` | MV3, "Zyft — Candidatura Assistida", versão `0.4.0`. Permissões, ícones e CSP (§3). |
-| `extension/background.js` | Service worker. **Único** que fala com a API e guarda tokens. Abre o painel ao clicar no ícone, renova o access token uma vez ao receber 401 (uma renovação por vez, porque o refresh é rotativo), manda `X-Zyft-Extension-Version` e **só aceita mensagens de páginas da própria extensão** (§4). |
+| `extension/manifest.json` | MV3, "Zyft — Candidatura Assistida", versão `0.4.1`. Permissões, ícones e CSP (§3). |
+| `extension/background.js` | Service worker. **Único** que fala com a API e guarda tokens. Abre o painel ao clicar no ícone, renova o access token uma vez ao receber 401 (uma renovação por vez, porque o refresh é rotativo; desde a 0.4.1 só 401/403 na renovação desconectam, §8), manda `X-Zyft-Extension-Version` e **só aceita mensagens de páginas da própria extensão** (§4). |
 | `extension/content.js` | Crawler e filler, injetado sob demanda com `chrome.scripting.executeScript`. Valida `sender.id`, descarta `password` antes de ler o valor e recusa `file`, `password` e botões. |
 | `extension/sidepanel.html`, `sidepanel.js`, `sidepanel.css` | Painel lateral, reescrito na 0.4.0: conectar, aba "A vaga e você", aba "Formulário" e tela de conclusão. Os componentes do design system (`StatusBadge`, `Stamp`, `WhyThis`, `ProgressSummary`, `SiteSupport`, `RequirementMatch`, `UsageMeter`) são recriados em DOM puro dentro de `sidepanel.js`. Os tokens de cor ficam em `sidepanel.css`, com tema escuro por `prefers-color-scheme`. |
 | `extension/icons/` | `icon-16/32/48/128.png` (ícone da barra e da loja) e `zyft-mark.svg` (logo do cabeçalho e imagem padrão dos anúncios). |
@@ -52,7 +53,7 @@ O content script não é declarado em `content_scripts`: só entra na página qu
 {
   "manifest_version": 3,
   "name": "Zyft — Candidatura Assistida",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "icons": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" },
   "permissions": ["sidePanel", "storage", "scripting", "activeTab", "tabs"],
   "host_permissions": ["http://localhost/*", "http://127.0.0.1/*"],
@@ -84,10 +85,10 @@ Há dois canais, com formatos diferentes.
 
 | `type` | Payload | Resposta |
 |---|---|---|
-| `api` | `{method, path, body}` | `{ok, status, data}` ou `{ok: false, status, problem}` (ProblemDetails). Com `paired: false` quando a conexão expirou ou foi revogada. |
+| `api` | `{method, path, body}` | `{ok, status, data}` ou `{ok: false, status, problem}` (ProblemDetails). Com `paired: false` e `revoked: true` quando a conta desconectou a extensão (renovação recusada com 401/403, ou 401 depois de renovar); `problem` traz o aviso "Extensão desconectada". Falha passageira na renovação (rede, 5xx, 429) devolve `{ok: false, status, problem}` sem `paired: false`: os tokens ficam. |
 | `pair` | `{code, deviceName}` | `{ok, data: {paired: true}}` ou o erro da API (inclusive 402) |
 | `unpair` | — | Chama `DELETE /extension/devices/current` (revoga o próprio dispositivo e libera a vaga de navegador; uma falha aqui não impede desconectar), depois `POST /auth/logout` com o refresh token, e apaga os tokens locais |
-| `status` | — | `{paired, apiBase}` |
+| `status` | — | `{paired, apiBase, disconnected}`; `disconnected` (`{title, detail, at}`) só quando não há tokens e a marca de desconexão está guardada |
 | `setApiBase` | `{url}` | Igual a `status` |
 
 **Painel → content script** (`chrome.tabs.sendMessage`, campo `cmd`):
@@ -146,6 +147,7 @@ Leitura da vaga: `main`, `article` ou `[role=main]` (senão `body`), título do 
 |---|---|
 | Access token (15 min) | `chrome.storage.session`, com `setAccessLevel({accessLevel: 'TRUSTED_CONTEXTS'})`: content scripts não leem |
 | Refresh token (7 dias, rotativo) e `deviceId` | `chrome.storage.local` |
+| Marca de desconexão pela conta (`disconnected: {at}`, só a data) | `chrome.storage.local`; gravada quando a renovação é recusada, apagada ao conectar de novo e no "Desconectar extensão" pedido pela pessoa |
 | Endereço da API | `chrome.storage.local` (`apiBase`), padrão `http://localhost:5080`, alterável em Ajustes |
 | Última vaga analisada (título, empresa, URL) | `chrome.storage.session` (`lastJob`); a pessoa pode "esquecer" |
 | Perfil Mestre | **Não é armazenado** (RNF-02) |
@@ -156,7 +158,9 @@ Leitura da vaga: `main`, `article` ou `[role=main]` (senão `body`), título do 
 1. Na plataforma, em Extensão, a pessoa gera um código de 6 dígitos (`POST /extension/pairing-codes`), válido por 10 minutos e uma única vez.
 2. No painel ("Conecte este navegador à sua conta"), digita o código e o nome do navegador (sugerido, por exemplo "Chrome no Linux").
 3. O service worker chama `POST /extension/pair`. A API responde `{device: {id, …}, tokens: {accessToken, refreshToken, …}}`. O service worker guarda os tokens de `tokens` e o `device.id`. (Até a 0.3 o código lia os tokens no nível de cima da resposta e o pareamento não guardava nada; a 0.4.0 corrigiu e ainda aceita o formato plano antigo.)
-4. Revogar o navegador na plataforma derruba access e refresh na hora; na próxima chamada o painel volta para "Conectar".
+4. Revogar o navegador na plataforma derruba access e refresh na hora; na próxima chamada o painel volta para "Conectar". O mesmo acontece quando a pessoa **troca ou redefine a senha** na plataforma (`POST /auth/password` e `/auth/password/reset` revogam todas as extensões pareadas, RF-30) ou exclui a conta.
+
+**Desconexão pela conta (0.4.1).** Quando a renovação do token responde 401 ou 403 (ou a chamada ainda dá 401 depois de renovar), o service worker apaga os tokens e grava `disconnected: {at}` em `chrome.storage.local`. O painel mostra, acima do pareamento, o aviso "Extensão desconectada" ("A sua conta desconectou esta extensão. Isso acontece quando a senha é alterada ou redefinida, quando este navegador é desconectado na plataforma ou quando a conexão expira…"), o link **Abrir "Conectar um navegador" na plataforma** e o título "Conecte este navegador de novo". Como a marca fica guardada, o aviso aparece mesmo se o painel for aberto depois. Erro passageiro (sem rede, API fora do ar, 5xx, 429) **não** desconecta mais: antes da 0.4.1 qualquer falha na renovação apagava os tokens e obrigava a parear de novo.
 
 No plano gratuito, a conta tem **1 navegador** conectado; no Plus, até 3. Parear além do limite responde 402 (`plan.limit_reached`, `resource=devices`) e o painel mostra a mensagem da API com os links "Ver navegadores conectados na plataforma" e "Conhecer o Plus".
 
@@ -172,7 +176,7 @@ O painel segue o [design system](design-system.md): cabeçalho em petróleo com 
 
 | Tela | O que a pessoa vê | API |
 |---|---|---|
-| Não conectada | "Conecte este navegador à sua conta", campo do código de 6 dígitos, nome do navegador, "Ajustes" (endereço da API) e a nota "O Zyft nunca pede a senha dos portais. A extensão só lê o formulário da página aberta, quando você pede." **Sem anúncio.** | `POST /extension/pair` |
+| Não conectada | "Conecte este navegador à sua conta", campo do código de 6 dígitos, nome do navegador, "Ajustes" (endereço da API) e a nota "O Zyft nunca pede a senha dos portais. A extensão só lê o formulário da página aberta, quando você pede." Se a conta desconectou a extensão (senha alterada ou redefinida, navegador removido), o aviso "Extensão desconectada" com o motivo vem antes, e o título vira "Conecte este navegador de novo" (§8). **Sem anúncio.** | `POST /extension/pair` |
 | Página atual | Endereço da página e `SiteSupport`. No `localhost` e em `127.0.0.1` (portal de demonstração): "Compatível com o portal de demonstração". Em outros sites: "Compatibilidade parcial com este site". Se o site ainda não foi autorizado, aparece o quadro "Site ainda não autorizado" com "Usar neste site mesmo assim". | `GET/POST /authorized-sites` |
 | Aba "A vaga e você" | "Analisar esta vaga"; depois, dados da vaga (cargo, empresa, modalidade, contrato, local, salário) e `RequirementMatch` ("Aparece no seu perfil", "Aparece em parte", "Não encontramos no seu perfil"), com "Isto não é uma nota e não garante aprovação." Um anúncio (§10). No rodapé: "Ler o formulário desta página", medidor de uso, "Ganhar" e o link para o Plus. | `POST /jobs/analyze`; `GET /billing`; `GET /ads` |
 | Aba "Formulário" | `ProgressSummary` no topo; Prontos compactos com "Aprovar os N"; depois, um a um, os sensíveis, as sugestões da IA, o que precisa de você e o que é "Ação sua". Rodapé com "Preencher N campos aprovados", "Ler novamente (nova etapa)" e "Concluí a candidatura". **Sem anúncio.** | `POST /forms/mappings`, `/forms/open-answers`, `POST /answers` |
@@ -259,7 +263,7 @@ Quando `GET /ads` devolve `format: "network"` (em `ext.panel.banner`, onde a red
 
 ### 11.1 Medidor e "Ganhar"
 
-No rodapé da aba "A vaga e você", o painel mostra o `UsageMeter` com as candidaturas assistidas do mês (de `GET /billing`): "Candidaturas assistidas em outubro · 7 de 10", com a nota "O contador recomeça em 1º de novembro." O limite exibido já soma o bônus do mês ("Inclui +3 de bônus") e a nota cita o saldo de pacotes avulsos. No Plus: "Zyft Plus: sem limite e sem anúncios." Embaixo, o link "Sem anúncios e sem limite com o Zyft Plus" abre `#/planos` na plataforma.
+No rodapé da aba "A vaga e você", o painel mostra o `UsageMeter` com as candidaturas assistidas do mês (de `GET /billing`): "Candidaturas assistidas em outubro · 7 de 10", com a nota "O contador recomeça em 1º de novembro." O limite exibido já soma o bônus do mês ("Inclui +3 de bônus") e a nota cita o saldo de pacotes avulsos, lido de `packTotals.assistedRemaining` (soma calculada pela API desde 02/11/2026; resposta antiga sem o campo soma `packs`). No Plus: "Zyft Plus: sem limite e sem anúncios." Embaixo, o link "Sem anúncios e sem limite com o Zyft Plus" abre `#/planos` na plataforma.
 
 Enquanto houver ofertas no mês (`rewarded.claimedThisMonth < maxPerMonth`), aparece "+3 candidaturas este mês ao ver uma oferta patrocinada" e o botão "Ganhar". Ao clicar, o painel mostra a "Oferta patrocinada" (um anúncio do espaço `ext.panel.banner`), avisa que não é preciso clicar no anúncio e oferece "Vi a oferta: ganhar +3" ou "Agora não". "Vi a oferta" chama `POST /ads/rewarded/claim`. Até 3 vezes por mês (+9). Se a API responder 409 `ads.rewarded_exhausted`, o painel diz "Você já usou as ofertas deste mês. Elas voltam no mês que vem."; o botão some quando o `GET /billing` seguinte mostra o máximo atingido. É sempre opcional.
 
@@ -293,7 +297,7 @@ Os roteiros E2E ainda não rodam no CI.
 
 ## 14. Divergências conhecidas e pendências
 
-| Tema | Situação na 0.4.0 | O que fazer |
+| Tema | Situação na 0.4.1 | O que fazer |
 |---|---|---|
 | "Por que estou vendo isso?" | Exibido só se a API mandar `reason`; o painel não deixa de mostrar o anúncio sem ele | Hoje todo anúncio do catálogo tem `reason`; tornar a regra explícita no painel |
 | Oferta recompensada | O bônus é concedido quando a pessoa clica em "Vi a oferta"; o servidor não confirma que o anúncio foi exibido e `POST /ads/rewarded/claim` não tem rate limit dedicado (só o limite de 3 por mês) | Aceitável na demonstração (sem receita real); rever antes de anúncios reais |

@@ -26,7 +26,7 @@ Este é um guia de estudo. Ele diz o que você precisa dominar para responder à
 1. `Zyft.Domain` (entidades e regras puras) ← `Zyft.Application` (CQRS com MediatR, FluentValidation, portas) ← `Zyft.Infrastructure` (EF Core, JWT, BCrypt, AES-GCM, Ollama, PdfPig/OpenXml) ← `Zyft.Api` (controllers finos, ProblemDetails, Serilog, rate limiting).
 2. PostgreSQL 16 em Docker; SQLite em desenvolvimento e nos testes de integração.
 3. Web em HTML/CSS/JS sem build (`web/`), servida pela API em `/`.
-4. Extensão MV3 (`extension/`, versão 0.4.0): só o service worker fala com a API e guarda tokens, e ele só aceita mensagens das páginas da própria extensão.
+4. Extensão MV3 (`extension/`, versão 0.4.1): só o service worker fala com a API e guarda tokens, e ele só aceita mensagens das páginas da própria extensão. Na renovação do token, só 401/403 desconectam (senha trocada ou navegador removido); erro de rede não apaga os tokens.
 5. IA atrás da porta `ILlmClient`: aponta chave, nunca escreve valor; sem IA, as regras seguem.
 
 **Monetização.** Gratuito com limites e anúncios, Plus R$ 9,90/mês ou R$ 99/ano, pacote R$ 4,90, recompensado +3 (até +9/mês). Pagamento simulado. Ver [monetização](../../01-produto/monetizacao.md).

@@ -60,9 +60,16 @@ export function adSlot(placement, { variant = 'banner', topic } = {}) {
     const msg = scope === 'topic'
       ? `Pronto. Você não verá mais anúncios sobre ${ad.topic || 'este assunto'}.`
       : 'Pronto. Este anúncio não aparece para você pelos próximos 30 dias.';
-    clear(slot, h('p', { class: 'ad__hidden', role: 'status' }, Icon('check', { size: 14 }), msg));
+    // O botão que tinha o foco sumiu: o foco acompanha o aviso e, quando ele some, vai para o título.
+    const note = h('p', { class: 'ad__hidden', role: 'status', tabindex: '-1' }, Icon('check', { size: 14 }), msg);
+    clear(slot, note);
+    note.focus({ preventScroll: true });
     announce(msg);
-    setTimeout(() => { slot.hidden = true; }, 6000);
+    setTimeout(() => {
+      const hadFocus = slot.contains(document.activeElement);
+      slot.hidden = true;
+      if (hadFocus) document.querySelector('#main h1')?.focus({ preventScroll: true });
+    }, 6000);
   };
 
   (async () => {

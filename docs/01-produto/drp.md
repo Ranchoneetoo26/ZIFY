@@ -6,7 +6,7 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Requisitos do Produto (DRP) |
-| Versão | 2.2 |
+| Versão | 2.3 |
 | Status | Aprovado para refinamento. RF-23 a RF-29 dependem dos ADRs 0018, 0019 e 0020 (propostos). |
 | Dono | Product Owner |
 | Relacionados | [DVP-E](dvp-e.md), [Fluxos](fluxos.md), [Monetização](monetizacao.md), [DAT](../03-arquitetura/dat.md), [API](../03-arquitetura/api.md), [Critérios de aceite](../04-qualidade/criterios-de-aceite-mvp1.md), [Resultados da pesquisa v2](../05-pesquisa/resultados-v2.md) |
@@ -19,6 +19,7 @@
 | 2.0 | 12/10/2026 | Reescrita para a Candidatura Assistida: RF-01 a RF-22, RNF-01 a RNF-13, RN-01 a RN-07, requisitos do MVP 2. |
 | 2.1 | 21/10/2026 | Versão 2 do produto: RF-23 a RF-29 (onboarding em passos, área e catálogo, campos personalizados, planos e limites, pacote, recompensado, anúncios), RN-08 a RN-15, RNF-14 a RNF-17, rastreabilidade com os ADRs 0018 a 0020 e evidência da pesquisa v2. |
 | 2.2 | 21/10/2026 | Detalhes ajustados ao que foi implementado: RF-19 (a implementação guarda status e anotação), RF-26 (cancelamento imediato na demonstração; 402 também para respostas e navegadores), RF-27 (pacote cobre só candidaturas e IA), RF-28 (409 `ads.rewarded_unavailable` no Plus), RF-29 (`GET /ads` sem placement responde 400; contextual só com requisito que casa). |
+| 2.3 | 02/11/2026 | RF-01 ajustado ao implementado (verificação de e-mail só informativa, aceite dos termos com versão, login Google não implementado). Novos **RF-30** (alterar e recuperar a senha), **RF-31** (Could: trocar o período do Plus com rateio simulado) e **RNF-18** (gravação concorrente do Perfil Mestre não se perde em silêncio). RF-27: pacote também no Plus. |
 
 **Sobre a numeração.** RF-21 (melhorar texto) e RF-22 (versão do currículo) já existiam como Could e são citados no backend e nos critérios de aceite. Por isso os requisitos novos começam em **RF-23**. IDs nunca são reaproveitados.
 
@@ -53,9 +54,10 @@ Cada requisito tem critérios de aceite verificáveis em [criterios-de-aceite-mv
 
 | ID | Requisito | Regras |
 |---|---|---|
-| RF-01 | Criar conta e autenticar na plataforma web. | E-mail com verificação ou login Google. Sem cadastro de senha de portais em nenhum momento. |
+| RF-01 | Criar conta e autenticar na plataforma web. | E-mail e senha, com aceite explícito dos termos de uso e da política de privacidade na versão vigente (versão e data ficam na conta). O e-mail recebe um link de confirmação (24 h, uso único, com reenvio); a confirmação é **só informativa** e não bloqueia nenhuma função. Login Google continua previsto e **não** implementado. Sem cadastro de senha de portais em nenhum momento. |
 | RF-07 | Gerenciar consentimentos por finalidade. | Finalidades separadas e desligáveis: (a) IA para textos livres, (b) análise de vaga, (c) uso de dados sensíveis. As três começam **desligadas** (opt-in); o onboarding (capítulo Combinados) oferece ligar (a) e (b). Desligar (c) apaga os dados sensíveis guardados. Desligar (b) bloqueia a análise na API, não só na interface. |
 | RF-08 | Exportar e excluir os próprios dados. | Exportação em JSON legível com perfil, respostas aprovadas, consentimentos e registro de ações. A exclusão apaga tudo e encerra o pareamento das extensões. |
+| RF-30 | Alterar e recuperar a senha da conta. | **Alterar** exige a senha atual e uma senha nova diferente; encerra as outras sessões e desconecta todas as extensões pareadas, mantendo a sessão atual. **Recuperar** ("Esqueci minha senha") responde igual para e-mail cadastrado ou não (sem revelar se a conta existe) e envia um link de uso único que vale 30 minutos; redefinir encerra todas as sessões e extensões, confirma o e-mail e não faz login automático. Rotas com limite de tentativas. |
 
 ### 3.2 Perfil Profissional Mestre
 
@@ -111,9 +113,10 @@ Detalhes, preços e justificativas em [monetizacao.md](monetizacao.md). Todos de
 | ID | Requisito | Regras |
 |---|---|---|
 | RF-26 | Planos e limites de uso. | **Gratuito**, por mês civil: 10 candidaturas assistidas (`POST /forms/mappings`, contada uma vez por origem + caminho da página), 5 sugestões de IA, 10 análises de vaga, 2 importações de currículo, banco de respostas até 15, 1 navegador conectado, com anúncios. **Plus**: R$ 9,90/mês ou R$ 99/ano, 7 dias grátis, sem anúncios, sem limites, até 3 navegadores. A web mostra o uso do mês e a extensão mostra um medidor. Ao exceder, a API responde `402 plan.limit_reached` com `resource`, `used` e `limit`, e os clientes oferecem recompensado, pacote ou Plus. O mesmo 402 vale para a 16ª resposta guardada (`answers`) e para o segundo navegador no Gratuito (`devices`). Cancelar volta ao Gratuito sem perder dados (na demonstração, na hora; em produção, no fim do período pago). Pagamento simulado (RN-13). Mudanças de plano geram `plan.changed`. |
-| RF-27 | (Should) Comprar pacote avulso. | R$ 4,90: +15 candidaturas assistidas e +10 sugestões de IA, válido por 60 dias, consumido depois do limite do mês e do bônus recompensado (RNF-16). Não cobre análises de vaga, importações, respostas nem navegadores. `POST /billing/packs` responde 201. Gera `pack.purchased`. |
+| RF-27 | (Should) Comprar pacote avulso. | R$ 4,90: +15 candidaturas assistidas e +10 sugestões de IA, válido por 60 dias, consumido depois do limite do mês e do bônus recompensado (RNF-16). Também pode ser comprado no Plus: os pacotes se somam (`packTotals`) e, enquanto o Plus estiver ativo, os créditos ficam guardados sem uso; valem se a pessoa voltar ao Gratuito antes de vencerem, e a tela diz isso antes da compra. Não cobre análises de vaga, importações, respostas nem navegadores. `POST /billing/packs` responde 201. Gera `pack.purchased`. |
 | RF-28 | (Could) Ganhar candidaturas com anúncio recompensado. | Opcional e iniciado pela pessoa. Cada oferta vista dá +3 candidaturas assistidas no mês, até 3 vezes (+9). Acima disso, `409 ads.rewarded_exhausted`. Só no plano Gratuito: no Plus, `409 ads.rewarded_unavailable`. Gera `rewarded.claimed`. |
 | RF-29 | (Should) Exibir anúncios no plano Gratuito. | Placements: `web.profile.rail`, `web.applications.feed`, `web.banner`, `ext.panel.banner`, `ext.job.contextual`, `ext.after-complete`. Formatos banner, nativo e contextual. Sempre "Patrocinado", com "Ocultar" (este anúncio por 30 dias ou este tema para sempre) e "Por que estou vendo isso?". `GET /ads` responde `204` quando não há anúncio, para Plus, para placement desconhecido ou proibido ou quando tudo está oculto, e `400` quando falta o placement. O contextual só aparece quando o texto do requisito casa com algum anúncio. Catálogo de demonstração com 16 anúncios. Exibição e clique contados de forma agregada. Regras RN-08 a RN-11. |
+| RF-31 | (Could) Trocar o período do Plus (mensal ⇄ anual). | Troca imediata, com estimativa antes de confirmar e o valor final depois. Rateio **simulado** (RN-13): crédito proporcional ao tempo que falta no ciclo atual, abatido do preço do novo período; resultado negativo vira crédito a favor da pessoa. No teste grátis só muda o período, sem valor. Sem Plus ou para o mesmo período: 422. Cada troca fica registrada (e na exportação) e gera `plan.period_changed`. |
 
 ## 4. Requisitos não funcionais
 
@@ -136,6 +139,7 @@ Detalhes, preços e justificativas em [monetizacao.md](monetizacao.md). Todos de
 | RNF-15 | Desempenho e confiabilidade | O anúncio nunca atrapalha a tela. | Carregado depois do conteúdo principal; erro, `204` ou timeout de 1,5 s no cliente fazem o espaço sumir sem quebrar o layout. `GET /ads` com p95 ≤ 200 ms. |
 | RNF-16 | Correção | Contagem de uso correta e idempotente. | Uma candidatura assistida conta uma vez por (pessoa, origem + caminho) no mês; consumo na ordem limite do mês → bônus recompensado → pacotes (o que vence antes primeiro). Testes de unidade e de integração. |
 | RNF-17 | Usabilidade | Onboarding retomável. | Progresso salvo no servidor a cada passo; fechar o navegador não perde respostas; navegação completa por teclado; "Preencher mais tarde" sempre visível. |
+| RNF-18 | Integridade | Gravação concorrente do Perfil Mestre nunca se perde em silêncio. | O perfil tem versão; uma alteração feita a partir de uma versão antiga (outra aba, outro aparelho) é recusada com 409 e a web pergunta à pessoa (recarregar, sobrescrever ou cancelar). Duas gravações simultâneas não se sobrescrevem sem aviso. Testes de integração. |
 
 ## 5. Regras de negócio
 
@@ -171,8 +175,8 @@ Por que as regras de anúncio são regras de negócio e não só de interface: e
 
 | DVP-E | Requisitos | Componente (DAT) | ADR | Testes |
 |---|---|---|---|---|
-| E1 | RF-01, RF-07, RF-08 | Web, API (módulos conta, consentimento, privacidade) | 0007, 0008, 0014 | CA-01, CA-07, CA-08 |
-| E2 | RF-02, RF-05, RF-06 | Web, API (perfil) | 0008 | CA-02, CA-05, CA-06 |
+| E1 | RF-01, RF-07, RF-08, RF-30 | Web, API (módulos conta, consentimento, privacidade) | 0007, 0008, 0014 | CA-01, CA-07, CA-08, CA-30 |
+| E2 | RF-02, RF-05, RF-06 | Web, API (perfil) | 0008 | CA-02, CA-05, CA-06; RNF-18 (CA-02.5) |
 | E3 | RF-03, RF-04 | API (importação), IA | 0004, 0005 | CA-03, CA-04, evals de extração |
 | E4 | RF-09 | Extensão, API (auth) | 0002, 0007 | CA-09 |
 | E5 | RF-10 a RF-14, RF-16, RF-18 | Extensão (crawler, conector), API (mapeamento), IA | 0002, 0004, 0006, 0009, 0010, 0011 | CA-10 a CA-14, CA-16, CA-18; evals de de-para |
@@ -182,7 +186,7 @@ Por que as regras de anúncio são regras de negócio e não só de interface: e
 | E9 | RF-20 | API (auditoria), Web | 0015 | CA-20 |
 | E10 | RF-23 | Web (boas-vindas), API (onboarding, perfil) | 0018 | CA-23, RNF-17 |
 | E11 | RF-24, RF-25 | Web, API (catálogo, perfil), IA (fatos), mapeamento | 0004, 0019 | CA-24, CA-25, TN-13 |
-| E12 | RF-26, RF-27, RF-28 | Web (planos), extensão (medidor), API (billing, uso) | 0020 | CA-26, CA-27, CA-28, TN-14 |
+| E12 | RF-26, RF-27, RF-28, RF-31 | Web (planos), extensão (medidor), API (billing, uso) | 0020 | CA-26, CA-27, CA-28, CA-31, TN-14 |
 | E13 | RF-29 | Web, extensão, API (anúncios) | 0015, 0020 | CA-29, TN-11, TN-12, TN-15 |
 
 Evidência da pesquisa por requisito novo (detalhes em [resultados-v2.md](../05-pesquisa/resultados-v2.md)):

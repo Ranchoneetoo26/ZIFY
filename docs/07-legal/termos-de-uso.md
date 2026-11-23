@@ -8,7 +8,7 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Termos de Uso |
-| Versão | 0.2 (rascunho) |
+| Versão | 0.3 (rascunho), identificador 2026-11-23 |
 | Status | Rascunho para revisão jurídica |
 | Dono | Product Owner (com Privacidade e segurança) |
 | Documentos relacionados | [Política de privacidade](politica-de-privacidade.md), [DVP-E](../01-produto/dvp-e.md), termos do marketplace em [`arquivo/marketplace-v1/`](../arquivo/marketplace-v1/termos-de-uso-e-privacidade.md) |
@@ -19,6 +19,7 @@
 |---|---|---|
 | 0.1 | 12/10/2026 | Primeiro rascunho para a Candidatura Assistida (MVP 1). |
 | 0.2 | 21/10/2026 | Cláusula 7 reescrita para os planos (Gratuito, Plus, pacote avulso), limites de uso, anúncios e pagamento simulado no ambiente de demonstração ([ADR-0020](../03-arquitetura/adr/0020-monetizacao-com-anuncios-e-planos.md)). |
+| 0.3 | 23/11/2026 | Cláusula 2.1 corrigida para o que o produto faz: conta com e-mail e senha (não existe login Google) e confirmação do e-mail recomendada, sem bloquear o uso. Identificador da versão `2026-11-23`, o mesmo gravado no aceite do cadastro. |
 
 ## 1. O que é o Zyft
 
@@ -30,7 +31,7 @@
 
 ## 2. Cadastro
 
-2.1. Para usar o Zyft você precisa de uma conta, criada com e-mail verificado ou com login Google.
+2.1. Para usar o Zyft você precisa de uma conta, criada com e-mail e senha. Ao criar a conta, enviamos um link para você confirmar o e-mail. A confirmação é recomendada, mas não impede o uso da conta.
 
 2.2. Você é responsável por manter seu acesso seguro e por avisar o Zyft se suspeitar de uso indevido da sua conta.
 

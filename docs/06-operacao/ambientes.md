@@ -6,7 +6,7 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Ambientes, deploy e publicação |
-| Versão | 1.0 |
+| Versão | 1.1 |
 | Status | Proposta (depende dos ADRs 0003, 0005, 0007 e 0008) |
 | Dono | Arquiteto de software |
 | Documentos relacionados | [DAT](../03-arquitetura/dat.md), [Runbook local](runbook-local.md), [Segurança](../03-arquitetura/seguranca.md), [Estratégia de testes](../04-qualidade/estrategia-de-testes.md) |
@@ -16,6 +16,7 @@
 | Versão | Data | Alteração |
 |---|---|---|
 | 1.0 | 12/10/2026 | Ambientes, variáveis, pipeline, publicação da extensão, backups e segredos. |
+| 1.1 | 23/11/2026 | E-mail transacional: `EMAIL_PROVIDER_KEY` substituída pelas variáveis reais do envio por SMTP da API .NET (`Email__Smtp__*`, §2.1). |
 
 ## 1. Ambientes
 
@@ -51,10 +52,29 @@ Variáveis de ambiente da API (nomes propostos; valores no gerenciador de segred
 | `LLM_MODEL` | Modelo usado | Não |
 | `LLM_API_KEY` | Chave do servidor de inferência, se houver | Sim |
 | `LLM_TIMEOUT_MS` | Tempo limite por chamada | Não |
-| `EMAIL_PROVIDER_KEY` | E-mail transacional (verificação) | Sim |
+| `Email__Smtp__*` | E-mail transacional (verificação e redefinição de senha); detalhes na §2.1 | Só `Email__Smtp__Password` |
 | `LOG_LEVEL` | Nível de log | Não |
 
 O protótipo usa `OLLAMA_URL`, `OLLAMA_MODEL`, `PORT` e `DATA_DIR`; esses nomes serão mapeados para os acima na migração ([ADR-0003](../03-arquitetura/adr/0003-monorepo-typescript-node.md)).
+
+### 2.1 E-mail transacional (API .NET)
+
+A API envia os e-mails da conta por SMTP quando `Email__Smtp__Host` está preenchido; sem ele, não envia nada e só registra que o e-mail foi gerado. O provedor de produção ainda não foi escolhido nem contratado ([segurança §3.3](../03-arquitetura/seguranca.md)); ao contratar, ele entra como operador na política de privacidade e o domínio do remetente precisa de SPF, DKIM e DMARC.
+
+| Variável | Descrição | Padrão | Segredo? |
+|---|---|---|---|
+| `Email__Smtp__Host` | Servidor SMTP do provedor. Preenchido liga o envio real | vazio (sem envio) | Não |
+| `Email__Smtp__Port` | Porta | `587` | Não |
+| `Email__Smtp__EnableSsl` | TLS (STARTTLS na 587). `false` só para servidor local de teste | `true` | Não |
+| `Email__Smtp__Username` | Usuário do SMTP, se o provedor exigir | vazio | Não |
+| `Email__Smtp__Password` | Senha ou chave do SMTP. Obrigatória com `Username`; só no gerenciador de segredos | vazio | **Sim** |
+| `Email__Smtp__FromAddress` | Remetente (ex.: `nao-responda@` do domínio do Zyft). Obrigatório com `Host` | vazio | Não |
+| `Email__Smtp__FromName` | Nome do remetente | `Zyft` | Não |
+| `Email__Smtp__TimeoutSeconds` | Tempo máximo de uma entrega | `15` | Não |
+| `App__WebBaseUrl` | Endereço da plataforma web usado nos links dos e-mails | `http://localhost:5080` | Não |
+| `Email__LogLinks` | Registra o link com token no log. **Só em desenvolvimento local**; nunca em Homologação ou Produção | `false` | Não |
+
+Com `Email__Smtp__Host` preenchido e `FromAddress` ausente (ou usuário sem senha), a API não sobe e diz qual chave falta. Falha do provedor não derruba o cadastro nem o "Esqueci minha senha": vira aviso no log, sem endereço, nome ou token. Para testar localmente, veja o [runbook §2.3](runbook-local.md).
 
 ## 3. Pipeline
 

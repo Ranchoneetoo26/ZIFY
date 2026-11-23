@@ -29,7 +29,7 @@ public sealed class MapFieldsValidator : AbstractValidator<MapFieldsCommand>
     public MapFieldsValidator()
     {
         RuleFor(x => x.PageUrl).MaximumLength(2000)
-            .Must(u => u is null || Uri.TryCreate(u, UriKind.Absolute, out _)).WithMessage("pageUrl deve ser uma URL absoluta.");
+            .Must(u => u is null || Uri.TryCreate(u, UriKind.Absolute, out _)).WithMessage("O endereço da página deve ser uma URL absoluta.");
         RuleFor(x => x.Fields).NotNull().WithMessage("Envie os campos do formulário.")
             .Must(f => f is { Count: > 0 }).WithMessage("Envie pelo menos um campo.")
             .Must(f => f is null || f.Count <= MaxFields).WithMessage($"No máximo {MaxFields} campos por requisição.")
@@ -114,8 +114,8 @@ public sealed class OpenAnswerValidator : AbstractValidator<OpenAnswerCommand>
     {
         RuleFor(x => x.Question).NotEmpty().WithMessage("Informe a pergunta.").MaximumLength(1000);
         // null ou 0 = campo sem limite (D-03); com limite, entre 20 e 10000.
-        RuleFor(x => x.MaxLength).InclusiveBetween(20, 10000).When(x => x.MaxLength is > 0).WithMessage("maxLength deve estar entre 20 e 10000 (ou 0/null para sem limite).")
-            .GreaterThanOrEqualTo(0).WithMessage("maxLength não pode ser negativo.");
+        RuleFor(x => x.MaxLength).InclusiveBetween(20, 10000).When(x => x.MaxLength is > 0).WithMessage("O limite de caracteres deve estar entre 20 e 10000 (ou 0 para sem limite).")
+            .GreaterThanOrEqualTo(0).WithMessage("O limite de caracteres não pode ser negativo.");
         RuleFor(x => x.JobText).MaximumLength(20000);
     }
 }
@@ -196,8 +196,8 @@ public sealed class CompleteFormValidator : AbstractValidator<CompleteFormComman
         RuleFor(x => x.Portal).NotEmpty().WithMessage("Informe o portal.").MaximumLength(200);
         RuleFor(x => x.JobTitle).NotEmpty().WithMessage("Informe o cargo.").MaximumLength(300);
         RuleFor(x => x.Company).MaximumLength(200);
-        RuleFor(x => x.JobUrl).MaximumLength(2000).Must(u => u is null || Uri.TryCreate(u, UriKind.Absolute, out _)).WithMessage("jobUrl deve ser uma URL absoluta.");
-        RuleFor(x => x.FieldsFilled).InclusiveBetween(0, 1000).WithMessage("fieldsFilled deve estar entre 0 e 1000.");
+        RuleFor(x => x.JobUrl).MaximumLength(2000).Must(u => u is null || Uri.TryCreate(u, UriKind.Absolute, out _)).WithMessage("O endereço da vaga deve ser uma URL absoluta.");
+        RuleFor(x => x.FieldsFilled).InclusiveBetween(0, 1000).WithMessage("A quantidade de campos preenchidos deve estar entre 0 e 1000.");
     }
 }
 
