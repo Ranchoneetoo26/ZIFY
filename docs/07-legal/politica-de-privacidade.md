@@ -8,7 +8,7 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Política de Privacidade |
-| Versão | 0.3 (rascunho) |
+| Versão | 0.4 (rascunho), identificador 2026-11-23 |
 | Status | Rascunho para revisão jurídica |
 | Dono | Privacidade e segurança (encarregado a nomear) |
 | Documentos relacionados | [Termos de uso](termos-de-uso.md), [Segurança](../03-arquitetura/seguranca.md), [Modelo de dados](../03-arquitetura/modelo-de-dados.md), ADRs [0010](../03-arquitetura/adr/0010-sem-credenciais-sem-contorno-de-seguranca-campos-bloqueados.md), [0014](../03-arquitetura/adr/0014-dados-sensiveis-segregados-e-criptografados.md), [0015](../03-arquitetura/adr/0015-observabilidade-sem-dados-pessoais.md) |
@@ -20,6 +20,7 @@
 | 0.1 | 12/10/2026 | Primeiro rascunho para a Candidatura Assistida (MVP 1). |
 | 0.2 | 21/10/2026 | Versão 2 do produto: anúncios no plano gratuito sem dado pessoal identificável (seção 6.1), planos e pagamento simulado (seção 6.2), área profissional e campos personalizados no Perfil Mestre. Corrigida a frase sobre publicidade do resumo e da seção 10. Ver [ADR-0019](../03-arquitetura/adr/0019-area-profissional-dinamica-e-campos-personalizados.md) e [ADR-0020](../03-arquitetura/adr/0020-monetizacao-com-anuncios-e-planos.md). |
 | 0.3 | 22/10/2026 | Nova seção 6.3 sobre a rede de anúncios do Google (AdSense), ainda **simulada**: nada é enviado ao Google; o que mudaria (consentimento de cookies, operador, transferência internacional) antes de ativar. Ver [ADR-0021](../03-arquitetura/adr/0021-rede-de-anuncios-google-adsense.md). |
+| 0.4 | 23/11/2026 | Sem login Google (seções 3 e 6). Conta guarda confirmação do e-mail e aceite dos termos. Operador de e-mail cobre confirmação e redefinição de senha. Retenção dos links de e-mail, do histórico do Plus e do rascunho do onboarding guardado no navegador. Identificador `2026-11-23`, o mesmo dos termos. |
 
 ## 1. Quem somos
 
@@ -39,7 +40,7 @@ O Zyft *(razão social e CNPJ a definir)* é o **controlador** dos dados pessoai
 
 | Categoria | Exemplos | De onde vem | Finalidade |
 |---|---|---|---|
-| Conta | E-mail, nome, identificador do login Google | Você | Criar e proteger sua conta |
+| Conta | E-mail, nome, senha (guardada só como hash), data da confirmação do e-mail, versão e data do aceite dos termos | Você | Criar e proteger sua conta |
 | Perfil Mestre | Contato, localização, área profissional, registro profissional, objetivo, experiências, formação, cursos, certificações, competências, idiomas, links, preferências (disponibilidade, pretensão salarial, viagens, mudança, tipos de contrato, CNH), campos personalizados ("Informações da sua área") | Você ou o currículo que você importar | Preencher candidaturas com sua aprovação |
 | Currículo importado | Texto extraído do PDF ou DOCX | Você | Gerar a proposta de perfil para revisão. **O arquivo não é guardado após a importação.** |
 | Respostas aprovadas | Textos que você aprovou para perguntas recorrentes | Você | Reaproveitar em perguntas parecidas, com revisão |
@@ -79,8 +80,7 @@ Não vendemos nem alugamos dados pessoais. Compartilhamos apenas com **operadore
 |---|---|---|
 | Provedor de nuvem | Hospedagem da API, plataforma e banco de dados | A definir |
 | Infraestrutura de IA | Execução do modelo de linguagem | A definir |
-| E-mail transacional | Envio de e-mails de verificação e avisos | A definir |
-| Login Google (opcional) | Autenticação, se você escolher | Google |
+| E-mail transacional | Envio dos e-mails de confirmação de e-mail e de redefinição de senha | A definir |
 
 Se houver transferência internacional, ela seguirá os mecanismos do art. 33 da LGPD.
 
@@ -116,6 +116,9 @@ No ambiente de demonstração, a assinatura do Plus e a compra de pacotes são *
 | Arquivo de currículo | Não é guardado; o texto da proposta é descartado após a revisão |
 | Registro de ações | Enquanto a conta existir, limitado aos últimos 12 meses *(a confirmar)* |
 | Logs técnicos sem conteúdo | Até 30 dias |
+| Links de confirmação de e-mail e de redefinição de senha | Guardados só como hash. Valem 24 horas (confirmação) e 30 minutos (senha), servem uma única vez e são apagados com a conta |
+| Histórico de troca de período do Plus | Enquanto a conta existir; entra na exportação dos seus dados |
+| Rascunho do onboarding no seu navegador | Fica só no navegador que você usou, até você concluir o onboarding, clicar em **Sair** ou passar 7 dias. Não vai para o servidor antes de você salvar. Em computador compartilhado, clique em **Sair** ao terminar |
 | Backups | Expiram no ciclo de retenção (7 dias); dados excluídos não são restaurados |
 
 Ao excluir a conta, os dados são apagados imediatamente do banco principal.

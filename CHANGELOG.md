@@ -4,6 +4,13 @@ Mudanças relevantes do projeto. O formato segue o [Keep a Changelog](https://ke
 
 ## [Não lançado]
 
+### Alterado (textos legais e versão dos termos, 23/11/2026)
+- Termos de uso 0.3 e política de privacidade 0.4 (ainda rascunho para revisão jurídica): sem login Google, que não existe; conta com e-mail e senha e confirmação do e-mail recomendada, sem bloquear o uso; a política cita hash da senha, confirmação do e-mail e aceite dos termos, o operador de e-mail para confirmação e redefinição de senha, e a retenção dos links de e-mail, do histórico do Plus e do rascunho do onboarding guardado no navegador. Cópias em `docs/07-legal/` e `web/legal/`.
+- `Terms.CurrentVersion` passa a `2026-11-23`, o identificador mostrado nas duas páginas. Contas antigas mantêm a versão que aceitaram; o cadastro novo exige a atual.
+- [Pendências de revisão](docs/07-legal/pendencias-de-revisao.md) 1.1: L3 a L5 e L8 a L10 resolvidos; continuam abertos a revisão jurídica e o aviso de rascunho (L1, L2), o provedor de e-mail de produção (L6) e o aviso de mudança a quem já tem conta (L7).
+- `README.md` atualizado: 84 operações, 27 tabelas, 397 testes, extensão 0.4.1.
+- Web e extensão mandam `ngrok-skip-browser-warning` em toda chamada à API, para a demonstração por túnel ngrok gratuito não parar na página de aviso.
+
 ### Adicionado (envio real de e-mail, 23/11/2026)
 - E-mail por SMTP (RF-01, RF-30): `SmtpEmailSender` (`System.Net.Mail`, sem pacote novo) entra no lugar do `LoggingEmailSender` quando `Email:Smtp:Host` está configurado. Opções `Email:Smtp`: `Host`, `Port` (587), `Username`, `Password` (só por `Email__Smtp__Password`), `EnableSsl` (`true`), `FromAddress` (obrigatório), `FromName` (`Zyft`) e `TimeoutSeconds` (15), validadas na subida. Mensagens em pt-BR com texto e HTML (`EmailMessages`): "Confirme seu e-mail no Zyft" (link de 24 h) e "Redefinir sua senha do Zyft" (link de 30 min); o link sai do mesmo `EmailMessages.Link` nas duas implementações e o nome é codificado no HTML. Falha de envio vira aviso no log sem endereço, nome ou token, e o cadastro e o `forgot` (sempre 202) respondem igual. Sem o host, nada muda: o desenvolvimento continua com `Email:LogLinks`. Testes: 13 de unidade (`Infrastructure/EmailTests`) e 3 de integração (`SmtpEmailTests`) com servidor SMTP falso em processo (`SmtpStub`), sem Docker; suíte com 397 testes. Conferido à mão com o Mailpit. Documentação: backend 3.5, segurança 2.5 (lacuna do e-mail reescrita: falta escolher e contratar o provedor de produção), API 2.6, runbook 3.5 (§2.3, Mailpit) e ambientes 1.1.
 

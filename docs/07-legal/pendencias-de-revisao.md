@@ -6,8 +6,8 @@
 |---|---|
 | Projeto | Zyft — Candidatura Assistida |
 | Documento | Lista do que revisar nos termos de uso e na política de privacidade antes de publicar |
-| Versão | 1.0 |
-| Status | Aberto. Nenhum item foi resolvido no texto legal: esta lista só aponta o que mudou no produto e o que o texto ainda diz |
+| Versão | 1.1 |
+| Status | Aberto. Os erros de fato (L3 a L5, L8 a L10) foram corrigidos em 23/11/2026; continuam abertos a revisão jurídica (L1, L2), o provedor de e-mail (L6) e o aviso de mudança a quem já tem conta (L7) |
 | Dono | Product Owner, com Privacidade e segurança (encarregado a nomear) |
 | Documentos relacionados | [Termos de uso](termos-de-uso.md), [Política de privacidade](politica-de-privacidade.md), páginas `web/legal/termos.html` e `web/legal/privacidade.html`, [Segurança](../03-arquitetura/seguranca.md), [Frontend web §8](../03-arquitetura/frontend-web.md), [API §4.8 a §4.13](../03-arquitetura/api.md) |
 
@@ -16,6 +16,7 @@
 | Versão | Data | Alteração |
 |---|---|---|
 | 1.0 | 02/11/2026 | Primeira lista, depois da verificação de e-mail, do aceite dos termos com versão, da troca e recuperação de senha e do rascunho do onboarding em `localStorage`. Cada item foi conferido por busca nos arquivos citados. |
+| 1.1 | 23/11/2026 | Correção dos erros de fato nos dois textos (termos 0.3, privacidade 0.4) e identificador comum `2026-11-23`. Seção "Situação" com o que foi resolvido e o que continua aberto. |
 
 ## Como usar
 
@@ -35,6 +36,19 @@ Os textos legais são rascunho e **não foram reescritos** nesta rodada: mudar c
 | L8 | `src/Zyft.Domain/Users/User.cs`, `Terms.CurrentVersion = "2026-10-22"` (devolvido por `GET /auth/terms` e gravado em cada conta) | Os textos não mostram esse identificador: as páginas dizem "Versão 0.2 (rascunho)" (termos, última mudança em 21/10/2026) e "Versão 0.3 (rascunho)" (privacidade, 22/10/2026) | O aceite registra `2026-10-22` como a versão aceita dos **dois** textos | Ao publicar, a constante precisa identificar exatamente o par de textos publicado. Sugestão: mostrar o mesmo identificador nas duas páginas e trocar a constante no mesmo PR de qualquer mudança nos textos |
 | L9 | Privacidade, seções 3 (dados), 7 (retenção) e 8 (segurança) | Nada sobre dados guardados no navegador da pessoa | Desde 02/11/2026 o **rascunho do onboarding** fica em `localStorage` (`zyft.onboarding.draft.<id>`): o que a pessoa digitou e ainda não salvou (empresa, cargo, atividades, formação, idiomas…), por até 7 dias. Some ao concluir o onboarding e ao clicar em **Sair**, mas **não** ao fechar o navegador nem quando a sessão expira. Em computador compartilhado, outra pessoa pode ler | Parecer de privacidade sobre manter isso (ver [segurança T31](../03-arquitetura/seguranca.md) e [frontend §8](../03-arquitetura/frontend-web.md)). Se mantido, a política precisa dizer o que fica no navegador, por quanto tempo e como apagar; avaliar o mesmo para o refresh token em `sessionStorage` |
 | L10 | Privacidade, seção 7 (retenção) | Não cita tokens de e-mail nem o histórico de troca de período do Plus | `UserTokens` (só o hash, uso único; a linha fica até a conta ser excluída) e `SubscriptionPeriodChanges` (enquanto a conta existir, também na exportação) | Incluir na tabela de retenção, ou decidir uma limpeza periódica dos tokens usados ou vencidos |
+
+## Situação em 23/11/2026
+
+| # | Situação |
+|---|---|
+| L1, L2 | **Aberto.** Os avisos de rascunho continuam nas duas cópias. Tirar o aviso depende de revisão jurídica, do encarregado nomeado e do RIPD, que não são decisões do time de desenvolvimento |
+| L3 | Resolvido: a 2.1 diz conta com e-mail e senha e confirmação recomendada, sem bloquear o uso |
+| L4, L5 | Resolvido: sem login Google; a linha "Conta" cita hash da senha, confirmação do e-mail e aceite dos termos |
+| L6 | Parcial: o operador cobre confirmação e redefinição de senha. A API já envia por SMTP quando configurada; o provedor de produção continua a definir |
+| L7 | **Aberto.** Falta decidir como avisar quem já tem conta e se haverá novo aceite no login |
+| L8 | Resolvido: as duas páginas mostram o identificador `2026-11-23`, o mesmo de `Terms.CurrentVersion` |
+| L9 | Resolvido no texto: a retenção explica o rascunho guardado no navegador e como apagar. O parecer de privacidade (segurança T31) continua recomendado |
+| L10 | Resolvido: a retenção cita os links de e-mail e o histórico de troca de período do Plus |
 
 ## Fora desta lista
 
