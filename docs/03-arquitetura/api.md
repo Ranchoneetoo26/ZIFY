@@ -378,7 +378,7 @@ O cadastro gera um token de uso único (só o hash SHA-256 fica no banco, tabela
 
 ### 4.9 Aceite dos termos no cadastro (RF-01)
 
-`POST /auth/register` passa a exigir `"acceptTerms": true` e `"termsVersion"` igual à versão vigente, que `GET /auth/terms` (público) devolve como `{ "version": "2026-10-22" }`. Erros `400`: `errors.acceptTerms` "Aceite os termos de uso e a política de privacidade."; `errors.termsVersion` "Informe a versão dos termos aceita." ou "Os termos foram atualizados. Recarregue a página e aceite a versão atual.". A conta guarda `TermsVersion` e `TermsAcceptedAt` (colunas em `Users`) e o registro ganha `termos.aceitos`. `GET /me` expõe `termsVersion` e `termsAcceptedAt` (omitidos em contas antigas, sem aceite registrado).
+`POST /auth/register` passa a exigir `"acceptTerms": true` e `"termsVersion"` igual à versão vigente, que `GET /auth/terms` (público) devolve como `{ "version": "2026-11-23" }`. Erros `400`: `errors.acceptTerms` "Aceite os termos de uso e a política de privacidade."; `errors.termsVersion` "Informe a versão dos termos aceita." ou "Os termos foram atualizados. Recarregue a página e aceite a versão atual.". A conta guarda `TermsVersion` e `TermsAcceptedAt` (colunas em `Users`) e o registro ganha `termos.aceitos`. `GET /me` expõe `termsVersion` e `termsAcceptedAt` (omitidos em contas antigas, sem aceite registrado).
 
 ### 4.10 Concorrência otimista do Perfil Mestre (RNF-18)
 

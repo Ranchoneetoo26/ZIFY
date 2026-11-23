@@ -59,7 +59,7 @@ public class AccountSecurityTests
     {
         var u = User.Create("a@b.com", "Ana", "hash");
         u.AcceptTerms(Terms.CurrentVersion, Now);
-        u.TermsVersion.Should().Be("2026-10-22");
+        u.TermsVersion.Should().Be("2026-11-23");
         u.TermsAcceptedAt.Should().Be(Now);
     }
 

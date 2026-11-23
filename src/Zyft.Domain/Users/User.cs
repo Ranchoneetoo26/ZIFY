@@ -5,7 +5,7 @@ namespace Zyft.Domain.Users;
 /// <summary>Termos de uso e política de privacidade vigentes (docs/07-legal). Mudar a versão exige novo aceite no cadastro.</summary>
 public static class Terms
 {
-    public const string CurrentVersion = "2026-10-22";
+    public const string CurrentVersion = "2026-11-23";
 }
 
 /// <summary>Conta da pessoa candidata. A exclusão (RF-08) remove a conta e tudo o que depende dela.</summary>
@@ -22,7 +22,7 @@ public sealed class User : Entity
 
     public bool IsEmailVerified => EmailVerifiedAt is not null;
 
-    /// <summary>Versão dos termos de uso e da política de privacidade aceita no cadastro (ex.: <c>2026-10-22</c>).</summary>
+    /// <summary>Versão dos termos de uso e da política de privacidade aceita no cadastro (ex.: <c>2026-11-23</c>).</summary>
     public string? TermsVersion { get; private set; }
 
     public DateTime? TermsAcceptedAt { get; private set; }

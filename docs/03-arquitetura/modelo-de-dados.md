@@ -245,7 +245,7 @@ Migrations `20261102183823_VerificacaoDeEmail`, `20261102184148_AceiteDosTermos`
 | Tabela | Coluna | Tipo | Nulo | Regra |
 |---|---|---|---|---|
 | `Users` | `EmailVerifiedAt` | timestamptz | sim | Data da confirmação pelo link. Nulo = não verificado, só informativo (RF-01) |
-| `Users` | `TermsVersion` | varchar(20) | sim | Versão dos termos aceita no cadastro (hoje `2026-10-22`). Nula em contas anteriores ao aceite |
+| `Users` | `TermsVersion` | varchar(20) | sim | Versão dos termos aceita no cadastro (hoje `2026-11-23`). Nula em contas anteriores ao aceite |
 | `Users` | `TermsAcceptedAt` | timestamptz | sim | Data do aceite |
 | `Profiles` | `Version` | integer | não (padrão 0) | Sobe a cada alteração do perfil ou de um item; token de concorrência do EF, exposto como `ETag` (RNF-18) |
 | `UserTokens` | `UserId` | uuid | não | FK → `Users`, cascade |
